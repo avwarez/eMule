@@ -57,7 +57,7 @@
 #include "shahashset.h"
 #include "Log.h"
 #include "CaptchaGenerator.h"
-#include "CxImage/xImage.h"
+#include <atlimage.h>
 #include "zlib/zlib.h"
 
 #ifdef _DEBUG
@@ -65,6 +65,60 @@
 #undef THIS_FILE
 static char THIS_FILE[] = __FILE__;
 #endif
+
+// --- GDI+ image helpers (PNG encode/decode, no external libraries) ---
+
+// Encode a GDI+ Bitmap to PNG bytes in a malloc'd buffer (caller must free with free()).
+// Returns true on success; pOut and nSize are set only on success.
+static bool GdipBitmapToPNG(Gdiplus::Bitmap *bmp, BYTE *&pOut, int &nSize)
+{
+	// Find the PNG encoder CLSID
+	UINT nEncoders = 0, nInfoSize = 0;
+	Gdiplus::GetImageEncodersSize(&nEncoders, &nInfoSize);
+	auto *pInfo = (Gdiplus::ImageCodecInfo *)malloc(nInfoSize);
+	if (!pInfo) return false;
+	Gdiplus::GetImageEncoders(nEncoders, nInfoSize, pInfo);
+	CLSID clsid = {};
+	for (UINT i = 0; i < nEncoders; ++i)
+		if (wcscmp(pInfo[i].MimeType, L"image/png") == 0) { clsid = pInfo[i].Clsid; break; }
+	free(pInfo);
+
+	IStream *pStream = nullptr;
+	if (FAILED(CreateStreamOnHGlobal(NULL, TRUE, &pStream))) return false;
+	bool ok = (bmp->Save(pStream, &clsid) == Gdiplus::Ok);
+	if (ok) {
+		STATSTG st{};
+		pStream->Stat(&st, STATFLAG_NONAME);
+		nSize = (int)st.cbSize.LowPart;
+		pOut = (BYTE *)malloc(nSize);
+		if (pOut) {
+			LARGE_INTEGER li{};
+			pStream->Seek(li, STREAM_SEEK_SET, nullptr);
+			ULONG nRead = 0;
+			pStream->Read(pOut, nSize, &nRead);
+			ok = (nRead == (ULONG)nSize);
+		} else ok = false;
+	}
+	pStream->Release();
+	return ok;
+}
+
+// Decode any image format (PNG, BMP) from a memory buffer into a GDI+ Bitmap.
+// Returns nullptr on failure; caller must delete the returned object.
+// GDI+ must be active in the calling scope.
+static Gdiplus::Bitmap *GdipBitmapFromMemory(const BYTE *pData, UINT nSize)
+{
+	IStream *pStream = nullptr;
+	if (FAILED(CreateStreamOnHGlobal(NULL, TRUE, &pStream))) return nullptr;
+	ULONG nWritten = 0;
+	pStream->Write(pData, nSize, &nWritten);
+	LARGE_INTEGER li{};
+	pStream->Seek(li, STREAM_SEEK_SET, nullptr);
+	Gdiplus::Bitmap *bmp = Gdiplus::Bitmap::FromStream(pStream);
+	pStream->Release();
+	if (!bmp || bmp->GetLastStatus() != Gdiplus::Ok) { delete bmp; return nullptr; }
+	return bmp;
+}
 
 #define URLINDICATOR	_T("http:|www.|.de |.net |.com |.org |.to |.tk |.cc |.fr |ftp:|ed2k:|https:|ftp.|.info|.biz|.uk|.eu|.es|.tv|.cn|.tw|.ws|.nu|.jp")
 
@@ -2070,7 +2124,7 @@ void CUpDownClient::SendPreviewRequest(const CAbstractFile &rForFile)
 		LogWarning(LOG_STATUSBAR, GetResString(IDS_ERR_PREVIEWALREADY));
 }
 
-void CUpDownClient::SendPreviewAnswer(const CKnownFile *pForFile, CxImage **imgFrames, uint8 nCount)
+void CUpDownClient::SendPreviewAnswer(const CKnownFile *pForFile, HBITMAP *imgFrames, uint8 nCount)
 {
 	m_fPreviewAnsPending = 0;
 	CSafeMemFile data(1024);
@@ -2081,26 +2135,32 @@ void CUpDownClient::SendPreviewAnswer(const CKnownFile *pForFile, CxImage **imgF
 		data.WriteHash16(_aucZeroHash);
 	}
 	data.WriteUInt8(nCount);
+
+	ULONG_PTR gdipToken = 0;
+	Gdiplus::GdiplusStartupInput gdipInput;
+	if (Gdiplus::GdiplusStartup(&gdipToken, &gdipInput, NULL) != Gdiplus::Ok) {
+		ASSERT(0);
+		return;
+	}
+
 	for (int i = 0; i < nCount; ++i) {
-		if (imgFrames == NULL) {
-			ASSERT(0);
-			return;
-		}
-		CxImage *cur_frame = imgFrames[i];
-		if (cur_frame == NULL) {
-			ASSERT(0);
-			return;
-		}
+		if (!imgFrames || !imgFrames[i]) { ASSERT(0); Gdiplus::GdiplusShutdown(gdipToken); return; }
+
+		Gdiplus::Bitmap *bmp = Gdiplus::Bitmap::FromHBITMAP(imgFrames[i], NULL);
+		if (!bmp || bmp->GetLastStatus() != Gdiplus::Ok) { delete bmp; ASSERT(0); Gdiplus::GdiplusShutdown(gdipToken); return; }
+
 		BYTE *abyResultBuffer = NULL;
-		int32_t nResultSize = 0;
-		if (!cur_frame->Encode(abyResultBuffer, nResultSize, CXIMAGE_FORMAT_PNG)) {
-			ASSERT(0);
-			return;
+		int nResultSize = 0;
+		if (!GdipBitmapToPNG(bmp, abyResultBuffer, nResultSize)) {
+			delete bmp; ASSERT(0); Gdiplus::GdiplusShutdown(gdipToken); return;
 		}
+		delete bmp;
 		data.WriteUInt32(nResultSize);
 		data.Write(abyResultBuffer, nResultSize);
 		free(abyResultBuffer);
 	}
+	Gdiplus::GdiplusShutdown(gdipToken);
+
 	Packet *packet = new Packet(data, OP_EMULEPROT);
 	packet->opcode = OP_PREVIEWANSWER;
 	if (thePrefs.GetDebugClientTCPLevel() > 0)
@@ -2143,6 +2203,10 @@ void CUpDownClient::ProcessPreviewAnswer(const uchar *pachPacket, uint32 nSize)
 		//already deleted
 		return;
 
+	ULONG_PTR gdipToken = 0;
+	Gdiplus::GdiplusStartupInput gdipInput;
+	Gdiplus::GdiplusStartup(&gdipToken, &gdipInput, NULL);
+
 	BYTE *pBuffer = NULL;
 	try {
 		for (int i = 0; i < nCount; ++i) {
@@ -2151,18 +2215,23 @@ void CUpDownClient::ProcessPreviewAnswer(const uchar *pachPacket, uint32 nSize)
 				throwCStr(_T("CUpDownClient::ProcessPreviewAnswer - Provided image size exceeds limit"));
 			pBuffer = new BYTE[nImgSize];
 			data.Read(pBuffer, nImgSize);
-			CxImage *image = new CxImage(pBuffer, nImgSize, CXIMAGE_FORMAT_PNG);
+			Gdiplus::Bitmap *bmp = GdipBitmapFromMemory(pBuffer, nImgSize);
 			delete[] pBuffer;
 			pBuffer = NULL;
-			if (image->IsValid())
-				sfile->AddPreviewImg(image);
-			else
-				delete image;
+			if (bmp) {
+				HBITMAP hbmp = NULL;
+				bmp->GetHBITMAP(Gdiplus::Color(255, 255, 255), &hbmp);
+				delete bmp;
+				if (hbmp)
+					sfile->AddPreviewImg(hbmp);
+			}
 		}
 	} catch (...) {
 		delete[] pBuffer;
+		Gdiplus::GdiplusShutdown(gdipToken);
 		throw;
 	}
+	Gdiplus::GdiplusShutdown(gdipToken);
 	(new PreviewDlg())->SetFile(sfile);
 }
 
@@ -2776,20 +2845,29 @@ void CUpDownClient::ProcessCaptchaRequest(CSafeMemFile &data)
 		if (nSize > 128 && nSize < 4096) {
 			ULONGLONG pos = data.GetPosition();
 			BYTE *byBuffer = data.Detach();
-			CxImage imgCaptcha(&byBuffer[pos], nSize, CXIMAGE_FORMAT_BMP);
-			//free(byBuffer);
-			if (imgCaptcha.IsValid() && imgCaptcha.GetHeight() > 10 && imgCaptcha.GetHeight() < 50
-				&& imgCaptcha.GetWidth() > 10 && imgCaptcha.GetWidth() < 150)
-			{
-				HBITMAP hbmp = imgCaptcha.MakeBitmap();
-				if (hbmp != NULL) {
-					m_eChatCaptchaState = CA_CAPTCHARECV;
-					theApp.emuledlg->chatwnd->chatselector.ShowCaptchaRequest(this, hbmp);
-					::DeleteObject(hbmp);
+
+			ULONG_PTR gdipToken = 0;
+			Gdiplus::GdiplusStartupInput gdipInput;
+			if (Gdiplus::GdiplusStartup(&gdipToken, &gdipInput, NULL) == Gdiplus::Ok) {
+				Gdiplus::Bitmap *imgCaptcha = GdipBitmapFromMemory(&byBuffer[pos], nSize);
+				if (imgCaptcha &&
+					imgCaptcha->GetHeight() > 10 && imgCaptcha->GetHeight() < 50 &&
+					imgCaptcha->GetWidth()  > 10 && imgCaptcha->GetWidth()  < 150)
+				{
+					HBITMAP hbmp = NULL;
+					imgCaptcha->GetHBITMAP(Gdiplus::Color(255, 255, 255), &hbmp);
+					if (hbmp != NULL) {
+						m_eChatCaptchaState = CA_CAPTCHARECV;
+						theApp.emuledlg->chatwnd->chatselector.ShowCaptchaRequest(this, hbmp);
+						::DeleteObject(hbmp);
+					} else
+						DebugLogWarning(_T("Received captcha request from client, Creating bitmap failed (%s)"), (LPCTSTR)DbgGetClientInfo());
 				} else
-					DebugLogWarning(_T("Received captcha request from client, Creating bitmap failed (%s)"), (LPCTSTR)DbgGetClientInfo());
-			} else
-				DebugLogWarning(_T("Received captcha request from client, processing image failed or invalid pixel size (%s)"), (LPCTSTR)DbgGetClientInfo());
+					DebugLogWarning(_T("Received captcha request from client, processing image failed or invalid pixel size (%s)"), (LPCTSTR)DbgGetClientInfo());
+				delete imgCaptcha;
+				Gdiplus::GdiplusShutdown(gdipToken);
+			}
+			free(byBuffer);
 		} else
 			DebugLogWarning(_T("Received captcha request from client, size sanitize check failed (%u) (%s)"), nSize, (LPCTSTR)DbgGetClientInfo());
 	} else

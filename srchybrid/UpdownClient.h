@@ -27,7 +27,6 @@ class CClientCredits;
 class CAbstractFile;
 class CKnownFile;
 class Packet;
-class CxImage;
 struct Requested_Block_Struct;
 class CSafeMemFile;
 class CEMSocket;
@@ -196,7 +195,7 @@ public:
 	bool			HasPassedSecureIdent(bool bPassIfUnavailable) const;
 	// preview
 	void			SendPreviewRequest(const CAbstractFile &rForFile);
-	void			SendPreviewAnswer(const CKnownFile *pForFile, CxImage **imgFrames, uint8 nCount);
+	void			SendPreviewAnswer(const CKnownFile *pForFile, HBITMAP *imgFrames, uint8 nCount);
 	void			ProcessPreviewReq(const uchar *pachPacket, uint32 nSize);
 	void			ProcessPreviewAnswer(const uchar *pachPacket, uint32 nSize);
 	bool			GetPreviewSupport() const						{ return m_fSupportsPreview && GetViewSharedFilesSupport(); }

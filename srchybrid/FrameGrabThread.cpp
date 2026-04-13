@@ -16,7 +16,8 @@
 //Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 #include "stdafx.h"
 #include "emule.h"
-#include "CxImage/xImage.h"
+#include <atlimage.h>
+#include <vector>
 #include "quantize.h"
 #include "FrameGrabThread.h"
 #include "OtherFunctions.h"
@@ -91,7 +92,7 @@ BOOL CFrameGrabThread::InitInstance()
 
 BOOL CFrameGrabThread::Run()
 {
-	imgResults = new CxImage*[nFramesToGrab]{};
+	imgResults = new HBITMAP[nFramesToGrab]{};
 	FrameGrabResult_Struct *result = new FrameGrabResult_Struct;
 	(void)CoInitialize(NULL);
 	result->nImagesGrabbed = (uint8)GrabFrames();
@@ -100,7 +101,7 @@ BOOL CFrameGrabThread::Run()
 	result->pSender = pSender;
 	if (!theApp.emuledlg->PostMessage(TM_FRAMEGRABFINISHED, (WPARAM)pOwner, (LPARAM)result)) {
 		for (int i = (int)result->nImagesGrabbed; --i >= 0;)
-			delete result->imgResults[i];
+			::DeleteObject(result->imgResults[i]);
 		delete[] result->imgResults;
 		delete result;
 	}
@@ -196,37 +197,125 @@ UINT CFrameGrabThread::GrabFrames()
 					break;
 				}
 
-				// decode
-				CxImage *imgResult = new CxImage();
-				imgResult->Decode((uint8_t*)buffer, nFullBufferLen, CXIMAGE_FORMAT_BMP);
+				// decode BMP from memory using GDI+
+				ULONG_PTR gdipToken = 0;
+				Gdiplus::GdiplusStartupInput gdipInput;
+				if (Gdiplus::GdiplusStartup(&gdipToken, &gdipInput, NULL) != Gdiplus::Ok) {
+					delete[] buffer;
+					break;
+				}
+
+				Gdiplus::Bitmap *imgResult = nullptr;
+				{
+					IStream *pStream = nullptr;
+					if (SUCCEEDED(CreateStreamOnHGlobal(NULL, TRUE, &pStream))) {
+						ULONG written = 0;
+						pStream->Write(buffer, nFullBufferLen, &written);
+						LARGE_INTEGER li = {};
+						pStream->Seek(li, STREAM_SEEK_SET, nullptr);
+						imgResult = Gdiplus::Bitmap::FromStream(pStream);
+						pStream->Release();
+					}
+				}
 				delete[] buffer;
-				if (!imgResult->IsValid()) {
+
+				if (!imgResult || imgResult->GetLastStatus() != Gdiplus::Ok) {
 					delete imgResult;
+					Gdiplus::GdiplusShutdown(gdipToken);
 					break;
 				}
 
 				// resize if needed
-				if (nMaxWidth > 0 && nMaxWidth < width) {
-					float scale = (float)nMaxWidth / imgResult->GetWidth();
-					int32_t nMaxHeigth = (int32_t)(imgResult->GetHeight() * scale);
-					imgResult->Resample(nMaxWidth, nMaxHeigth, 0);
+				if (nMaxWidth > 0 && (int)imgResult->GetWidth() > nMaxWidth) {
+					float scale = (float)nMaxWidth / (float)imgResult->GetWidth();
+					int nNewH = (int)(imgResult->GetHeight() * scale);
+					Gdiplus::Bitmap *resized = new Gdiplus::Bitmap(nMaxWidth, nNewH, PixelFormat24bppRGB);
+					Gdiplus::Graphics g(resized);
+					g.SetInterpolationMode(Gdiplus::InterpolationModeHighQualityBilinear);
+					g.DrawImage(imgResult, 0, 0, nMaxWidth, nNewH);
+					delete imgResult;
+					imgResult = resized;
 				}
 
-				// decrease bpp if needed
+				// decrease bpp if needed (quantize to 8bpp palette)
 				if (bReduceColor) {
-					RGBQUAD pal[256];
-					CQuantizer q(_countof(pal), 8);
-					q.ProcessImage(imgResult->GetDIB());
+					UINT w = imgResult->GetWidth(), h = imgResult->GetHeight();
+					int rowBytes = ((w * 3 + 3) / 4) * 4; // DWORD-aligned 24bpp row
+
+					// Build a DIB buffer for CQuantizer (BITMAPINFOHEADER + bottom-up 24bpp pixels)
+					std::vector<BYTE> dib24(sizeof(BITMAPINFOHEADER) + rowBytes * h, 0);
+					auto *bih24 = reinterpret_cast<BITMAPINFOHEADER*>(dib24.data());
+					bih24->biSize = sizeof(BITMAPINFOHEADER);
+					bih24->biWidth = (LONG)w; bih24->biHeight = (LONG)h;
+					bih24->biPlanes = 1; bih24->biBitCount = 24; bih24->biCompression = BI_RGB;
+
+					Gdiplus::BitmapData srcData;
+					Gdiplus::Rect rect(0, 0, w, h);
+					if (imgResult->LockBits(&rect, Gdiplus::ImageLockModeRead, PixelFormat24bppRGB, &srcData) == Gdiplus::Ok) {
+						BYTE *pixBase = dib24.data() + sizeof(BITMAPINFOHEADER);
+						for (UINT y = 0; y < h; ++y) {
+							// flip to bottom-up for CQuantizer
+							BYTE *src = (BYTE*)srcData.Scan0 + (int)y * srcData.Stride;
+							memcpy(pixBase + (h - 1 - y) * rowBytes, src, w * 3);
+						}
+						imgResult->UnlockBits(&srcData);
+					}
+
+					RGBQUAD pal[256] = {};
+					CQuantizer q(256, 8);
+					q.ProcessImage(dib24.data());
 					q.SetColorTable(pal);
-					imgResult->DecreaseBpp(8, true, pal);
+					UINT nColors = q.GetColorCount();
+
+					// Build 8bpp indexed GDI+ Bitmap
+					Gdiplus::Bitmap *indexed = new Gdiplus::Bitmap(w, h, PixelFormat8bppIndexed);
+					size_t palSize = sizeof(Gdiplus::ColorPalette) + (nColors > 0 ? nColors - 1 : 0) * sizeof(Gdiplus::ARGB);
+					auto *gdipPal = (Gdiplus::ColorPalette*)malloc(palSize);
+					if (gdipPal) {
+						gdipPal->Flags = 0; gdipPal->Count = nColors;
+						for (UINT k = 0; k < nColors; ++k)
+							gdipPal->Entries[k] = Gdiplus::Color::MakeARGB(255, pal[k].rgbRed, pal[k].rgbGreen, pal[k].rgbBlue);
+						indexed->SetPalette(gdipPal);
+						free(gdipPal);
+					}
+
+					// Map each pixel to nearest palette entry
+					Gdiplus::BitmapData idxData;
+					if (indexed->LockBits(&rect, Gdiplus::ImageLockModeWrite, PixelFormat8bppIndexed, &idxData) == Gdiplus::Ok) {
+						if (imgResult->LockBits(&rect, Gdiplus::ImageLockModeRead, PixelFormat24bppRGB, &srcData) == Gdiplus::Ok) {
+							for (UINT y = 0; y < h; ++y) {
+								BYTE *src = (BYTE*)srcData.Scan0 + (int)y * srcData.Stride;
+								BYTE *dst = (BYTE*)idxData.Scan0 + (int)y * idxData.Stride;
+								for (UINT x = 0; x < w; ++x, src += 3) {
+									BYTE b = src[0], g2 = src[1], r = src[2]; // GDI+ 24bpp = BGR
+									BYTE best = 0; int bestDist = INT_MAX;
+									for (UINT k = 0; k < nColors; ++k) {
+										int dr = r - pal[k].rgbRed, dg = g2 - pal[k].rgbGreen, db = b - pal[k].rgbBlue;
+										int dist = dr*dr + dg*dg + db*db;
+										if (dist < bestDist) { bestDist = dist; best = (BYTE)k; }
+									}
+									dst[x] = best;
+								}
+							}
+							imgResult->UnlockBits(&srcData);
+						}
+						indexed->UnlockBits(&idxData);
+					}
+					delete imgResult;
+					imgResult = indexed;
 				}
-#if TEST_FRAMEGRABBER //see also "case MP_OPEN" in CSharedFilesCtrl::OnContextMenu
-				CString TestName;
-				TestName.Format(_T("G:\\em\\testframe%i.png"), nFramesGrabbed);
-				imgResult->Save(TestName, CXIMAGE_FORMAT_PNG); //Save grabbed images for inspection
-#endif
+
+				// Convert GDI+ Bitmap to HBITMAP (white background for any transparent areas)
+				HBITMAP hbmp = NULL;
+				imgResult->GetHBITMAP(Gdiplus::Color(255, 255, 255), &hbmp);
+				delete imgResult;
+				Gdiplus::GdiplusShutdown(gdipToken);
+
+				if (!hbmp)
+					break;
+
 				// done
-				imgResults[nFramesGrabbed] = imgResult;
+				imgResults[nFramesGrabbed] = hbmp;
 			}
 		}
 		return nFramesGrabbed;

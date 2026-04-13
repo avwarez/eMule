@@ -517,9 +517,9 @@ int StartSSL()
 	if (!ret) { // PSA_SUCCESS is 0
 		ret = mbedtls_ctr_drbg_seed(&ctr_drbg, mbedtls_entropy_func, &entropy, (unsigned char*)pers, strlen(pers));
 		if (!ret) {
-			ret = mbedtls_x509_crt_parse_file(&srvcert, thePrefs.GetWebCertPath());
+			ret = mbedtls_x509_crt_parse_file(&srvcert, CStringA(thePrefs.GetWebCertPath()));
 			if (!ret) {
-				ret = mbedtls_pk_parse_keyfile(&pkey, thePrefs.GetWebKeyPath(), NULL, mbedtls_ctr_drbg_random, &ctr_drbg);
+				ret = mbedtls_pk_parse_keyfile(&pkey, CStringA(thePrefs.GetWebKeyPath()), NULL, mbedtls_ctr_drbg_random, &ctr_drbg);
 				if (!ret) {
 					ret = mbedtls_ssl_config_defaults(&conf, MBEDTLS_SSL_IS_SERVER, MBEDTLS_SSL_TRANSPORT_STREAM, MBEDTLS_SSL_PRESET_DEFAULT);
 					if (!ret) {

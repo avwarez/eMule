@@ -16,12 +16,11 @@
 //Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 #pragma once
 
-class CxImage;
 class CKnownFile;
 
 struct FrameGrabResult_Struct
 {
-	CxImage	**imgResults;
+	HBITMAP	*imgResults;
 	uint8	nImagesGrabbed;
 	void	*pSender;
 };
@@ -44,7 +43,7 @@ public:
 
 private:
 	CString	strFileName;
-	CxImage	**imgResults;
+	HBITMAP	*imgResults;
 	const CKnownFile *pOwner;
 	void	*pSender;
 	double	dStartTime;

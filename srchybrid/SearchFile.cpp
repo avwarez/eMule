@@ -21,7 +21,6 @@
 #include "opcodes.h"
 #include "Packets.h"
 #include "Preferences.h"
-#include "CxImage/xImage.h"
 #include "Kademlia/Kademlia/Entry.h"
 #include "emule.h"
 #include "emuledlg.h"
@@ -296,7 +295,7 @@ CSearchFile::~CSearchFile()
 {
 	free(m_pszDirectory);
 	for (int i = m_listImages.GetSize(); --i >= 0;)
-		delete m_listImages[i];
+		::DeleteObject(m_listImages[i]);
 }
 
 void CSearchFile::StoreToFile(CFileDataIO &rFile) const

@@ -17,7 +17,6 @@
 #include "stdafx.h"
 #include "emule.h"
 #include "PreviewDlg.h"
-#include "CxImage/xImage.h"
 #include "OtherFunctions.h"
 #include "SearchFile.h"
 
@@ -90,9 +89,11 @@ void PreviewDlg::ShowImage(int nNumber)
 		nNumber = nImageCount - 1;
 
 	m_nCurrentImage = nNumber;
-	HBITMAP hbitmap = m_ImageStatic.SetBitmap(m_pFile->GetPreviews()[nNumber]->MakeBitmap(m_ImageStatic.GetDC()->m_hDC));
+	// Create a display copy so the HBITMAP in m_listImages is not consumed by the control
+	HBITMAP hDup = (HBITMAP)::CopyImage(m_pFile->GetPreviews()[nNumber], IMAGE_BITMAP, 0, 0, 0);
+	HBITMAP hbitmap = m_ImageStatic.SetBitmap(hDup);
 	if (hbitmap)
-		::DeleteObject(hbitmap);
+		::DeleteObject(hbitmap); // delete the previous display copy
 	CString strInfo;
 	strInfo.Format(_T("Image %i of %i"), nNumber + 1, nImageCount);
 	SetDlgItemText(IDC_PREVIEW_INFO, strInfo);

@@ -19,7 +19,6 @@
 #include "StatisticFile.h"
 #include "ShareableFile.h"
 
-class CxImage;
 class CUpDownClient;
 class Packet;
 class CFileDataIO;
@@ -111,7 +110,7 @@ public:
 	// preview
 	bool	IsMovie() const;
 	virtual bool GrabImage(uint8 nFramesToGrab, double dStartTime, bool bReduceColor, uint16 nMaxWidth, void *pSender);
-	virtual void GrabbingFinished(CxImage **imgResults, uint8 nFramesGrabbed, void *pSender);
+	virtual void GrabbingFinished(HBITMAP *imgResults, uint8 nFramesGrabbed, void *pSender);
 
 	bool	ImportParts();
 

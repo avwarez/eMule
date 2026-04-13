@@ -19,7 +19,6 @@
 #include "emule.h"
 #include "preferences.h"
 #include "otherfunctions.h"
-#include "CxImage/xImage.h"
 #include <atlimage.h>
 #include <winuser.h>
 
@@ -354,7 +353,7 @@ void CTitleMenu::SetMenuBitmap(UINT nFlags, UINT nIDNewItem, LPCTSTR /*lpszNewIt
 // NOTE: This function is no longer used for Vista!
 void CTitleMenu::DrawMonoIcon(int nIconPos, CPoint nDrawPos, CDC *dc)
 {
-#if 1
+#if 0
 	CWindowDC windowDC(0);
 	CDC colorDC;
 	colorDC.CreateCompatibleDC(0);
@@ -386,7 +385,7 @@ void CTitleMenu::DrawMonoIcon(int nIconPos, CPoint nDrawPos, CDC *dc)
 	ULONG_PTR gdiplusToken = 0;
 	Gdiplus::GdiplusStartupInput gdiplusStartupInput;
 	if (Gdiplus::GdiplusStartup(&gdiplusToken, &gdiplusStartupInput, NULL) == Gdiplus::Ok) {
-		HICON hIcon = m_IconList.ExtractIconW(nIconPos);
+		HICON hIcon = m_ImageList.ExtractIcon(nIconPos);
 		if (hIcon) {
 			Gdiplus::Bitmap bmp(hIcon);
 			VERIFY(::DestroyIcon(hIcon));

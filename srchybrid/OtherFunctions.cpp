@@ -42,7 +42,7 @@
 #include "Kademlia/Kademlia/kademlia.h"
 #include "kademlia/kademlia/UDPFirewallTester.h"
 #include "Log.h"
-#include "CxImage/xImage.h"
+#include <atlimage.h>
 #include "Netioapi.h"
 
 #ifdef _DEBUG
@@ -3872,20 +3872,40 @@ uint8 GetMyConnectOptions(bool bEncryption, bool bCallback)
 
 bool AddIconGrayscaledToImageList(CImageList &rList, HICON hIcon)
 {
-	// Use to create grey-scaled alpha using icons on WinXP and lower
-	// Only works with edited CxImage lib, not 6.0 standard
 	bool bResult = false;
 	ICONINFO iinfo;
-	if (::GetIconInfo(hIcon, &iinfo)) {
-		CxImage cxGray;
-		if (cxGray.CreateFromHBITMAP(iinfo.hbmColor)) {
-			cxGray.GrayScale();
-			HBITMAP hGrayBmp = cxGray.MakeBitmap(NULL, true);
-			bResult = rList.Add(CBitmap::FromHandle(hGrayBmp), CBitmap::FromHandle(iinfo.hbmMask)) != -1;
-			::DeleteObject(hGrayBmp);
+	if (!::GetIconInfo(hIcon, &iinfo))
+		return false;
+
+	ULONG_PTR gdipToken = 0;
+	Gdiplus::GdiplusStartupInput gdipInput;
+	if (Gdiplus::GdiplusStartup(&gdipToken, &gdipInput, NULL) == Gdiplus::Ok) {
+		Gdiplus::Bitmap bmp(iinfo.hbmColor, NULL);
+		if (bmp.GetLastStatus() == Gdiplus::Ok) {
+			static const Gdiplus::ColorMatrix grayMatrix = {
+				0.299f, 0.299f, 0.299f, 0.0f, 0.0f,
+				0.587f, 0.587f, 0.587f, 0.0f, 0.0f,
+				0.114f, 0.114f, 0.114f, 0.0f, 0.0f,
+				0.0f,   0.0f,   0.0f,   1.0f, 0.0f,
+				0.0f,   0.0f,   0.0f,   0.0f, 1.0f
+			};
+			Gdiplus::ImageAttributes attr;
+			attr.SetColorMatrix(&grayMatrix, Gdiplus::ColorMatrixFlagsDefault, Gdiplus::ColorAdjustTypeBitmap);
+
+			int w = (int)bmp.GetWidth(), h = (int)bmp.GetHeight();
+			Gdiplus::Bitmap grayBmp(w, h, PixelFormat32bppARGB);
+			Gdiplus::Graphics g(&grayBmp);
+			g.DrawImage(&bmp, Gdiplus::Rect(0, 0, w, h), 0, 0, w, h, Gdiplus::UnitPixel, &attr);
+
+			HBITMAP hGrayBmp = NULL;
+			if (grayBmp.GetHBITMAP(Gdiplus::Color(0, 0, 0, 0), &hGrayBmp) == Gdiplus::Ok) {
+				bResult = rList.Add(CBitmap::FromHandle(hGrayBmp), CBitmap::FromHandle(iinfo.hbmMask)) != -1;
+				::DeleteObject(hGrayBmp);
+			}
 		}
-		::DeleteObject(iinfo.hbmColor);
-		::DeleteObject(iinfo.hbmMask);
+		Gdiplus::GdiplusShutdown(gdipToken);
 	}
+	::DeleteObject(iinfo.hbmColor);
+	::DeleteObject(iinfo.hbmMask);
 	return bResult;
 }

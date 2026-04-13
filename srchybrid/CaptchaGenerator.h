@@ -17,7 +17,7 @@
 #pragma once
 #include "SafeFile.h"
 
-class CxImage;
+namespace Gdiplus { class Bitmap; }
 
 class CCaptchaGenerator
 {
@@ -32,6 +32,7 @@ public:
 
 
 private:
-	CxImage	*m_pimgCaptcha;
-	CString	m_strCaptchaText;
+	Gdiplus::Bitmap	*m_pimgCaptcha;
+	ULONG_PTR		 m_gdipToken;
+	CString			 m_strCaptchaText;
 };

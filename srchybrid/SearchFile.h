@@ -18,7 +18,6 @@
 #include "AbstractFile.h"
 
 class CFileDataIO;
-class CxImage;
 
 class CSearchFile : public CAbstractFile
 {
@@ -148,8 +147,8 @@ public:
 	const CSimpleArray<SServer>& GetServers() const			{ return m_aServers; }
 	SServer &GetServerAt(int iServer)						{ return m_aServers[iServer]; }
 
-	void	AddPreviewImg(CxImage *img)						{ m_listImages.Add(img); }
-	const CSimpleArray<CxImage*>& GetPreviews() const		{ return m_listImages; }
+	void	AddPreviewImg(HBITMAP hbmp)						{ m_listImages.Add(hbmp); }
+	const CSimpleArray<HBITMAP>& GetPreviews() const		{ return m_listImages; }
 	bool	IsPreviewPossible() const						{ return m_bPreviewPossible; }
 	void	SetPreviewPossible(bool in)						{ m_bPreviewPossible = in; }
 
@@ -185,7 +184,7 @@ private:
 	uint16	m_nClientPort;
 	CSimpleArray<SClient> m_aClients;
 	CSimpleArray<SServer> m_aServers;
-	CSimpleArray<CxImage*> m_listImages;
+	CSimpleArray<HBITMAP> m_listImages;
 	LPTSTR	m_pszDirectory;
 	// spam filter
 	CString	m_strNameWithoutKeywords;

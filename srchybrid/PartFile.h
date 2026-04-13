@@ -81,7 +81,6 @@ enum EPartFileOp
 class CSearchFile;
 class CUpDownClient;
 enum EDownloadState : uint8;
-class CxImage;
 class CSafeMemFile;
 class CED2KFileLink;
 
@@ -289,7 +288,7 @@ public:
 	//preview
 	bool CopyPartFile(CArray<Gap_Struct> &raFilled, const CString &tempFileName);
 	virtual bool GrabImage(uint8 nFramesToGrab, double dStartTime, bool bReduceColor, uint16 nMaxWidth, void *pSender);
-	virtual void GrabbingFinished(CxImage **imgResults, uint8 nFramesGrabbed, void *pSender);
+	virtual void GrabbingFinished(HBITMAP *imgResults, uint8 nFramesGrabbed, void *pSender);
 
 	void	FlushBuffersExceptionHandler(CFileException *ex);
 	void	FlushBuffersExceptionHandler();

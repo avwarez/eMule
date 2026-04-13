@@ -28,7 +28,6 @@
 #include "KnownFileList.h"
 #include "DownloadQueue.h"
 #include "PartFile.h"
-#include "CxImage/xImage.h"
 #include "kademlia/utils/uint128.h"
 #include "Kademlia/Kademlia/Entry.h"
 #include "Kademlia/Kademlia/SearchManager.h"

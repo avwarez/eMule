@@ -18,11 +18,18 @@
 #pragma once
 #ifdef _MSC_VER
 #include <winsock2.h>
+#include <windows.h>
 
 typedef struct
 {
 	CRITICAL_SECTION cs;
 	char is_valid;
 } mbedtls_threading_mutex_t;
+
+/* Required by the mbedtls test framework when MBEDTLS_THREADING_ALT is defined */
+typedef struct
+{
+	HANDLE thread;
+} mbedtls_test_thread_t;
 
 #endif
