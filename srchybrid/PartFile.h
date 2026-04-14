@@ -332,8 +332,8 @@ public:
 	CTime	lastseencomplete;
 	CFile	m_hpartfile;				// permanent opened handle to avoid write conflicts
 	CMutex	m_FileCompleteMutex;		// Lord KiRon - Mutex for file completion
-	HANDLE	m_hWrite;					// asynchronous part file writing
-	int		m_iWrites;					// outstanding I/O counter - read only in the main thread
+	HANDLE	m_hWrite;					// part file write handle (managed by CPartFileWriteThread)
+	int		m_iWrites;					// reserved - kept for ABI compat, always 0 with sync write thread
 	DWORD	m_LastSearchTime;
 	DWORD	m_LastSearchTimeKad;
 	uint16	src_stats[4];

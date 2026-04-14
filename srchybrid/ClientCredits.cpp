@@ -29,6 +29,13 @@
 #include <stdexcept>
 #include "mbedtls/pk.h"
 #include "mbedtls/rsa.h"
+// Compile-time guard: mbedtls refuses to generate keys smaller than MBEDTLS_RSA_GEN_KEY_MIN_BITS.
+// eMule's secure-ident protocol requires RSAKEYSIZE (384-bit) keys.  If this fires, open
+// mbedtls/include/mbedtls/mbedtls_config.h and set:
+//   #define MBEDTLS_RSA_GEN_KEY_MIN_BITS 384
+#if MBEDTLS_RSA_GEN_KEY_MIN_BITS > RSAKEYSIZE
+#error "In mbedtls_config.h set: #define MBEDTLS_RSA_GEN_KEY_MIN_BITS 384  (see Opcodes.h RSAKEYSIZE)"
+#endif
 #include "mbedtls/sha1.h"
 #include "mbedtls/base64.h"
 #include "mbedtls/asn1.h"
@@ -436,62 +443,145 @@ void CClientCreditsList::InitalizeCrypting()
 	if (!thePrefs.IsSecureIdentEnabled())
 		return;
 
-	// check if keyfile exists and is non-empty
-	bool bCreateNewKey = false;
-	const CString &cryptkeypath(thePrefs.GetMuleDirectory(EMULE_CONFIGDIR) + _T("cryptkey.dat"));
-	HANDLE hKeyFile = ::CreateFile(cryptkeypath,
-		GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
-	if (hKeyFile != INVALID_HANDLE_VALUE) {
-		if (::GetFileSize(hKeyFile, NULL) == 0)
-			bCreateNewKey = true;
-		::CloseHandle(hKeyFile);
-	} else
-		bCreateNewKey = true;
-	if (bCreateNewKey)
-		CreateKeyPair();
+	const CString cryptkeypath(thePrefs.GetMuleDirectory(EMULE_CONFIGDIR) + _T("cryptkey.dat"));
 
-	// load private key: read file → base64 decode → DER parse
-	try {
-		// read file
-		CStdioFile f;
-		if (!f.Open(cryptkeypath, CFile::modeRead | CFile::shareDenyWrite | CFile::typeText))
-			throw std::runtime_error("cannot open key file");
-		CString sB64; CString sLine;
-		while (f.ReadString(sLine)) sB64 += sLine;
-		f.Close();
-		CStringA sB64A(sB64);
-
-		// base64 decode
-		size_t derLen = 0;
-		mbedtls_base64_decode(NULL, 0, &derLen, (const unsigned char*)(LPCSTR)sB64A, sB64A.GetLength());
-		std::vector<unsigned char> der(derLen);
-		if (mbedtls_base64_decode(der.data(), derLen, &derLen,
-			(const unsigned char*)(LPCSTR)sB64A, sB64A.GetLength()) != 0)
-			throw std::runtime_error("base64 decode failed");
-
-		// parse PKCS#1 RSAPrivateKey DER
+	// ---------------------------------------------------------------------------
+	// Helper: parse a raw DER buffer into m_pSignkey and extract the public key.
+	// Returns true on success; leaves object state unchanged on failure.
+	// ---------------------------------------------------------------------------
+	auto tryLoadDer = [this](const unsigned char *der, size_t derLen) -> bool {
 		auto *pk = new mbedtls_pk_context;
 		mbedtls_pk_init(pk);
-		if (mbedtls_pk_parse_key(pk, der.data(), derLen, NULL, 0, emule_rng, NULL) != 0) {
+		if (mbedtls_pk_parse_key(pk, der, derLen, NULL, 0, emule_rng, NULL) != 0) {
 			mbedtls_pk_free(pk); delete pk;
-			throw std::runtime_error("key parse failed");
+			return false;
 		}
-		m_pSignkey = pk;
-
-		// extract and store public key in PKCS#1 RSAPublicKey DER format
-		int n = rsa_write_pubkey_pkcs1(m_abyMyPublicKey, sizeof m_abyMyPublicKey, m_pSignkey);
+		int n = rsa_write_pubkey_pkcs1(m_abyMyPublicKey, sizeof m_abyMyPublicKey, pk);
 		if (n <= 0) {
 			mbedtls_pk_free(pk); delete pk;
-			m_pSignkey = NULL;
-			throw std::runtime_error("pubkey export failed");
+			return false;
 		}
+		m_pSignkey = pk;
 		m_nMyPublicKeyLen = (uint8)n;
-	} catch (...) {
+		return true;
+	};
+
+	// ---------------------------------------------------------------------------
+	// Level 1 loader: raw binary DER — canonical format (CryptoPP and current).
+	// ---------------------------------------------------------------------------
+	auto tryLoadBinaryFile = [&]() -> bool {
+		try {
+			CFile fb;
+			if (!fb.Open(cryptkeypath, CFile::modeRead | CFile::shareDenyWrite | CFile::typeBinary))
+				return false;
+			std::vector<unsigned char> raw((size_t)fb.GetLength());
+			if (raw.empty()) return false;
+			fb.Read(raw.data(), (UINT)raw.size());
+			fb.Close();
+			return tryLoadDer(raw.data(), raw.size());
+		} catch (...) { return false; }
+	};
+
+	// ---------------------------------------------------------------------------
+	// Level 2 loader: base64-encoded DER — transitional format introduced by the
+	// mbedtls migration before this fix.  Recognised so existing files are not lost.
+	// ---------------------------------------------------------------------------
+	auto tryLoadBase64File = [&]() -> bool {
+		try {
+			CStdioFile f;
+			if (!f.Open(cryptkeypath, CFile::modeRead | CFile::shareDenyWrite | CFile::typeText))
+				return false;
+			CString sB64, sLine;
+			while (f.ReadString(sLine)) sB64 += sLine;
+			f.Close();
+			CStringA sB64A(sB64);
+			size_t derLen = 0;
+			// MBEDTLS_ERR_BASE64_BUFFER_TOO_SMALL from a NULL-dst call means valid base64.
+			if (mbedtls_base64_decode(NULL, 0, &derLen,
+					(const unsigned char*)(LPCSTR)sB64A, sB64A.GetLength())
+					!= MBEDTLS_ERR_BASE64_BUFFER_TOO_SMALL || derLen == 0)
+				return false;
+			std::vector<unsigned char> der(derLen);
+			if (mbedtls_base64_decode(der.data(), derLen, &derLen,
+					(const unsigned char*)(LPCSTR)sB64A, sB64A.GetLength()) != 0)
+				return false;
+			return tryLoadDer(der.data(), derLen);
+		} catch (...) { return false; }
+	};
+
+	// ---------------------------------------------------------------------------
+	// Migration helper: rewrite m_pSignkey to cryptkey.dat as raw binary DER,
+	// restoring the canonical format after a Level 2 (base64) load.
+	// ---------------------------------------------------------------------------
+	auto rewriteAsBinaryDer = [&]() {
+		if (!m_pSignkey) return;
+		unsigned char derBuf[1024];
+		int derLen = mbedtls_pk_write_key_der(m_pSignkey, derBuf, sizeof derBuf);
+		if (derLen <= 0) return;
+		const unsigned char *derStart = derBuf + sizeof(derBuf) - derLen;
+		try {
+			CFile f;
+			if (f.Open(cryptkeypath, CFile::modeCreate | CFile::modeWrite | CFile::shareDenyWrite | CFile::typeBinary)) {
+				f.Write(derStart, (UINT)derLen);
+				f.Close();
+			}
+		} catch (...) {}
+	};
+
+	// ---------------------------------------------------------------------------
+	// Check if the key file exists and is non-empty; generate a fresh one if not.
+	// ---------------------------------------------------------------------------
+	{
+		bool bCreateNewKey = false;
+		HANDLE hKeyFile = ::CreateFile(cryptkeypath,
+			GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+		if (hKeyFile != INVALID_HANDLE_VALUE) {
+			if (::GetFileSize(hKeyFile, NULL) == 0)
+				bCreateNewKey = true;
+			::CloseHandle(hKeyFile);
+		} else
+			bCreateNewKey = true;
+		if (bCreateNewKey && !CreateKeyPair()) {
+			LogError(LOG_STATUSBAR, GetResString(IDS_CRYPT_INITFAILED));
+			return;
+		}
+	}
+
+	// ---------------------------------------------------------------------------
+	// Three-level load strategy:
+	//   Level 1 — raw binary DER   (canonical format: CryptoPP and current)
+	//   Level 2 — base64 DER       (transitional format from mbedtls migration —
+	//                                auto-corrected back to binary on load)
+	//   Level 3 — regenerate key   (file corrupted or unrecognised)
+	// ---------------------------------------------------------------------------
+	bool bLoaded = tryLoadBinaryFile();
+
+	if (!bLoaded) {
+		bLoaded = tryLoadBase64File();
+		if (bLoaded) {
+			// File was in the transitional base64 format: silently restore the
+			// canonical binary format so old eMule versions can read it again.
+			rewriteAsBinaryDer();
+			if (thePrefs.GetLogSecureIdent())
+				AddDebugLogLine(false, _T("Restored cryptkey.dat from transitional base64 to binary DER format"));
+		}
+	}
+
+	if (!bLoaded) {
+		// File exists but is unreadable (corrupted / unknown format).
+		// Generate a brand new key pair and load it immediately.
+		bLoaded = CreateKeyPair() && tryLoadBinaryFile();
+	}
+
+	if (!bLoaded) {
 		delete m_pSignkey;
 		m_pSignkey = NULL;
+		m_nMyPublicKeyLen = 0;
 		LogError(LOG_STATUSBAR, GetResString(IDS_CRYPT_INITFAILED));
 		ASSERT(0);
+		return;
 	}
+
 	ASSERT(Debug_CheckCrypting());
 }
 
@@ -509,7 +599,9 @@ bool CClientCreditsList::CreateKeyPair()
 			throw std::runtime_error("key generation failed");
 		}
 
-		// Write PKCS#1 RSAPrivateKey DER (mbedtls writes from end of buffer)
+		// Write PKCS#1 RSAPrivateKey DER (mbedtls writes from end of buffer).
+		// Stored as raw binary — same format as the original CryptoPP implementation,
+		// ensuring bidirectional compatibility with older eMule versions.
 		unsigned char derBuf[1024];
 		int derLen = mbedtls_pk_write_key_der(&pk, derBuf, sizeof derBuf);
 		mbedtls_pk_free(&pk);
@@ -517,18 +609,12 @@ bool CClientCreditsList::CreateKeyPair()
 			throw std::runtime_error("key DER export failed");
 		const unsigned char *derStart = derBuf + sizeof(derBuf) - derLen;
 
-		// Base64 encode
-		size_t b64Len = 0;
-		mbedtls_base64_encode(NULL, 0, &b64Len, derStart, derLen);
-		std::vector<unsigned char> b64(b64Len + 1);
-		mbedtls_base64_encode(b64.data(), b64Len, &b64Len, derStart, derLen);
-
-		// Write to file
+		// Write raw DER to file (binary mode)
 		const CString keypath(thePrefs.GetMuleDirectory(EMULE_CONFIGDIR) + _T("cryptkey.dat"));
-		CStdioFile f;
-		if (!f.Open(keypath, CFile::modeCreate | CFile::modeWrite | CFile::shareDenyWrite | CFile::typeText))
+		CFile f;
+		if (!f.Open(keypath, CFile::modeCreate | CFile::modeWrite | CFile::shareDenyWrite | CFile::typeBinary))
 			throw std::runtime_error("cannot write key file");
-		f.WriteString(CString((LPCSTR)b64.data(), (int)b64Len));
+		f.Write(derStart, (UINT)derLen);
 		f.Close();
 
 		if (thePrefs.GetLogSecureIdent())

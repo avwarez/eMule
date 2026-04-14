@@ -15,54 +15,58 @@
 //along with this program; if not, write to the Free Software
 //Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 #pragma once
+#include <atomic>
+#include <condition_variable>
+#include <mutex>
+#include <thread>
 
 struct PartFileBufferedData;
+class CPartFile;
 
 struct ToWrite
 {
-	CPartFile *pFile;
+	CPartFile			*pFile;
 	PartFileBufferedData *pBuffer;
 };
 
-struct OverlappedWrite_Struct
+// Cross-platform note: CPartFileWriteThread uses std::thread and std::condition_variable
+// instead of CWinThread/IOCP.  The actual file writes use SyncWrite() (defined in the .cpp),
+// which wraps WriteFile+OVERLAPPED on Windows and can be replaced by pwrite(2) on Linux
+// without touching any other code.
+class CPartFileWriteThread
 {
-	OVERLAPPED				oOverlap; // must be the first member
-	CPartFile				*pFile;
-	PartFileBufferedData	*pBuffer;
-	POSITION				pos; // in m_listPendingIO
-};
-
-class CPartFileWriteThread : public CWinThread
-{
-	DECLARE_DYNCREATE(CPartFileWriteThread)
 public:
 	CPartFileWriteThread();
 	~CPartFileWriteThread();
 	CPartFileWriteThread(const CPartFileWriteThread&) = delete;
 	CPartFileWriteThread& operator=(const CPartFileWriteThread&) = delete;
-	CCriticalSection m_lockWriteList;
 
-	void	EndThread();	//completionkey == 0
-	void	WakeUpCall();	//completionkey == -1
-	bool	IsRunning() const							{ return m_Run > 0; }
+	// Accessed directly by PartFile.cpp — keep layout compatible
+	CCriticalSection	m_lockFlushList;
+	CList<ToWrite>		m_FlushList;
+
+	void	EndThread();
+	void	WakeUpCall();
+	bool	IsRunning() const		{ return m_Run > RUN_STOP; }
 	bool	AddFile(CPartFile *pFile);
-	static void	RemFile(CPartFile *pFile);
-
-	CCriticalSection m_lockFlushList;
-	CList<ToWrite> m_FlushList;
+	static void RemFile(CPartFile *pFile);
 
 private:
-	static UINT AFX_CDECL RunProc(LPVOID pParam);
-	UINT	RunInternal();
-
+	void	RunInternal();
 	void	WriteBuffers();
-	void	WriteCompletionRoutine(DWORD dwBytesWritten, const OverlappedWrite_Struct *pOvWrite);
 
-	CList<ToWrite>	m_listToWrite;
-	CTypedPtrList<CPtrList, OverlappedWrite_Struct*>	m_listPendingIO;
+	CList<ToWrite>			m_listToWrite;
 
-	CEvent	m_eventThreadEnded;
-	HANDLE	m_hPort;
-	volatile char m_Run; //0 - not running; 1 - idle; 2 - processing
-	volatile char m_bNewData;
+	// Declare synchronisation primitives before m_thread so they are fully
+	// constructed before the thread lambda can access them.
+	std::mutex				m_cvMutex;
+	std::condition_variable	m_cv;
+	bool					m_bNewData;
+	std::atomic<int>		m_Run;	// RUN_STOP=0, RUN_IDLE=1, RUN_WORK=2
+
+	std::thread				m_thread;	// must be last: started in constructor body
+
+	static constexpr int RUN_STOP = 0;
+	static constexpr int RUN_IDLE = 1;
+	static constexpr int RUN_WORK = 2;
 };

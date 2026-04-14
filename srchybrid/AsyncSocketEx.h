@@ -62,6 +62,8 @@ to tim.kosse@filezilla-project.org
 */
 
 #pragma once
+#include <atomic>
+#include <memory>
 #if _MSC_VER <= 1800 //VS 2013
 #define THREADLOCAL __declspec(thread)
 #else
@@ -80,7 +82,7 @@ to tim.kosse@filezilla-project.org
 class CAsyncSocketExHelperWindow;
 
 #define WM_SOCKETEX_TRIGGER		(WM_USER + 0x101 + 0)				// 0x0501 event sent by a layer
-#define WM_SOCKETEX_GETHOST		(WM_USER + 0x101 + 1)				// 0x0502 WSAAsyncGetHostByName reply
+#define WM_SOCKETEX_GETHOST		(WM_USER + 0x101 + 1)				// 0x0502 (legacy, no longer posted)
 #define WM_SOCKETEX_CALLBACK	(WM_USER + 0x101 + 2)				// 0x0503
 #define WM_SOCKETEX_NOTIFY		(WM_USER + 0x101 + 3)				// 0x0504 socket notification message
 #define MAX_SOCKETS				(0xBFFF - WM_SOCKETEX_NOTIFY + 1)	// 0xBAFD (47869 decimal)
@@ -292,10 +294,19 @@ protected:
 	// Add a new notification to the list of pending callbacks
 	void AddCallbackNotification(const t_callbackMsg &msg);
 
-	//AsyncGetHostByName
-	char* m_pAsyncGetHostByNameBuffer; //Buffer for hostend structure
-	HANDLE m_hAsyncGetHostByNameHandle; //TaskHandle
-	USHORT m_nAsyncGetHostByNamePort; //Port to connect to
+	// ---------------------------------------------------------------------------
+	// DNS (async hostname resolution)
+	// ---------------------------------------------------------------------------
+	// These three fields are kept for ABI compatibility with derived classes that
+	// may reference them; m_pAsyncGetHostByNameBuffer is no longer filled and
+	// m_hAsyncGetHostByNameHandle is now used as a numeric sentinel only.
+	char*  m_pAsyncGetHostByNameBuffer; // unused — kept for ABI compat
+	HANDLE m_hAsyncGetHostByNameHandle; // non-null while DNS in progress (sentinel)
+	USHORT m_nAsyncGetHostByNamePort;   // port for pending DNS lookup
+
+	// Cancellation flag shared with the detached DNS thread.
+	// Set to true in Close() to prevent the thread from posting to a dead socket.
+	std::shared_ptr<std::atomic<bool>> m_dnsCancelFlag;
 
 #ifndef NOSOCKETSTATES
 	AsyncSocketExState m_nState;
