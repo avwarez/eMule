@@ -16,10 +16,7 @@
 //Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 #pragma once
 #include "MapKey.h"
-#include "cryptopp/rsa.h"
-#include "cryptopp/base64.h"
-#include "cryptopp/osrng.h"
-#include "cryptopp/files.h"
+#include "mbedtls/pk.h"
 
 #define COLLECTION_FILEEXTENSION	_T(".emulecollection")
 
@@ -41,7 +38,7 @@ public:
 	bool	InitCollectionFromFile(const CString &sFilePath, const CString &sFileName);
 	CCollectionFile* AddFileToCollection(CAbstractFile *pAbstractFile, bool bCreateClone);
 	void	RemoveFileFromCollection(CAbstractFile *pAbstractFile);
-	void	WriteToFileAddShared(CryptoPP::RSASSA_PKCS1v15_SHA_Signer *pSignKey = NULL);
+	void	WriteToFileAddShared(mbedtls_pk_context *pSignKey = NULL);
 	void	SetCollectionAuthorKey(const byte *abyCollectionAuthorKey, uint32 nSize);
 	CString	GetCollectionAuthorKeyString();
 	CString	GetAuthorKeyHashString() const;

@@ -25,6 +25,12 @@
 #include "emule.h"
 #include "Log.h"
 #include "md5sum.h"
+#include "mbedtls/sha1.h"
+#include "mbedtls/asn1.h"
+#include "mbedtls/asn1write.h"
+#include "mbedtls/entropy.h"
+#include <bcrypt.h>
+#include <vector>
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -157,24 +163,38 @@ bool CCollection::InitCollectionFromFile(const CString &sFilePath, const CString
 		if (m_pabyCollectionAuthorKey != NULL) {
 			bool bResult = false;
 			if (data.GetLength() > data.GetPosition()) {
-				using namespace CryptoPP;
-
 				uint32 nPos = (uint32)data.GetPosition();
 				data.SeekToBegin();
-				BYTE *pMessage = new BYTE[nPos];
-				VERIFY(data.Read(pMessage, nPos) == nPos);
-
-				StringSource ss_Pubkey(m_pabyCollectionAuthorKey, m_nKeySize, true, 0);
-				RSASSA_PKCS1v15_SHA_Verifier pubkey(ss_Pubkey);
+				std::vector<BYTE> message(nPos);
+				VERIFY(data.Read(message.data(), nPos) == nPos);
 
 				UINT nSignLen = (UINT)(data.GetLength() - data.GetPosition());
-				BYTE *pSignature = new BYTE[nSignLen];
-				VERIFY(data.Read(pSignature, nSignLen) == nSignLen);
+				std::vector<BYTE> signature(nSignLen);
+				VERIFY(data.Read(signature.data(), nSignLen) == nSignLen);
 
-				bResult = pubkey.VerifyMessage(pMessage, nPos, pSignature, nSignLen);
-
-				delete[] pMessage;
-				delete[] pSignature;
+				// Parse PKCS#1 RSAPublicKey DER
+				unsigned char *p = m_pabyCollectionAuthorKey;
+				const unsigned char *end = p + m_nKeySize;
+				size_t seq_len; mbedtls_mpi N, E;
+				mbedtls_mpi_init(&N); mbedtls_mpi_init(&E);
+				if (mbedtls_asn1_get_tag(&p, end, &seq_len,
+					MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE) == 0 &&
+					mbedtls_asn1_get_mpi(&p, end, &N) == 0 &&
+					mbedtls_asn1_get_mpi(&p, end, &E) == 0) {
+					mbedtls_pk_context pubkey;
+					mbedtls_pk_init(&pubkey);
+					if (mbedtls_pk_setup(&pubkey, mbedtls_pk_info_from_type(MBEDTLS_PK_RSA)) == 0 &&
+						mbedtls_rsa_import(mbedtls_pk_rsa(pubkey), &N, NULL, NULL, NULL, &E) == 0 &&
+						mbedtls_rsa_complete(mbedtls_pk_rsa(pubkey)) == 0) {
+						unsigned char hash[20];
+						if (mbedtls_sha1(message.data(), nPos, hash) == 0) {
+							bResult = mbedtls_pk_verify(&pubkey, MBEDTLS_MD_SHA1,
+								hash, sizeof hash, signature.data(), nSignLen) == 0;
+						}
+					}
+					mbedtls_pk_free(&pubkey);
+				}
+				mbedtls_mpi_free(&N); mbedtls_mpi_free(&E);
 			}
 			if (!bResult) {
 				DebugLogWarning(_T("Collection %s: Verification of public key failed!"), (LPCTSTR)m_sCollectionName);
@@ -235,9 +255,8 @@ bool CCollection::InitCollectionFromFile(const CString &sFilePath, const CString
 	return bCollectionLoaded;
 }
 
-void CCollection::WriteToFileAddShared(CryptoPP::RSASSA_PKCS1v15_SHA_Signer *pSignKey)
+void CCollection::WriteToFileAddShared(mbedtls_pk_context *pSignKey)
 {
-	using namespace CryptoPP;
 
 	CString sFilePath(thePrefs.GetMuleDirectory(EMULE_INCOMINGDIR));
 	sFilePath.AppendFormat(_T("%s%s"), (LPCTSTR)m_sCollectionName, COLLECTION_FILEEXTENSION);
@@ -296,18 +315,22 @@ void CCollection::WriteToFileAddShared(CryptoPP::RSASSA_PKCS1v15_SHA_Signer *pSi
 				if (pSignKey != NULL) {
 					uint32 nPos = (uint32)data.GetPosition();
 					data.SeekToBegin();
-					BYTE *pBuffer = new BYTE[nPos];
-					VERIFY(data.Read(pBuffer, nPos) == nPos);
+					std::vector<BYTE> buffer(nPos);
+					VERIFY(data.Read(buffer.data(), nPos) == nPos);
 
-					SecByteBlock sbbSignature(pSignKey->SignatureLength());
-					AutoSeededRandomPool rng;
-					pSignKey->SignMessage(rng, pBuffer, nPos, sbbSignature.begin());
-					BYTE abyBuffer2[500];
-					ArraySink asink(abyBuffer2, sizeof abyBuffer2);
-					asink.Put(sbbSignature.begin(), sbbSignature.size());
-					data.Write(abyBuffer2, (UINT)asink.TotalPutLength());
-
-					delete[] pBuffer;
+					unsigned char hash[20];
+					unsigned char sig[256];
+					size_t sigLen = 0;
+					if (mbedtls_sha1(buffer.data(), nPos, hash) == 0) {
+						auto rng_fn = [](void*, unsigned char *b, size_t l) -> int {
+							return BCryptGenRandom(NULL, b, (ULONG)l, BCRYPT_USE_SYSTEM_PREFERRED_RNG) == 0
+								? 0 : MBEDTLS_ERR_ENTROPY_SOURCE_FAILED;
+						};
+						mbedtls_pk_sign(pSignKey, MBEDTLS_MD_SHA1, hash, sizeof hash,
+							sig, sizeof sig, &sigLen, rng_fn, NULL);
+					}
+					if (sigLen > 0)
+						data.Write(sig, (UINT)sigLen);
 				}
 				data.Close();
 			} catch (CFileException *ex) {

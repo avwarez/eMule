@@ -38,7 +38,7 @@
 #include "Log.h"
 #include "MuleToolbarCtrl.h"
 #include "VistaDefines.h"
-#include "cryptopp/osrng.h"
+#include <bcrypt.h>
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -1461,8 +1461,7 @@ bool CPreferences::Save()
 void CPreferences::CreateUserHash()
 {
 	while (isbadhash(userhash)) {
-		CryptoPP::AutoSeededRandomPool rng;
-		rng.GenerateBlock(userhash, sizeof userhash);
+		BCryptGenRandom(NULL, userhash, sizeof userhash, BCRYPT_USE_SYSTEM_PREFERRED_RNG);
 	}
 	// mark as emule client. this will be needed in later version
 	userhash[5] = 14;	//0x0e

@@ -109,7 +109,7 @@
 #include "safefile.h"
 #include "kademlia/kademlia/prefs.h"
 #include "kademlia/kademlia/kademlia.h"
-#include "cryptopp/osrng.h"
+#include <bcrypt.h>
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -143,7 +143,8 @@ struct Crypt_Header_Struct
 #define	MAGICVALUE_UDP_SERVERCLIENT		0xA5
 #define	MAGICVALUE_UDP_CLIENTSERVER		0x6B
 
-static CryptoPP::AutoSeededRandomPool cryptRandomGen;
+static uint8 CryptRandByte() { uint8 b; BCryptGenRandom(NULL, &b, 1, BCRYPT_USE_SYSTEM_PREFERRED_RNG); return b; }
+static uint16 CryptRandWord() { uint16 w; BCryptGenRandom(NULL, (PUCHAR)&w, sizeof w, BCRYPT_USE_SYSTEM_PREFERRED_RNG); return w; }
 
 int CEncryptedDatagramSocket::DecryptReceivedClient(BYTE *pbyBufIn, int nBufLen, BYTE **ppbyBufOut, uint32 dwIP, uint32 *nReceiverVerifyKey, uint32 *nSenderVerifyKey)
 {
@@ -294,7 +295,7 @@ uint32 CEncryptedDatagramSocket::EncryptSendClient(uchar *pbyBuf, uint32 nBufLen
 	ASSERT((nReceiverVerifyKey == 0 && nSenderVerifyKey == 0) || bKad);
 
 	uint8 byKadRecKeyUsed = 0; //nodeid marker
-	const uint16 nRandomKeyPart = (uint16)cryptRandomGen.GenerateWord32(0, _UI16_MAX);
+	const uint16 nRandomKeyPart = (uint16)CryptRandWord();
 	MD5Sum md5;
 	if (bKad) {
 		if ((pachClientHashOrKadID == NULL || isnulmd4(pachClientHashOrKadID)) && nReceiverVerifyKey != 0) {
@@ -328,7 +329,7 @@ uint32 CEncryptedDatagramSocket::EncryptSendClient(uchar *pbyBuf, uint32 nBufLen
 	// create the semi-random byte encryption header
 	uint8 bySemiRandomNotProtocolMarker;
 	for (int i = 32; i > 0; --i) {
-		bySemiRandomNotProtocolMarker = cryptRandomGen.GenerateByte();
+		bySemiRandomNotProtocolMarker = CryptRandByte();
 		if (bKad) {
 			bySemiRandomNotProtocolMarker &= ~3;				// clear marker bits
 			bySemiRandomNotProtocolMarker |= byKadRecKeyUsed;	//set kad reckey/nodeid marker bit
@@ -428,7 +429,7 @@ uint32 CEncryptedDatagramSocket::EncryptSendServer(uchar *pbyBuf, uint32 nBufLen
 	ASSERT(thePrefs.IsCryptLayerEnabled());
 	ASSERT(dwBaseKey);
 
-	const uint16 nRandomKeyPart = (uint16)cryptRandomGen.GenerateWord32(0, _UI16_MAX);
+	const uint16 nRandomKeyPart = (uint16)CryptRandWord();
 
 	uchar achKeyData[7];
 	PokeUInt32(achKeyData, dwBaseKey);
@@ -441,7 +442,7 @@ uint32 CEncryptedDatagramSocket::EncryptSendServer(uchar *pbyBuf, uint32 nBufLen
 	// create the semi-random byte encryption header
 	uint8 bySemiRandomNotProtocolMarker;
 	for (int i = 8; i > 0; --i) {
-		bySemiRandomNotProtocolMarker = cryptRandomGen.GenerateByte();
+		bySemiRandomNotProtocolMarker = CryptRandByte();
 		if (bySemiRandomNotProtocolMarker != OP_EDONKEYPROT) // not allowed value
 			break;
 	}

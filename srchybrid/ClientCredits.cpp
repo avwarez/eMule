@@ -24,9 +24,16 @@
 #include "ServerConnect.h"
 #include "emuledlg.h"
 #include "Log.h"
-#include "cryptopp/base64.h"
-#include "cryptopp/osrng.h"
-#include "cryptopp/files.h"
+#include <bcrypt.h>
+#include <vector>
+#include <stdexcept>
+#include "mbedtls/pk.h"
+#include "mbedtls/rsa.h"
+#include "mbedtls/sha1.h"
+#include "mbedtls/base64.h"
+#include "mbedtls/asn1.h"
+#include "mbedtls/asn1write.h"
+#include "mbedtls/entropy.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -347,20 +354,93 @@ EIdentState	CClientCredits::GetCurrentIdentState(uint32 dwForIP) const
 	//		 so don't try to spam such clients with "bad guy" messages (besides: spam messages are always bad)
 }
 
-using namespace CryptoPP;
+// --- RSA helpers (PKCS#1 RSAPublicKey DER format, wire-compatible with CryptoPP) ---
+
+static int emule_rng(void * /*ctx*/, unsigned char *buf, size_t len)
+{
+	return BCryptGenRandom(NULL, buf, (ULONG)len, BCRYPT_USE_SYSTEM_PREFERRED_RNG) == 0
+		? 0 : MBEDTLS_ERR_ENTROPY_SOURCE_FAILED;
+}
+
+// Write RSA public key as PKCS#1 RSAPublicKey DER (SEQUENCE { N INTEGER, E INTEGER })
+// Returns number of bytes written into buf (starting at buf[0]), or negative on error.
+static int rsa_write_pubkey_pkcs1(unsigned char *buf, size_t buflen, mbedtls_pk_context *pk)
+{
+	unsigned char *c = buf + buflen;
+	size_t len = 0;
+	mbedtls_mpi N, E;
+	mbedtls_mpi_init(&N); mbedtls_mpi_init(&E);
+	int ret = mbedtls_rsa_export(mbedtls_pk_rsa(*pk), &N, NULL, NULL, NULL, &E);
+	if (ret == 0) {
+		MBEDTLS_ASN1_CHK_ADD(len, mbedtls_asn1_write_mpi(&c, buf, &E));
+		MBEDTLS_ASN1_CHK_ADD(len, mbedtls_asn1_write_mpi(&c, buf, &N));
+		MBEDTLS_ASN1_CHK_ADD(len, mbedtls_asn1_write_len(&c, buf, len));
+		MBEDTLS_ASN1_CHK_ADD(len, mbedtls_asn1_write_tag(&c, buf,
+			MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE));
+		memmove(buf, c, len);
+		ret = (int)len;
+	}
+	mbedtls_mpi_free(&N); mbedtls_mpi_free(&E);
+	return ret;
+}
+
+// Parse RSA public key from PKCS#1 RSAPublicKey DER (SEQUENCE { N INTEGER, E INTEGER })
+static int rsa_read_pubkey_pkcs1(mbedtls_pk_context *pk, const unsigned char *der, size_t len)
+{
+	unsigned char *p = const_cast<unsigned char*>(der);
+	const unsigned char *end = der + len;
+	size_t seq_len;
+	mbedtls_mpi N, E;
+	mbedtls_mpi_init(&N); mbedtls_mpi_init(&E);
+
+	int ret = mbedtls_asn1_get_tag(&p, end, &seq_len,
+		MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE);
+	if (ret == 0) ret = mbedtls_asn1_get_mpi(&p, end, &N);
+	if (ret == 0) ret = mbedtls_asn1_get_mpi(&p, end, &E);
+	if (ret == 0) ret = mbedtls_pk_setup(pk, mbedtls_pk_info_from_type(MBEDTLS_PK_RSA));
+	if (ret == 0) ret = mbedtls_rsa_import(mbedtls_pk_rsa(*pk), &N, NULL, NULL, NULL, &E);
+	if (ret == 0) ret = mbedtls_rsa_complete(mbedtls_pk_rsa(*pk));
+
+	mbedtls_mpi_free(&N); mbedtls_mpi_free(&E);
+	return ret;
+}
+
+// Sign message with RSASSA-PKCS1v15-SHA1. Returns signature length or 0 on error.
+static size_t rsa_sign_pkcs1v15_sha1(mbedtls_pk_context *pk,
+	const unsigned char *msg, size_t msglen,
+	unsigned char *sig, size_t sigbuf)
+{
+	unsigned char hash[20];
+	if (mbedtls_sha1(msg, msglen, hash) != 0) return 0;
+	size_t siglen = 0;
+	if (mbedtls_pk_sign(pk, MBEDTLS_MD_SHA1, hash, sizeof hash,
+		sig, sigbuf, &siglen, emule_rng, NULL) != 0) return 0;
+	return siglen;
+}
+
+// Verify signature with RSASSA-PKCS1v15-SHA1. Returns true if valid.
+static bool rsa_verify_pkcs1v15_sha1(mbedtls_pk_context *pk,
+	const unsigned char *msg, size_t msglen,
+	const unsigned char *sig, size_t siglen)
+{
+	unsigned char hash[20];
+	if (mbedtls_sha1(msg, msglen, hash) != 0) return false;
+	return mbedtls_pk_verify(pk, MBEDTLS_MD_SHA1, hash, sizeof hash, sig, siglen) == 0;
+}
 
 void CClientCreditsList::InitalizeCrypting()
 {
 	m_nMyPublicKeyLen = 0;
-	memset(m_abyMyPublicKey, 0, sizeof m_abyMyPublicKey); // not really needed; better for debugging tho
+	memset(m_abyMyPublicKey, 0, sizeof m_abyMyPublicKey);
 	m_pSignkey = NULL;
 	if (!thePrefs.IsSecureIdentEnabled())
 		return;
-	// check if keyfile is there
+
+	// check if keyfile exists and is non-empty
 	bool bCreateNewKey = false;
 	const CString &cryptkeypath(thePrefs.GetMuleDirectory(EMULE_CONFIGDIR) + _T("cryptkey.dat"));
-	HANDLE hKeyFile = ::CreateFile(cryptkeypath
-		, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+	HANDLE hKeyFile = ::CreateFile(cryptkeypath,
+		GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
 	if (hKeyFile != INVALID_HANDLE_VALUE) {
 		if (::GetFileSize(hKeyFile, NULL) == 0)
 			bCreateNewKey = true;
@@ -370,17 +450,42 @@ void CClientCreditsList::InitalizeCrypting()
 	if (bCreateNewKey)
 		CreateKeyPair();
 
-	// load key
+	// load private key: read file → base64 decode → DER parse
 	try {
-		// load private key
-		FileSource filesource((CStringA)cryptkeypath, true, new Base64Decoder);
-		m_pSignkey = new RSASSA_PKCS1v15_SHA_Signer(filesource);
-		// calculate and store public key
-		RSASSA_PKCS1v15_SHA_Verifier pubkey(*m_pSignkey);
-		ArraySink asink(m_abyMyPublicKey, sizeof m_abyMyPublicKey);
-		pubkey.GetMaterial().Save(asink);
-		m_nMyPublicKeyLen = (uint8)asink.TotalPutLength();
-		asink.MessageEnd();
+		// read file
+		CStdioFile f;
+		if (!f.Open(cryptkeypath, CFile::modeRead | CFile::shareDenyWrite | CFile::typeText))
+			throw std::runtime_error("cannot open key file");
+		CString sB64; CString sLine;
+		while (f.ReadString(sLine)) sB64 += sLine;
+		f.Close();
+		CStringA sB64A(sB64);
+
+		// base64 decode
+		size_t derLen = 0;
+		mbedtls_base64_decode(NULL, 0, &derLen, (const unsigned char*)(LPCSTR)sB64A, sB64A.GetLength());
+		std::vector<unsigned char> der(derLen);
+		if (mbedtls_base64_decode(der.data(), derLen, &derLen,
+			(const unsigned char*)(LPCSTR)sB64A, sB64A.GetLength()) != 0)
+			throw std::runtime_error("base64 decode failed");
+
+		// parse PKCS#1 RSAPrivateKey DER
+		auto *pk = new mbedtls_pk_context;
+		mbedtls_pk_init(pk);
+		if (mbedtls_pk_parse_key(pk, der.data(), derLen, NULL, 0, emule_rng, NULL) != 0) {
+			mbedtls_pk_free(pk); delete pk;
+			throw std::runtime_error("key parse failed");
+		}
+		m_pSignkey = pk;
+
+		// extract and store public key in PKCS#1 RSAPublicKey DER format
+		int n = rsa_write_pubkey_pkcs1(m_abyMyPublicKey, sizeof m_abyMyPublicKey, m_pSignkey);
+		if (n <= 0) {
+			mbedtls_pk_free(pk); delete pk;
+			m_pSignkey = NULL;
+			throw std::runtime_error("pubkey export failed");
+		}
+		m_nMyPublicKeyLen = (uint8)n;
 	} catch (...) {
 		delete m_pSignkey;
 		m_pSignkey = NULL;
@@ -393,13 +498,38 @@ void CClientCreditsList::InitalizeCrypting()
 bool CClientCreditsList::CreateKeyPair()
 {
 	try {
-		AutoSeededRandomPool rng;
-		InvertibleRSAFunction privkey;
-		privkey.Initialize(rng, RSAKEYSIZE);
+		// Generate RSA key pair
+		mbedtls_pk_context pk;
+		mbedtls_pk_init(&pk);
+		int ret = mbedtls_pk_setup(&pk, mbedtls_pk_info_from_type(MBEDTLS_PK_RSA));
+		if (ret == 0)
+			ret = mbedtls_rsa_gen_key(mbedtls_pk_rsa(pk), emule_rng, NULL, RSAKEYSIZE, 65537);
+		if (ret != 0) {
+			mbedtls_pk_free(&pk);
+			throw std::runtime_error("key generation failed");
+		}
 
-		Base64Encoder privkeysink(new FileSink((CStringA)(thePrefs.GetMuleDirectory(EMULE_CONFIGDIR) + _T("cryptkey.dat"))));
-		privkey.DEREncode(privkeysink);
-		privkeysink.MessageEnd();
+		// Write PKCS#1 RSAPrivateKey DER (mbedtls writes from end of buffer)
+		unsigned char derBuf[1024];
+		int derLen = mbedtls_pk_write_key_der(&pk, derBuf, sizeof derBuf);
+		mbedtls_pk_free(&pk);
+		if (derLen <= 0)
+			throw std::runtime_error("key DER export failed");
+		const unsigned char *derStart = derBuf + sizeof(derBuf) - derLen;
+
+		// Base64 encode
+		size_t b64Len = 0;
+		mbedtls_base64_encode(NULL, 0, &b64Len, derStart, derLen);
+		std::vector<unsigned char> b64(b64Len + 1);
+		mbedtls_base64_encode(b64.data(), b64Len, &b64Len, derStart, derLen);
+
+		// Write to file
+		const CString keypath(thePrefs.GetMuleDirectory(EMULE_CONFIGDIR) + _T("cryptkey.dat"));
+		CStdioFile f;
+		if (!f.Open(keypath, CFile::modeCreate | CFile::modeWrite | CFile::shareDenyWrite | CFile::typeText))
+			throw std::runtime_error("cannot write key file");
+		f.WriteString(CString((LPCSTR)b64.data(), (int)b64Len));
+		f.Close();
 
 		if (thePrefs.GetLogSecureIdent())
 			AddDebugLogLine(false, _T("Created new RSA keypair"));
@@ -413,42 +543,34 @@ bool CClientCreditsList::CreateKeyPair()
 }
 
 uint8 CClientCreditsList::CreateSignature(CClientCredits *pTarget, uchar *pachOutput, uint8 nMaxSize
-	, uint32 ChallengeIP, uint8 byChaIPKind, CryptoPP::RSASSA_PKCS1v15_SHA_Signer *sigkey) const
+	, uint32 ChallengeIP, uint8 byChaIPKind, mbedtls_pk_context *sigkey) const
 {
 	ASSERT(pTarget != NULL && pachOutput != NULL);
-	// sigkey param is used for debug only
 	if (sigkey == NULL)
 		sigkey = m_pSignkey;
-
-	// create a signature of the public key from pTarget
 	if (!CryptoAvailable())
 		return 0;
-	try {
-		SecByteBlock sbbSignature(sigkey->SignatureLength());
-		AutoSeededRandomPool rng;
-		byte abyBuffer[MAXPUBKEYSIZE + 9];
-		size_t keylen = pTarget->GetSecIDKeyLen();
-		memcpy(abyBuffer, pTarget->GetSecureIdent(), keylen);
-		// 4 additional bytes of random data sent from this client
-		uint32 challenge = pTarget->m_dwCryptRndChallengeFrom;
-		ASSERT(challenge);
-		PokeUInt32(&abyBuffer[keylen], challenge);
-		size_t ChIpLen;
-		if (byChaIPKind == 0)
-			ChIpLen = 0;
-		else {
-			ChIpLen = 5;
-			PokeUInt32(&abyBuffer[keylen + 4], ChallengeIP);
-			abyBuffer[keylen + 4 + 4] = byChaIPKind;
-		}
-		sigkey->SignMessage(rng, abyBuffer, keylen + 4 + ChIpLen, sbbSignature.begin());
-		ArraySink asink(pachOutput, nMaxSize);
-		asink.Put(sbbSignature.begin(), sbbSignature.size());
-		return (uint8)asink.TotalPutLength();
-	} catch (...) {
-		ASSERT(0);
+
+	byte abyBuffer[MAXPUBKEYSIZE + 9];
+	size_t keylen = pTarget->GetSecIDKeyLen();
+	memcpy(abyBuffer, pTarget->GetSecureIdent(), keylen);
+	uint32 challenge = pTarget->m_dwCryptRndChallengeFrom;
+	ASSERT(challenge);
+	PokeUInt32(&abyBuffer[keylen], challenge);
+	size_t ChIpLen;
+	if (byChaIPKind == 0)
+		ChIpLen = 0;
+	else {
+		ChIpLen = 5;
+		PokeUInt32(&abyBuffer[keylen + 4], ChallengeIP);
+		abyBuffer[keylen + 4 + 4] = byChaIPKind;
 	}
-	return 0;
+	unsigned char sig[256];
+	size_t siglen = rsa_sign_pkcs1v15_sha1(sigkey, abyBuffer, keylen + 4 + ChIpLen, sig, sizeof sig);
+	if (siglen == 0 || siglen > nMaxSize)
+		return 0;
+	memcpy(pachOutput, sig, siglen);
+	return (uint8)siglen;
 }
 
 bool CClientCreditsList::VerifyIdent(CClientCredits *pTarget, const uchar *pachSignature, uint8 nInputSize,
@@ -460,10 +582,17 @@ bool CClientCreditsList::VerifyIdent(CClientCredits *pTarget, const uchar *pachS
 		pTarget->IdentState = IS_NOTAVAILABLE;
 		return false;
 	}
-	bool bResult;
+	bool bResult = false;
 	try {
-		StringSource ss_Pubkey((byte*)pTarget->GetSecureIdent(), pTarget->GetSecIDKeyLen(), true, 0);
-		RSASSA_PKCS1v15_SHA_Verifier pubkey(ss_Pubkey);
+		mbedtls_pk_context pubkey;
+		mbedtls_pk_init(&pubkey);
+		int ret = rsa_read_pubkey_pkcs1(&pubkey,
+			(const unsigned char*)pTarget->GetSecureIdent(), pTarget->GetSecIDKeyLen());
+		if (ret != 0) {
+			mbedtls_pk_free(&pubkey);
+			throw std::runtime_error("pubkey parse failed");
+		}
+
 		// 4 additional bytes random data send from this client +5 bytes v2
 		byte abyBuffer[MAXPUBKEYSIZE + 9];
 		memcpy(abyBuffer, m_abyMyPublicKey, m_nMyPublicKeyLen);
@@ -471,7 +600,6 @@ bool CClientCreditsList::VerifyIdent(CClientCredits *pTarget, const uchar *pachS
 		ASSERT(challenge);
 		PokeUInt32(&abyBuffer[m_nMyPublicKeyLen], challenge);
 
-		// v2 security improvements (not supported by 29b, not used as default by 29c)
 		size_t nChIpSize;
 		if (byChaIPKind == 0)
 			nChIpSize = 0;
@@ -490,19 +618,20 @@ bool CClientCreditsList::VerifyIdent(CClientCredits *pTarget, const uchar *pachS
 				} else
 					ChallengeIP = theApp.serverconnect->GetClientID();
 				break;
-			case CRYPT_CIP_NONECLIENT: // maybe not supported in future versions
+			case CRYPT_CIP_NONECLIENT:
 				ChallengeIP = 0;
 			}
 			PokeUInt32(&abyBuffer[m_nMyPublicKeyLen + 4], ChallengeIP);
 			abyBuffer[m_nMyPublicKeyLen + 4 + 4] = byChaIPKind;
 		}
-		//v2 end
 
-		bResult = pubkey.VerifyMessage(abyBuffer, m_nMyPublicKeyLen + 4 + nChIpSize, pachSignature, nInputSize);
+		bResult = rsa_verify_pkcs1v15_sha1(&pubkey,
+			abyBuffer, m_nMyPublicKeyLen + 4 + nChIpSize,
+			(const unsigned char*)pachSignature, nInputSize);
+		mbedtls_pk_free(&pubkey);
 	} catch (...) {
 		if (thePrefs.GetVerbose())
 			AddDebugLogLine(false, _T("Error: Unknown exception in %hs"), __FUNCTION__);
-		//ASSERT(0);
 		bResult = false;
 	}
 	if (!bResult) {
@@ -522,41 +651,34 @@ bool CClientCreditsList::CryptoAvailable() const
 #ifdef _DEBUG
 bool CClientCreditsList::Debug_CheckCrypting()
 {
-	// create random key
-	AutoSeededRandomPool rng;
-
-	RSASSA_PKCS1v15_SHA_Signer priv(rng, 384);
-	RSASSA_PKCS1v15_SHA_Verifier pub(priv);
+	// Generate a temporary RSA keypair for self-test
+	mbedtls_pk_context privpk;
+	mbedtls_pk_init(&privpk);
+	if (mbedtls_pk_setup(&privpk, mbedtls_pk_info_from_type(MBEDTLS_PK_RSA)) != 0 ||
+		mbedtls_rsa_gen_key(mbedtls_pk_rsa(privpk), emule_rng, NULL, RSAKEYSIZE, 65537) != 0) {
+		mbedtls_pk_free(&privpk);
+		return false;
+	}
 
 	byte abyPublicKey[80];
-	ArraySink asink(abyPublicKey, sizeof abyPublicKey);
-	pub.GetMaterial().Save(asink);
-	uint8 PublicKeyLen = (uint8)asink.TotalPutLength();
-	asink.MessageEnd();
+	int pubLen = rsa_write_pubkey_pkcs1(abyPublicKey, sizeof abyPublicKey, &privpk);
+	if (pubLen <= 0) { mbedtls_pk_free(&privpk); return false; }
+	uint8 PublicKeyLen = (uint8)pubLen;
+
 	uint32 challenge = GetRandomUInt32();
-	// create fake client which pretends to be this emule
 	CreditStruct emptystruct{};
 	CClientCredits newcredits(emptystruct);
 	newcredits.SetSecureIdent(m_abyMyPublicKey, m_nMyPublicKeyLen);
 	newcredits.m_dwCryptRndChallengeFrom = challenge;
-	// create signature with fake priv key
 	uchar pachSignature[200] = {};
-	uint8 sigsize = CreateSignature(&newcredits, pachSignature, sizeof pachSignature, 0, 0, &priv);
+	uint8 sigsize = CreateSignature(&newcredits, pachSignature, sizeof pachSignature, 0, 0, &privpk);
 
-	// next fake client uses the random created public key
 	CClientCredits newcredits2(emptystruct);
 	newcredits2.m_dwCryptRndChallengeFor = challenge;
-
-	// if you uncomment one of the following lines the check has to fail
-	//abyPublicKey[5] = 34;
-	//m_abyMyPublicKey[5] = 22;
-	//pachSignature[5] = 232;
-
 	newcredits2.SetSecureIdent(abyPublicKey, PublicKeyLen);
 
-	//now verify this signature - if it's true everything is fine
 	bool bResult = VerifyIdent(&newcredits2, pachSignature, sigsize, 0, 0);
-
+	mbedtls_pk_free(&privpk);
 	return bResult;
 }
 #endif

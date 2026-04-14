@@ -83,7 +83,8 @@ Basic Obfuscated Handshake Protocol Client <-> Server:
 #include "opcodes.h"
 #include "clientlist.h"
 #include "ServerConnect.h"
-#include "cryptopp/osrng.h"
+#include <bcrypt.h>
+#include "mbedtls/bignum.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -109,7 +110,12 @@ static unsigned char dh768_p[] = {
 		0x8F,0x05,0x15,0x0F,0x54,0x8B,0x5F,0x43,0x6A,0xF7,0x0D,0xF3
 };
 
-static CryptoPP::AutoSeededRandomPool cryptRandomGen;
+static uint8 CryptRandByte()
+{
+	uint8 b;
+	BCryptGenRandom(NULL, &b, 1, BCRYPT_USE_SYSTEM_PREFERRED_RNG);
+	return b;
+}
 
 IMPLEMENT_DYNAMIC(CEncryptedStreamSocket, CAsyncSocketEx)
 
@@ -130,10 +136,12 @@ CEncryptedStreamSocket::CEncryptedStreamSocket()
 	, m_nObfuscatedBytesReceived()
 	, m_NegotiatingState(ONS_NONE)
 {
+	mbedtls_mpi_init(&m_cryptDHA);
 };
 
 CEncryptedStreamSocket::~CEncryptedStreamSocket()
 {
+	mbedtls_mpi_free(&m_cryptDHA);
 	delete m_pRC4ReceiveKey;
 	delete m_pRC4SendKey;
 	if (m_pfiReceiveBuffer != NULL) {
@@ -340,7 +348,7 @@ void CEncryptedStreamSocket::SetConnectionEncryption(bool bEnabled, const uchar 
 		// create obfuscation keys, see on top for key format
 
 		// use the crypt random generator
-		m_nRandomKeyPart = cryptRandomGen.GenerateWord32();
+		BCryptGenRandom(NULL, (PUCHAR)&m_nRandomKeyPart, sizeof m_nRandomKeyPart, BCRYPT_USE_SYSTEM_PREFERRED_RNG);
 
 		uchar achKeyData[21];
 		md4cpy(achKeyData, pTargetClientHash);
@@ -391,10 +399,10 @@ void CEncryptedStreamSocket::StartNegotiation(bool bOutgoing)
 		const uint8 bySupportedEncryptionMethod = ENM_OBFUSCATION; // we do not support any other encryption in this version
 		fileRequest.WriteUInt8(bySupportedEncryptionMethod);
 		fileRequest.WriteUInt8(bySupportedEncryptionMethod); // so we also prefer this one
-		uint8 byPadding = (uint8)(cryptRandomGen.GenerateByte() % (thePrefs.GetCryptTCPPaddingLength() + 1));
+		uint8 byPadding = (uint8)(CryptRandByte() % (thePrefs.GetCryptTCPPaddingLength() + 1));
 		fileRequest.WriteUInt8(byPadding);
 		for (int i = byPadding; --i >= 0;)
-			fileRequest.WriteUInt8(cryptRandomGen.GenerateByte());
+			fileRequest.WriteUInt8(CryptRandByte());
 
 		m_NegotiatingState = ONS_BASIC_CLIENTB_MAGICVALUE;
 		m_StreamCryptState = ECS_NEGOTIATING;
@@ -406,21 +414,29 @@ void CEncryptedStreamSocket::StartNegotiation(bool bOutgoing)
 		const uint8 bySemiRandomNotProtocolMarker = GetSemiRandomNotProtocolMarker();
 		fileRequest.WriteUInt8(bySemiRandomNotProtocolMarker);
 
-		m_cryptDHA.Randomize(cryptRandomGen, DHAGREEMENT_A_BITS); // our random a
-		ASSERT(m_cryptDHA.MinEncodedSize() <= DHAGREEMENT_A_BITS / 8);
-		CryptoPP::Integer cryptDHPrime((byte*)dh768_p, PRIMESIZE_BYTES);  // our fixed prime
-		// calculate g^a % p
-		CryptoPP::Integer cryptDHGexpAmodP = CryptoPP::a_exp_b_mod_c(CryptoPP::Integer(2), m_cryptDHA, cryptDHPrime);
-		ASSERT(m_cryptDHA.MinEncodedSize() <= PRIMESIZE_BYTES);
-		// put the result into a buffer
+		// Generate random 128-bit DH exponent a
+		{
+			uchar aDHABytes[DHAGREEMENT_A_BITS / 8];
+			BCryptGenRandom(NULL, aDHABytes, sizeof aDHABytes, BCRYPT_USE_SYSTEM_PREFERRED_RNG);
+			mbedtls_mpi_read_binary(&m_cryptDHA, aDHABytes, sizeof aDHABytes);
+		}
+		// Calculate g^a mod p (g = 2)
 		uchar aBuffer[PRIMESIZE_BYTES];
-		cryptDHGexpAmodP.Encode(aBuffer, PRIMESIZE_BYTES);
+		{
+			mbedtls_mpi g, prime, result;
+			mbedtls_mpi_init(&g); mbedtls_mpi_init(&prime); mbedtls_mpi_init(&result);
+			mbedtls_mpi_lset(&g, 2);
+			mbedtls_mpi_read_binary(&prime, dh768_p, PRIMESIZE_BYTES);
+			mbedtls_mpi_exp_mod(&result, &g, &m_cryptDHA, &prime, NULL);
+			mbedtls_mpi_write_binary(&result, aBuffer, PRIMESIZE_BYTES);
+			mbedtls_mpi_free(&g); mbedtls_mpi_free(&prime); mbedtls_mpi_free(&result);
+		}
 
 		fileRequest.Write(aBuffer, PRIMESIZE_BYTES);
-		uint8 byPadding = (uint8)(cryptRandomGen.GenerateByte() % 16); // add random padding
+		uint8 byPadding = (uint8)(CryptRandByte() % 16); // add random padding
 		fileRequest.WriteUInt8(byPadding);
 		for (int i = byPadding; --i >= 0;)
-			fileRequest.WriteUInt8(cryptRandomGen.GenerateByte());
+			fileRequest.WriteUInt8(CryptRandByte());
 
 		m_NegotiatingState = ONS_BASIC_SERVER_DHANSWER;
 		m_StreamCryptState = ECS_NEGOTIATING;
@@ -526,7 +542,7 @@ int CEncryptedStreamSocket::Negotiate(const uchar *pBuffer, int nLen)
 					int nSockAddrLen = sizeof sockAddr;
 					GetPeerName((LPSOCKADDR)&sockAddr, &nSockAddrLen);
 					const uint8 byPaddingLen = theApp.serverconnect->AwaitingTestFromIP(sockAddr.sin_addr.s_addr) ? 16 : (thePrefs.GetCryptTCPPaddingLength() + 1);
-					uint8 byPadding = (uint8)(cryptRandomGen.GenerateByte() % byPaddingLen);
+					uint8 byPadding = (uint8)(CryptRandByte() % byPaddingLen);
 
 					fileResponse.WriteUInt8(byPadding);
 					for (int i = byPadding; --i >= 0;)
@@ -569,19 +585,23 @@ int CEncryptedStreamSocket::Negotiate(const uchar *pBuffer, int nLen)
 				break;
 			case ONS_BASIC_SERVER_DHANSWER:
 				{
-					ASSERT(!m_cryptDHA.IsZero());
+					ASSERT(mbedtls_mpi_cmp_int(&m_cryptDHA, 0) != 0);
 					uchar aBuffer[PRIMESIZE_BYTES + 1];
 					m_pfiReceiveBuffer->Read(aBuffer, PRIMESIZE_BYTES);
-					CryptoPP::Integer cryptDHAnswer(static_cast<byte*>(aBuffer), PRIMESIZE_BYTES);
-					CryptoPP::Integer cryptDHPrime(static_cast<byte*>(dh768_p), PRIMESIZE_BYTES);  // our fixed prime
-					CryptoPP::Integer cryptResult = CryptoPP::a_exp_b_mod_c(cryptDHAnswer, m_cryptDHA, cryptDHPrime);
-
-					m_cryptDHA = 0;
-					DEBUG_ONLY(memset(aBuffer, 0, sizeof aBuffer));
-					ASSERT(cryptResult.MinEncodedSize() <= PRIMESIZE_BYTES);
+					// Calculate (g^b)^a mod p = shared secret
+					{
+						mbedtls_mpi dhAnswer, prime, result;
+						mbedtls_mpi_init(&dhAnswer); mbedtls_mpi_init(&prime); mbedtls_mpi_init(&result);
+						mbedtls_mpi_read_binary(&dhAnswer, aBuffer, PRIMESIZE_BYTES);
+						mbedtls_mpi_read_binary(&prime, dh768_p, PRIMESIZE_BYTES);
+						mbedtls_mpi_exp_mod(&result, &dhAnswer, &m_cryptDHA, &prime, NULL);
+						mbedtls_mpi_write_binary(&result, aBuffer, PRIMESIZE_BYTES);
+						mbedtls_mpi_free(&dhAnswer); mbedtls_mpi_free(&prime); mbedtls_mpi_free(&result);
+					}
+					mbedtls_mpi_lset(&m_cryptDHA, 0);
+					DEBUG_ONLY(memset(aBuffer + PRIMESIZE_BYTES, 0, 1));
 
 					// create the keys
-					cryptResult.Encode(aBuffer, PRIMESIZE_BYTES);
 					aBuffer[PRIMESIZE_BYTES] = MAGICVALUE_REQUESTER;
 					MD5Sum md5(aBuffer, sizeof aBuffer);
 					m_pRC4SendKey = RC4CreateKey(md5.GetRawHash(), 16, NULL);
@@ -626,7 +646,7 @@ int CEncryptedStreamSocket::Negotiate(const uchar *pBuffer, int nLen)
 					fileResponse.WriteUInt32(MAGICVALUE_SYNC);
 					const uint8 bySelectedEncryptionMethod = ENM_OBFUSCATION; // we do not support any further encryption in this version, so no need to look which the other client preferred
 					fileResponse.WriteUInt8(bySelectedEncryptionMethod);
-					uint8 byPadding = (uint8)(cryptRandomGen.GenerateByte() % 16);
+					uint8 byPadding = (uint8)(CryptRandByte() % 16);
 					fileResponse.WriteUInt8(byPadding);
 					for (int i = byPadding; --i >= 0;)
 						fileResponse.WriteUInt8((uint8)rand());
@@ -728,7 +748,7 @@ CString CEncryptedStreamSocket::DbgGetIPString()
 uint8 CEncryptedStreamSocket::GetSemiRandomNotProtocolMarker()
 {
 	for (int i = 32; --i >= 0;) {
-		uint8 bySemiRandomNotProtocolMarker = cryptRandomGen.GenerateByte();
+		uint8 bySemiRandomNotProtocolMarker = CryptRandByte();
 		switch (bySemiRandomNotProtocolMarker) {
 		case OP_EDONKEYPROT:
 		case OP_PACKEDPROT:

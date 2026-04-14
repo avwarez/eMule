@@ -16,7 +16,7 @@
 //Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 #pragma once
 #include "MapKey.h"
-#include "cryptopp/rsa.h"
+#include "mbedtls/pk.h"
 
 #define	 MAXPUBKEYSIZE		80
 
@@ -107,7 +107,7 @@ public:
 	~CClientCreditsList();
 
 			// return signature size, 0 = Failed | use sigkey param for debug only
-	uint8	CreateSignature(CClientCredits *pTarget, uchar *pachOutput, uint8 nMaxSize, uint32 ChallengeIP, uint8 byChaIPKind, CryptoPP::RSASSA_PKCS1v15_SHA_Signer *sigkey = NULL) const;
+	uint8	CreateSignature(CClientCredits *pTarget, uchar *pachOutput, uint8 nMaxSize, uint32 ChallengeIP, uint8 byChaIPKind, mbedtls_pk_context *sigkey = NULL) const;
 	bool	VerifyIdent(CClientCredits *pTarget, const uchar *pachSignature, uint8 nInputSize, uint32 dwForIP, uint8 byChaIPKind);
 
 	CClientCredits* GetCredit(const uchar *key);
@@ -126,7 +126,7 @@ protected:
 private:
 	typedef CMap<CCKey, const CCKey&, CClientCredits*, CClientCredits*> CClientCreditsMap;
 	CClientCreditsMap m_mapClients;
-	CryptoPP::RSASSA_PKCS1v15_SHA_Signer *m_pSignkey;
+	mbedtls_pk_context *m_pSignkey;
 	DWORD			m_nLastSaved;
 	byte			m_abyMyPublicKey[80];
 	uint8			m_nMyPublicKeyLen;

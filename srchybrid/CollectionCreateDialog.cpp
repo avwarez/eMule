@@ -27,6 +27,14 @@
 #include "TransferDlg.h"
 #include "DownloadListCtrl.h"
 #include "Preferences.h"
+#include <bcrypt.h>
+#include <vector>
+#include <stdexcept>
+#include "mbedtls/pk.h"
+#include "mbedtls/rsa.h"
+#include "mbedtls/base64.h"
+#include "mbedtls/asn1write.h"
+#include "mbedtls/entropy.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -242,8 +250,12 @@ void CCollectionCreateDialog::OnBnClickedOk()
 		CString sFilePath;
 		sFilePath.Format(_T("%s%s") COLLECTION_FILEEXTENSION, (LPCTSTR)thePrefs.GetMuleDirectory(EMULE_INCOMINGDIR), (LPCTSTR)m_pCollection->m_sCollectionName);
 
-		using namespace CryptoPP;
-		RSASSA_PKCS1v15_SHA_Signer *pSignkey = NULL;
+		auto emule_rng_fn = [](void*, unsigned char *buf, size_t len) -> int {
+			return BCryptGenRandom(NULL, buf, (ULONG)len, BCRYPT_USE_SYSTEM_PREFERRED_RNG) == 0
+				? 0 : MBEDTLS_ERR_ENTROPY_SOURCE_FAILED;
+		};
+
+		mbedtls_pk_context *pSignkey = NULL;
 		if (m_CollectionCreateSignNameKeyCheck.GetCheck()) {
 			bool bCreateNewKey = false;
 			const CString &collkeypath(thePrefs.GetMuleDirectory(EMULE_CONFIGDIR) + _T("collectioncryptkey.dat"));
@@ -255,29 +267,62 @@ void CCollectionCreateDialog::OnBnClickedOk()
 			} else
 				bCreateNewKey = true;
 
-			const CStringA collkeypathA(collkeypath);
 			if (bCreateNewKey)
 				try {
-					AutoSeededRandomPool rng;
-					InvertibleRSAFunction privkey;
-					privkey.Initialize(rng, 1024);
-					Base64Encoder privkeysink(new FileSink(collkeypathA));
-					privkey.DEREncode(privkeysink);
-					privkeysink.MessageEnd();
-				} catch (...) {
-					ASSERT(0);
-				}
+					mbedtls_pk_context newpk;
+					mbedtls_pk_init(&newpk);
+					if (mbedtls_pk_setup(&newpk, mbedtls_pk_info_from_type(MBEDTLS_PK_RSA)) == 0 &&
+						mbedtls_rsa_gen_key(mbedtls_pk_rsa(newpk), emule_rng_fn, NULL, 1024, 65537) == 0) {
+						unsigned char derBuf[2048];
+						int derLen = mbedtls_pk_write_key_der(&newpk, derBuf, sizeof derBuf);
+						if (derLen > 0) {
+							size_t b64Len = 0;
+							const unsigned char *derStart = derBuf + sizeof(derBuf) - derLen;
+							mbedtls_base64_encode(NULL, 0, &b64Len, derStart, derLen);
+							std::vector<unsigned char> b64(b64Len + 1);
+							mbedtls_base64_encode(b64.data(), b64Len, &b64Len, derStart, derLen);
+							CStdioFile kf;
+							if (kf.Open(collkeypath, CFile::modeCreate | CFile::modeWrite | CFile::shareDenyWrite | CFile::typeText))
+								kf.WriteString(CString((LPCSTR)b64.data(), (int)b64Len));
+						}
+					}
+					mbedtls_pk_free(&newpk);
+				} catch (...) { ASSERT(0); }
 
 			try {
-				FileSource filesource(collkeypathA, true, new Base64Decoder);
-				pSignkey = new RSASSA_PKCS1v15_SHA_Signer(filesource);
-				RSASSA_PKCS1v15_SHA_Verifier pubkey(*pSignkey);
-				byte abyMyPublicKey[1000];
-				ArraySink asink(abyMyPublicKey, sizeof abyMyPublicKey);
-				pubkey.GetMaterial().Save(asink);
-				uint32 nLen = (uint32)asink.TotalPutLength();
-				asink.MessageEnd();
-				m_pCollection->SetCollectionAuthorKey(abyMyPublicKey, nLen);
+				CStdioFile kf;
+				if (!kf.Open(collkeypath, CFile::modeRead | CFile::shareDenyWrite | CFile::typeText))
+					throw std::runtime_error("cannot open key");
+				CString sB64, sLine;
+				while (kf.ReadString(sLine)) sB64 += sLine;
+				kf.Close();
+				CStringA sB64A(sB64);
+				size_t derLen = 0;
+				mbedtls_base64_decode(NULL, 0, &derLen,
+					(const unsigned char*)(LPCSTR)sB64A, sB64A.GetLength());
+				std::vector<unsigned char> der(derLen);
+				if (mbedtls_base64_decode(der.data(), derLen, &derLen,
+					(const unsigned char*)(LPCSTR)sB64A, sB64A.GetLength()) != 0)
+					throw std::runtime_error("base64 failed");
+
+				auto *pk = new mbedtls_pk_context;
+				mbedtls_pk_init(pk);
+				if (mbedtls_pk_parse_key(pk, der.data(), derLen, NULL, 0, emule_rng_fn, NULL) != 0) {
+					mbedtls_pk_free(pk); delete pk;
+					throw std::runtime_error("key parse failed");
+				}
+				pSignkey = pk;
+
+				// Export public key in PKCS#1 RSAPublicKey DER
+				unsigned char pubBuf[256];
+				unsigned char *c = pubBuf + sizeof pubBuf;
+				size_t pubLen = 0;
+				mbedtls_pk_write_pubkey(&c, pubBuf, pk); // returns negative on error; c moves back
+				pubLen = (size_t)((pubBuf + sizeof pubBuf) - c);
+				if (pubLen > 0) {
+					memmove(pubBuf, c, pubLen);
+					m_pCollection->SetCollectionAuthorKey(pubBuf, (uint32)pubLen);
+				}
 			} catch (...) {
 				ASSERT(0);
 			}
@@ -303,7 +348,7 @@ void CCollectionCreateDialog::OnBnClickedOk()
 		} else
 			m_pCollection->WriteToFileAddShared(pSignkey);
 
-		delete pSignkey;
+		if (pSignkey) { mbedtls_pk_free(pSignkey); delete pSignkey; }
 
 		OnOK();
 	}

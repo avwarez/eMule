@@ -26,7 +26,7 @@
  */
 #pragma once
 #include "AsyncSocketEx.h"
-#include "cryptopp/integer.h"
+#include "mbedtls/bignum.h"
 
 #define ERR_WRONGHEADER				0x01
 #define ERR_TOOBIG					0x02
@@ -116,7 +116,7 @@ private:
 	RC4_Key_Struct		*m_pRC4ReceiveKey;
 	CSafeMemFile		*m_pfiReceiveBuffer;
 	CSafeMemFile		*m_pfiSendBuffer;
-	CryptoPP::Integer	m_cryptDHA;
+	mbedtls_mpi			m_cryptDHA;
 	uint32				m_nRandomKeyPart;
 	int					m_nReceiveBytesWanted;
 	int					m_nObfuscatedBytesReceived;
