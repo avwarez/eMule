@@ -44,16 +44,11 @@ static char THIS_FILE[] = __FILE__;
 #define RUN_STOP	0
 #define RUN_IDLE	1
 #define RUN_WORK	2
-#define WAKEUP		((ULONG_PTR)(~0))
 
 IMPLEMENT_DYNCREATE(CUploadDiskIOThread, CWinThread)
 
 CUploadDiskIOThread::CUploadDiskIOThread()
 	: m_eventThreadEnded(FALSE, TRUE)
-	, m_hPort()
-#ifdef _DEBUG
-	, dbgDataReadPending()
-#endif
 	, m_Run(RUN_STOP)
 	, m_bNewData()
 	, m_bSignalThrottler()
@@ -64,7 +59,7 @@ CUploadDiskIOThread::CUploadDiskIOThread()
 
 CUploadDiskIOThread::~CUploadDiskIOThread()
 {
-	ASSERT(!m_hPort && !m_Run);
+	ASSERT(!m_Run);
 }
 
 UINT AFX_CDECL CUploadDiskIOThread::RunProc(LPVOID pParam)
@@ -76,83 +71,86 @@ UINT AFX_CDECL CUploadDiskIOThread::RunProc(LPVOID pParam)
 
 void CUploadDiskIOThread::EndThread()
 {
-	m_Run = RUN_STOP;
-	PostQueuedCompletionStatus(m_hPort, 0, 0, NULL);
+	{
+		std::lock_guard<std::mutex> lock(m_mutex);
+		m_Run = RUN_STOP;
+	}
+	m_cv.notify_one();
 	m_eventThreadEnded.Lock();
 }
 
 UINT CUploadDiskIOThread::RunInternal()
 {
-	m_hPort = ::CreateIoCompletionPort(INVALID_HANDLE_VALUE, 0, 0, 1);
-	if (!m_hPort)
-		return ::GetLastError();
-
-	DWORD dwRead = 0;
-	ULONG_PTR completionKey = 0;
-	OverlappedRead_Struct *pCurIO = NULL;
 	m_Run = RUN_IDLE;
-	while (m_Run
-			&& ::GetQueuedCompletionStatus(m_hPort, &dwRead, &completionKey, (LPOVERLAPPED*)&pCurIO, INFINITE)
-			&& completionKey)
-	{
-		m_Run = RUN_WORK;
-		//start new I/O
-		CCriticalSection *pcsUploadListRead = NULL;
-		const CUploadingPtrList &rUploadList = theApp.uploadqueue->GetUploadListTS(&pcsUploadListRead);
-		pcsUploadListRead->Lock();
-		for (POSITION pos = rUploadList.GetHeadPosition(); pos != NULL;)
-			StartCreateNextBlockPackage(rUploadList.GetNext(pos));
-		InterlockedExchange8(&m_bNewData, 0);
-		pcsUploadListRead->Unlock();
 
-		//completed I/O
-		do {
-			if (!completionKey)
+	for (;;) {
+		// Wait until there is work to do or we are asked to stop.
+		{
+			std::unique_lock<std::mutex> lock(m_mutex);
+			m_cv.wait(lock, [this] { return m_bNewData || m_Run == RUN_STOP; });
+			if (m_Run == RUN_STOP)
 				break;
-			if (completionKey != WAKEUP) //ignore wakeups
-				ReadCompletionRoutine(dwRead, pCurIO);
-		} while (::GetQueuedCompletionStatus(m_hPort, &dwRead, &completionKey, (LPOVERLAPPED*)&pCurIO, 0));
+			m_bNewData = false;
+		}
 
-		if (!completionKey) //thread termination
-			break;
+		m_Run = RUN_WORK;
+
+		// Phase 1 (under upload-list lock, no I/O):
+		// Collect read requests for all uploading clients and perform bookkeeping
+		// (move blocks from the request queue to the done list, update upload counter).
+		// No ReadFile here — keeping I/O out of the lock avoids priority inversion.
+		CTypedPtrList<CPtrList, OverlappedRead_Struct*> pendingReads;
+		{
+			CCriticalSection *pcsUploadListRead = NULL;
+			const CUploadingPtrList &rUploadList = theApp.uploadqueue->GetUploadListTS(&pcsUploadListRead);
+			pcsUploadListRead->Lock();
+			for (POSITION pos = rUploadList.GetHeadPosition(); pos != NULL;)
+				StartCreateNextBlockPackage(rUploadList.GetNext(pos), pendingReads);
+			pcsUploadListRead->Unlock();
+		}
+
+		// Phase 2 (no lock held): synchronous reads + packet creation/dispatch.
+		// Sequential reads on the same file handle are safe: we call SetFilePointerEx
+		// before each ReadFile, and there is only one upload thread.
+		while (!pendingReads.IsEmpty()) {
+			OverlappedRead_Struct *pRead = pendingReads.RemoveHead();
+			DWORD dwRead = 0;
+			DWORD toRead = (DWORD)(pRead->uEndOffset - pRead->uStartOffset);
+			LARGE_INTEGER li;
+			li.QuadPart = (LONGLONG)pRead->uStartOffset;
+			if (::SetFilePointerEx(pRead->pFile->m_hRead, li, NULL, FILE_BEGIN))
+				::ReadFile(pRead->pFile->m_hRead, pRead->pBuffer, toRead, &dwRead, NULL);
+			// dwRead == 0 on seek/read failure: ReadCompletionRoutine treats it as an I/O error
+			ReadCompletionRoutine(dwRead, pRead);
+		}
+
 		m_Run = RUN_IDLE;
-		// if we have put a new data on any socket, tell the throttler
+
 		if (m_bSignalThrottler && theApp.uploadBandwidthThrottler != NULL) {
 			theApp.uploadBandwidthThrottler->NewUploadDataAvailable();
 			m_bSignalThrottler = false;
 		}
-		if (InterlockedExchange8(&m_bNewData, 0) && m_listPendingIO.IsEmpty())
-			PostQueuedCompletionStatus(m_hPort, 0, WAKEUP, NULL);
+		// If WakeUpCall() arrived while we were processing, m_bNewData is already true;
+		// the cv.wait predicate will detect it on the next iteration without blocking.
 	}
+
 	m_Run = RUN_STOP;
-
-	//Improper termination of asynchronous I/O follows...
-	//close file handles to release the I/O completion port
-	while (!m_listPendingIO.IsEmpty())
-		ReadCompletionRoutine(0, m_listPendingIO.RemoveHead());
-
-	::CloseHandle(m_hPort);
-	m_hPort = 0;
-
 	m_eventThreadEnded.SetEvent();
 	return 0;
 }
 
 bool CUploadDiskIOThread::AssociateFile(CKnownFile *pFile)
 {
-	ASSERT(m_hPort && m_Run);
+	ASSERT(m_Run);
 	if (pFile && pFile->m_hRead == INVALID_HANDLE_VALUE && !pFile->bNoNewReads) {
 		CString fullname = (pFile->IsPartFile())
 			? RemoveFileExtension(static_cast<const CPartFile*>(pFile)->GetFullName())
 			: pFile->GetFilePath();
-		pFile->m_hRead = ::CreateFile(fullname, GENERIC_READ, FILE_SHARE_WRITE | FILE_SHARE_READ | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, FILE_FLAG_OVERLAPPED | FILE_FLAG_SEQUENTIAL_SCAN, NULL);
+		// Open without FILE_FLAG_OVERLAPPED: reads are now synchronous.
+		// FILE_FLAG_SEQUENTIAL_SCAN is kept as a hint to the OS prefetcher.
+		pFile->m_hRead = ::CreateFile(fullname, GENERIC_READ, FILE_SHARE_WRITE | FILE_SHARE_READ | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, FILE_FLAG_SEQUENTIAL_SCAN, NULL);
 		if (pFile->m_hRead == INVALID_HANDLE_VALUE) {
-			theApp.QueueDebugLogLineEx(LOG_ERROR, _T("Failed to open \"%s\" for overlapped read: %s"), (LPCTSTR)fullname, (LPCTSTR)GetErrorMessage(::GetLastError(), 1));
-			return false;
-		}
-		if (m_hPort != ::CreateIoCompletionPort(pFile->m_hRead, m_hPort, (ULONG_PTR)pFile, 0)) {
-			theApp.QueueDebugLogLineEx(LOG_ERROR, _T("Failed to associate \"%s\" with reading IOCP: %s"), (LPCTSTR)fullname, (LPCTSTR)GetErrorMessage(::GetLastError(), 1));
-			DissociateFile(pFile);
+			theApp.QueueDebugLogLineEx(LOG_ERROR, _T("Failed to open \"%s\" for reading: %s"), (LPCTSTR)fullname, (LPCTSTR)GetErrorMessage(::GetLastError(), 1));
 			return false;
 		}
 		pFile->bCompress = ShouldCompressBasedOnFilename(fullname);
@@ -169,7 +167,8 @@ void CUploadDiskIOThread::DissociateFile(CKnownFile *pFile)
 	}
 }
 
-void CUploadDiskIOThread::StartCreateNextBlockPackage(UploadingToClient_Struct *pUploadClientStruct)
+void CUploadDiskIOThread::StartCreateNextBlockPackage(UploadingToClient_Struct *pUploadClientStruct,
+	CTypedPtrList<CPtrList, OverlappedRead_Struct*> &outPendingReads)
 {
 	if (pUploadClientStruct->m_bIOError || pUploadClientStruct->m_BlockRequests_queue.IsEmpty())
 		return;
@@ -226,36 +225,17 @@ void CUploadDiskIOThread::StartCreateNextBlockPackage(UploadingToClient_Struct *
 			if (!AssociateFile(pFile))
 				throwCStr(_T("StartCreateNextBlockPackage: cannot open CKnownFile"));
 
-			// initiate read
+			// Prepare the read descriptor. The actual ReadFile is deferred to Phase 2
+			// (outside the upload-list lock) to avoid holding the lock during disk I/O.
 			OverlappedRead_Struct *pOverlappedRead = new OverlappedRead_Struct;
-			pOverlappedRead->oOverlap.Internal = 0;
-			pOverlappedRead->oOverlap.InternalHigh = 0;
-			//pOverlappedRead->oOverlap.Offset = LODWORD(currentblock->StartOffset);
-			//pOverlappedRead->oOverlap.OffsetHigh = HIDWORD(currentblock->StartOffset);
-			*(uint64*)&pOverlappedRead->oOverlap.Offset = currentblock->StartOffset;
-			pOverlappedRead->oOverlap.hEvent = 0;
 			pOverlappedRead->pFile = pFile;
 			pOverlappedRead->pUploadClientStruct = pUploadClientStruct;
 			pOverlappedRead->uStartOffset = currentblock->StartOffset;
 			pOverlappedRead->uEndOffset = currentblock->EndOffset;
 			pOverlappedRead->pBuffer = new byte[(size_t)uTogo];
 
-			if (!::ReadFile(pFile->m_hRead, pOverlappedRead->pBuffer, (DWORD)uTogo, NULL, (LPOVERLAPPED)pOverlappedRead)) {
-				DWORD dwError = ::GetLastError();
-				if (dwError != ERROR_IO_PENDING) {
-					delete[] pOverlappedRead->pBuffer;
-					delete pOverlappedRead;
-
-					if (dwError == ERROR_INVALID_USER_BUFFER || dwError == ERROR_NOT_ENOUGH_MEMORY || dwError == ERROR_NOT_ENOUGH_QUOTA) {
-						theApp.QueueDebugLogLineEx(LOG_WARNING, _T("ReadFile failed, possibly too many pending requests, trying again later"));
-						return; // make this a recoverable error, as it might just be that we have too many requests in which case we just need to wait
-					}
-					throw _T("ReadFile Error: ") + GetErrorMessage(::GetLastError());
-				}
-			}
 			++pFile->nInUse;
-			pOverlappedRead->pos = m_listPendingIO.AddTail(pOverlappedRead);
-			DEBUG_ONLY(dbgDataReadPending += uTogo);
+			outPendingReads.AddTail(pOverlappedRead);
 
 			addedPayloadQueueSession += uTogo;
 			pClient->SetQueueSessionUploadAdded(addedPayloadQueueSession);
@@ -277,13 +257,12 @@ void CUploadDiskIOThread::ReadCompletionRoutine(DWORD dwRead, const OverlappedRe
 		ASSERT(0);
 		return;
 	}
-	ASSERT(pOvRead->pFile && pOvRead->pos);
+	ASSERT(pOvRead->pFile);
 
 	--pOvRead->pFile->nInUse;
 
 	CKnownFile *pKnownFile = pOvRead->pFile;
 	if (m_Run) {
-		m_listPendingIO.RemoveAt(pOvRead->pos);
 		bool bReadError = !dwRead;
 		if (bReadError)
 			Debug(_T("  Completed read, dwRead=0\n"));
@@ -294,7 +273,6 @@ void CUploadDiskIOThread::ReadCompletionRoutine(DWORD dwRead, const OverlappedRe
 		}
 		if (pKnownFile->m_hRead != INVALID_HANDLE_VALUE) { //discard data from closed files
 			UploadingToClient_Struct *pStruct = pOvRead->pUploadClientStruct;
-			DEBUG_ONLY(dbgDataReadPending -= pOvRead->uEndOffset - pOvRead->uStartOffset);
 			// check if the client struct is still in the upload list (otherwise it is a deleted pointer)
 			CCriticalSection *pcsUploadListRead = NULL;
 			const CUploadingPtrList &rUploadList = theApp.uploadqueue->GetUploadListTS(&pcsUploadListRead);
@@ -340,8 +318,7 @@ void CUploadDiskIOThread::ReadCompletionRoutine(DWORD dwRead, const OverlappedRe
 				lockUploadListRead.Unlock();
 			}
 		}
-	} else if (pKnownFile)
-		DissociateFile(pKnownFile);
+	}
 
 	// cleanup
 	delete[] pOvRead->pBuffer;
@@ -474,9 +451,9 @@ void CUploadDiskIOThread::CreatePackedPackets(const OverlappedRead_Struct &Overl
 
 void CUploadDiskIOThread::WakeUpCall()
 {
-	//pending I/O makes posting unnecessary
-	if (m_Run == RUN_IDLE && m_listPendingIO.IsEmpty())
-		PostQueuedCompletionStatus(m_hPort, 0, WAKEUP, NULL);
-	else
-		InterlockedExchange8(&m_bNewData, 1);
+	{
+		std::lock_guard<std::mutex> lock(m_mutex);
+		m_bNewData = true;
+	}
+	m_cv.notify_one();
 }

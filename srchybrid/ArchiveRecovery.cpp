@@ -1608,7 +1608,8 @@ void CArchiveRecovery::ProcessProgress(archiveScannerThreadParams_s *aitp, UINT6
 		unsigned nNewProgress = (unsigned)((pos * 1000) / (uint64)aitp->file->GetFileSize());
 		if (nNewProgress > aitp->curProgress + 1) {
 			aitp->curProgress = nNewProgress;
-			SendMessage(aitp->progressHwnd, PBM_SETPOS, nNewProgress, 0);
+			// PostMessage: async, safe from worker thread; progress-bar lag is acceptable
+			PostMessage(aitp->progressHwnd, PBM_SETPOS, nNewProgress, 0);
 		}
 	}
 }

@@ -1112,7 +1112,12 @@ UINT AFX_CDECL CArchivePreviewDlg::RunArchiveScanner(LPVOID pParam)
 		inFile.Close();
 	}
 
-	if (!tp->m_bIsValid || !::IsWindow(tp->ownerHwnd) || !::SendMessage(tp->ownerHwnd, UM_ARCHIVESCANDONE, ret, (LPARAM)tp))
+	// PostMessage: async and safe from a worker thread.
+	// If the dialog is already gone PostMessage returns FALSE and we free here;
+	// otherwise ShowScanResults() owns the memory and will call FreeMemory().
+	// The ::IsWindow() pre-check is intentionally removed: it was a TOCTOU race
+	// (window could be destroyed between IsWindow and SendMessage).
+	if (!tp->m_bIsValid || !::PostMessage(tp->ownerHwnd, UM_ARCHIVESCANDONE, (WPARAM)ret, (LPARAM)tp))
 		FreeMemory(tp);
 	return 0;
 }

@@ -15,6 +15,9 @@
 //along with this program; if not, write to the Free Software
 //Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 #pragma once
+#include <atomic>
+#include <condition_variable>
+#include <mutex>
 
 class Packet;
 class CUpDownClient;
@@ -22,15 +25,15 @@ typedef CTypedPtrList<CPtrList, Packet*> CPacketList;
 
 struct UploadingToClient_Struct;
 
+// No OVERLAPPED member: reads are now synchronous (no IOCP).
+// uStartOffset is used directly with SetFilePointerEx before ReadFile.
 struct OverlappedRead_Struct
 {
-	OVERLAPPED				oOverlap; // must be the first member
 	CKnownFile				*pFile;
 	UploadingToClient_Struct *pUploadClientStruct;
 	uint64					uStartOffset;
 	uint64					uEndOffset;
 	BYTE					*pBuffer;
-	POSITION				pos;
 };
 
 class CUploadDiskIOThread : public CWinThread
@@ -42,8 +45,8 @@ public:
 	CUploadDiskIOThread(const CUploadDiskIOThread&) = delete;
 	CUploadDiskIOThread& operator=(const CUploadDiskIOThread&) = delete;
 
-	void		EndThread();	//completionkey == 0
-	void		WakeUpCall();	//completionkey == WAKEUP
+	void		EndThread();
+	void		WakeUpCall();
 	static void	DissociateFile(CKnownFile *pFile);
 
 private:
@@ -52,20 +55,18 @@ private:
 
 	bool		AssociateFile(CKnownFile *pFile);
 	static bool ShouldCompressBasedOnFilename(const CString &strFileName);
-	void		StartCreateNextBlockPackage(UploadingToClient_Struct *pUploadClientStruct);
+	void		StartCreateNextBlockPackage(UploadingToClient_Struct *pUploadClientStruct,
+					CTypedPtrList<CPtrList, OverlappedRead_Struct*> &outPendingReads);
 	void		ReadCompletionRoutine(DWORD dwRead, const OverlappedRead_Struct *pOvRead);
 
 	static void CreatePackedPackets(const OverlappedRead_Struct &OverlappedRead, CPacketList &rOutPacketList);
 	static void CreateStandardPackets(const OverlappedRead_Struct &OverlappedRead, CPacketList &rOutPacketList);
 
-	CEvent		m_eventThreadEnded;
-	CTypedPtrList<CPtrList, OverlappedRead_Struct*>	m_listPendingIO;
+	CEvent						m_eventThreadEnded;
+	std::mutex					m_mutex;
+	std::condition_variable		m_cv;
 
-	HANDLE		m_hPort;
-#ifdef _DEBUG
-	uint64		dbgDataReadPending;
-#endif
-	volatile char m_Run; //0 - not running; 1 - idle; 2 - processing
-	volatile char m_bNewData;
-	bool		m_bSignalThrottler;
+	std::atomic<int>	m_Run; //0 - not running; 1 - idle; 2 - processing
+	bool				m_bNewData;		// protected by m_mutex
+	bool				m_bSignalThrottler;
 };
