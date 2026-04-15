@@ -206,6 +206,7 @@ BEGIN_MESSAGE_MAP(CemuleDlg, CTrayDialog)
 	ON_MESSAGE(TM_FILEALLOCEXC, OnFileAllocExc)
 	ON_MESSAGE(TM_FILECOMPLETED, OnFileCompleted)
 	ON_MESSAGE(TM_CONSOLETHREADEVENT, OnConsoleThreadEvent)
+	ON_MESSAGE(TM_AICH_HASHING_UPDATE, OnAICHHashingUpdate)
 
 #ifdef HAVE_WIN7_SDK_H
 	ON_REGISTERED_MESSAGE(UWM_TASK_BUTTON_CREATED, OnTaskbarBtnCreated)
@@ -620,7 +621,7 @@ BOOL CemuleDlg::OnInitDialog()
 	if (thePrefs.GetWSIsEnabled())
 		theApp.webserver->StartServer();
 
-	VERIFY((m_hTimer = ::SetTimer(NULL, 0, SEC2MS(3)/10, StartupTimer)) != 0);
+	VERIFY((m_hTimer = ::SetTimer(NULL, TIMERID_STARTUP, SEC2MS(3)/10, StartupTimer)) != 0);
 	if (thePrefs.GetVerbose() && !m_hTimer)
 		AddDebugLogLine(true, _T("Failed to create 'startup' timer - %s"), (LPCTSTR)GetErrorMessage(::GetLastError()));
 
@@ -1537,6 +1538,20 @@ LRESULT CemuleDlg::OnUserChanged(WPARAM, LPARAM)
 	// Just want to know if we ever get this message. Maybe it helps us to handle the
 	// logoff/reboot/shutdown problem when eMule was started with "RUNAS".
 	return Default();
+}
+
+// TM_AICH_HASHING_UPDATE — posted by AICHSyncThread to update the shared-files
+// counter on the UI thread.  wParam = remaining files to hash (0 = done).
+// Safe to call even if the shared-files window is not visible or was destroyed,
+// because we use IsWindow() before touching any HWND.
+LRESULT CemuleDlg::OnAICHHashingUpdate(WPARAM wParam, LPARAM /*lParam*/)
+{
+	if (sharedfileswnd) {
+		sharedfileswnd->sharedfilesctrl.SetAICHHashing((UINT)wParam);
+		if (::IsWindow(sharedfileswnd->sharedfilesctrl.m_hWnd))
+			sharedfileswnd->sharedfilesctrl.ShowFilesCount();
+	}
+	return 0;
 }
 
 LRESULT CemuleDlg::OnConsoleThreadEvent(WPARAM wParam, LPARAM lParam)
@@ -3464,7 +3479,7 @@ void CemuleDlg::StartUPnP(bool bReset, uint16 nForceTCPPort, uint16 nForceUDPPor
 			if (impl->IsReady()) {
 				impl->SetMessageOnResult(this, UM_UPNP_RESULT);
 				if (bReset)
-					VERIFY((m_hUPnPTimeOutTimer = ::SetTimer(NULL, 0, SEC2MS(40), (TIMERPROC)UPnPTimeOutTimer)) != 0);
+					VERIFY((m_hUPnPTimeOutTimer = ::SetTimer(NULL, TIMERID_UPNP_TIMEOUT, SEC2MS(40), (TIMERPROC)UPnPTimeOutTimer)) != 0);
 				impl->StartDiscovery((nForceTCPPort ? nForceTCPPort : thePrefs.GetPort())
 					, (nForceUDPPort ? nForceUDPPort : thePrefs.GetUDPPort())
 					, (thePrefs.GetWSUseUPnP() ? thePrefs.GetWSPort() : 0));
@@ -3490,7 +3505,7 @@ void CemuleDlg::RefreshUPnP(bool bRequestAnswer)
 				if (bRequestAnswer)
 					impl->SetMessageOnResult(this, UM_UPNP_RESULT);
 				if (impl->CheckAndRefresh() && bRequestAnswer)
-					VERIFY((m_hUPnPTimeOutTimer = ::SetTimer(NULL, 0, SEC2MS(10), UPnPTimeOutTimer)) != 0);
+					VERIFY((m_hUPnPTimeOutTimer = ::SetTimer(NULL, TIMERID_UPNP_REFRESH, SEC2MS(10), UPnPTimeOutTimer)) != 0);
 				else
 					impl->SetMessageOnResult(NULL, 0);
 			} else

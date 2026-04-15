@@ -54,6 +54,15 @@ struct Status;
 #define	EMULE_HOTMENU_ACCEL		'x'
 #define	EMULSKIN_BASEEXT		_T("eMuleSkin")
 
+// Explicit timer IDs for CemuleDlg — never use 0 (system-generated) to avoid
+// Wine/multi-timer aliasing bugs where KillTimer hits the wrong timer.
+enum EEmuleDlgTimers : UINT_PTR
+{
+	TIMERID_STARTUP         = 1,  // one-shot startup delay
+	TIMERID_UPNP_TIMEOUT    = 2,  // UPnP discovery global timeout
+	TIMERID_UPNP_REFRESH    = 3,  // UPnP refresh timeout
+};
+
 class CemuleDlg : public CTrayDialog
 {
 	friend class CMuleToolbarCtrl;
@@ -306,6 +315,7 @@ protected:
 	afx_msg LRESULT OnCloseMiniMule(WPARAM wParam, LPARAM);
 	// Terminal Services
 	afx_msg LRESULT OnConsoleThreadEvent(WPARAM wParam, LPARAM lParam);
+	afx_msg LRESULT OnAICHHashingUpdate(WPARAM wParam, LPARAM lParam);
 	// UPnP
 	afx_msg LRESULT OnUPnPResult(WPARAM wParam, LPARAM lParam);
 };
@@ -332,7 +342,8 @@ enum EEMuleAppMsgs
 	TM_FILEALLOCEXC,
 	TM_FILECOMPLETED,
 	TM_FILEOPPROGRESS,
-	TM_CONSOLETHREADEVENT
+	TM_CONSOLETHREADEVENT,
+	TM_AICH_HASHING_UPDATE  // wParam = remaining count (UINT_PTR); sent by AICHSyncThread
 };
 
 enum EWebinterfaceOrders

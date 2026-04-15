@@ -60,7 +60,7 @@ CQueueListCtrl::CQueueListCtrl()
 	SetSkinKey(_T("QueuedLv"));
 
 	// Barry - Refresh the queue every 10 secs
-	VERIFY((m_hTimer = ::SetTimer(NULL, 0, SEC2MS(10), QueueUpdateTimer)) != 0);
+	VERIFY((m_hTimer = ::SetTimer(NULL, 201, SEC2MS(10), QueueUpdateTimer)) != 0);
 	if (thePrefs.GetVerbose() && !m_hTimer)
 		AddDebugLogLine(true, _T("Failed to create 'queue list control' timer - %s"), (LPCTSTR)GetErrorMessage(::GetLastError()));
 }

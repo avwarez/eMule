@@ -101,13 +101,24 @@ void CGDIThread::KillThread()
 	// Note: this function is called in the context of other threads,
 	//	not the thread itself.
 
-	// reset the m_hEventKill which signals the thread to shutdown
+	// Signal the GDI thread to stop.
 	VERIFY(::SetEvent(m_hEventKill));
 
-	// allow thread to run at higher priority during kill process
-	SetThreadPriority(THREAD_PRIORITY_ABOVE_NORMAL);
-	::WaitForSingleObject(m_hEventDead, INFINITE);
-	::WaitForSingleObject(m_hThread, INFINITE);
+	// Boost the GDI *worker* thread so it can react promptly (Wine honours
+	// priority changes on the target handle, not on the calling thread).
+	// The old code called SetThreadPriority() with no handle, which elevated
+	// the *caller* — useless and potentially harmful on Wine/Linux.
+	if (m_hThread)
+		::SetThreadPriority(m_hThread, THREAD_PRIORITY_ABOVE_NORMAL);
+
+	// Use a finite timeout (5 s) so that a stuck worker never hangs shutdown.
+	// On Wine, INFINITE waits can become truly infinite if the thread is
+	// blocked on a GDI call that has no kernel-side completion signal.
+	const DWORD dwTimeout = 5000; // ms
+	if (::WaitForSingleObject(m_hEventDead, dwTimeout) == WAIT_TIMEOUT) {
+		ASSERT(0); // thread did not die in time — log in debug builds
+	}
+	::WaitForSingleObject(m_hThread, dwTimeout);
 
 	// now delete CWinThread object since no longer necessary
 	delete this;

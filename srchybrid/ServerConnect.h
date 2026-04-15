@@ -29,6 +29,9 @@
 
 #define CS_RETRYCONNECTTIME  30 // seconds
 
+// Explicit timer ID — never use 0 to avoid Wine aliasing with other NULL-window timers.
+static const UINT_PTR TIMERID_SERVER_RETRY = 101;
+
 class CServerList;
 class CUDPSocket;
 class CServerSocket;
@@ -79,7 +82,10 @@ public:
 	uint32	m_curuser;
 
 private:
-	typedef CMap<ULONG, ULONG, CServerSocket*, CServerSocket*> CServerSocketMap;
+	// ULONGLONG key: GetTickCount64() does not wrap for ~584 million years,
+	// avoiding the false-timeout / missed-timeout bug that occurs with the
+	// 49-day wraparound of GetTickCount()/ULONG.
+	typedef CMap<ULONGLONG, ULONGLONG, CServerSocket*, CServerSocket*> CServerSocketMap;
 	CServerSocketMap connectionattempts;
 	CPtrList m_lstOpenSockets;	// list of currently opened sockets
 	CServerSocket *connectedsocket;

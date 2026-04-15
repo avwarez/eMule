@@ -268,7 +268,9 @@ int CAICHSyncThread::Run()
 
 	if (!m_liToHash.IsEmpty()) {
 		theApp.QueueLogLine(true, GetResString(IDS_AICH_SYNCTOTAL), m_liToHash.GetCount());
-		theApp.emuledlg->sharedfileswnd->sharedfilesctrl.SetAICHHashing(m_liToHash.GetCount());
+		// Notify UI thread: N files remaining.  Never touch MFC controls from a worker thread.
+		if (theApp.emuledlg && !theApp.IsClosing())
+			theApp.emuledlg->PostMessage(TM_AICH_HASHING_UPDATE, (WPARAM)m_liToHash.GetCount(), 0);
 		// first let all normal hashing be done before starting out sync hashing
 		CSingleLock sLock1(&theApp.hashing_mut); // only one file hash at a time
 		while (theApp.sharedfiles->GetHashingCount() != 0) {
@@ -282,9 +284,10 @@ int CAICHSyncThread::Run()
 			if (theApp.IsClosing()) // in case of shutdown while still hashing
 				return 0;
 
-			theApp.emuledlg->sharedfileswnd->sharedfilesctrl.SetAICHHashing(m_liToHash.GetCount() - cDone);
-			if (theApp.emuledlg->sharedfileswnd->sharedfilesctrl.m_hWnd != NULL)
-				theApp.emuledlg->sharedfileswnd->sharedfilesctrl.ShowFilesCount();
+			// Update progress counter via message; safe across shutdown.
+			if (theApp.emuledlg)
+				theApp.emuledlg->PostMessage(TM_AICH_HASHING_UPDATE,
+					(WPARAM)(m_liToHash.GetCount() - cDone), 0);
 			CKnownFile *pCurFile = m_liToHash.GetNext(pos);
 			// just to be sure that the file hasn't been deleted lately
 			if (!(theApp.knownfiles->IsKnownFile(pCurFile) && theApp.sharedfiles->GetFileByID(pCurFile->GetFileHash())))
@@ -294,9 +297,9 @@ int CAICHSyncThread::Run()
 				theApp.QueueDebugLogLine(false, _T("Failed to create AICH Hashset while sync. for file %s"), (LPCTSTR)pCurFile->GetFileName());
 		}
 
-		theApp.emuledlg->sharedfileswnd->sharedfilesctrl.SetAICHHashing(0);
-		if (theApp.emuledlg->sharedfileswnd->sharedfilesctrl.m_hWnd != NULL)
-			theApp.emuledlg->sharedfileswnd->sharedfilesctrl.ShowFilesCount();
+		// Signal done (count = 0).
+		if (theApp.emuledlg && !theApp.IsClosing())
+			theApp.emuledlg->PostMessage(TM_AICH_HASHING_UPDATE, 0, 0);
 		sLock1.Unlock();
 	}
 

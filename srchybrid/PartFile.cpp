@@ -4077,7 +4077,47 @@ void CPartFile::FlushBuffer(bool bForceICH, bool bNoAICH)
 		} else
 			newsize = 0; // not calling SetLength
 
-		// Check free disk space if required
+		// --- Proactive per-file disk-space guard (unconditional) -------------------
+		// Before touching the file size, verify that THIS specific allocation fits
+		// in the available free space on the target partition.  We do this regardless
+		// of the "check disk space" user preference: running out of physical space is
+		// a hardware fact, not an option.
+		//
+		// Only normal (non-sparse, non-compressed) files grow via SetLength here;
+		// sparse/compressed files are covered by the bCheckDiskspace path below.
+		//
+		// GetFreeDiskSpaceX calls GetDiskFreeSpaceEx, which Wine maps to statvfs(2),
+		// so this check behaves identically on Windows and on Linux via Wine.
+		//
+		// If the check fires we pause only THIS file (PauseFile(true) sets
+		// m_insufficient and disconnects its sources).  Every other downloading
+		// file is completely unaffected and continues normally.
+		// ---------------------------------------------------------------------------
+		if (newsize > cursize && !m_paused && !m_insufficient) {
+			const ULONGLONG uFreeSpace = GetFreeDiskSpaceX(GetTmpPath());
+			// Use the *total* remaining space the file will eventually need, not just the
+			// current flush increment (newsize-cursize).  Without this, a large file is
+			// downloaded chunk by chunk: each individual chunk fits in the dwindling free
+			// space, so the guard never fires — the disk fills up completely before any
+			// pause is triggered.  By comparing m_nFileSize-cursize we catch the problem
+			// the first time the file needs to grow and the remaining allocation would
+			// exceed free space.  Falls back to newsize-cursize if m_nFileSize is somehow
+			// smaller than cursize (defensive, should not happen on a valid file).
+			const ULONGLONG uFileSz  = (ULONGLONG)m_nFileSize;
+			const ULONGLONG uNeeded  = uFileSz > cursize ? uFileSz - cursize : newsize - cursize;
+			if (uNeeded > uFreeSpace) {
+				CString msg;
+				msg.Format(GetResString(IDS_ERR_OUTOFSPACE), (LPCTSTR)GetFileName());
+				LogError(LOG_STATUSBAR, msg);
+				if (theApp.IsRunning() && thePrefs.GetNotifierOnImportantError())
+					theApp.emuledlg->ShowNotifier(msg, TBN_IMPORTANTEVENT);
+				if (!theApp.IsClosing())
+					PauseFile(true); // bInsufficient=true: disconnects sources, sets m_insufficient
+				return; // do not allocate anything; buffered data stays PB_READY for later retry
+			}
+		}
+
+		// Check free disk space if required (user-configured minimum free space buffer)
 		if (bCheckDiskspace) {
 			ULONGLONG uFreeDiskSpace = GetFreeDiskSpaceX(GetTmpPath());
 			ULONGLONG uIncrease = thePrefs.GetMinFreeDiskSpace();
@@ -4284,34 +4324,31 @@ void CPartFile::FlushBuffer(bool bForceICH, bool bNoAICH)
 
 void CPartFile::FlushBuffersExceptionHandler(CFileException *ex)
 {
-	if (thePrefs.IsCheckDiskspaceEnabled() && ex->m_cause == CFileException::diskFull) {
+	if (ex->m_cause == CFileException::diskFull) {
+		// Disk-full is always a pause condition, never PS_ERROR.
+		// We reach this handler from two paths:
+		//   1. m_hpartfile.SetLength() throws diskFull: a race condition where the
+		//      disk filled between the proactive per-file check and the actual call.
+		//   2. PB_ERROR from the write thread with ERROR_DISK_FULL/ERROR_HANDLE_DISK_FULL:
+		//      a race condition where the disk filled between SetLength and the write.
+		// In both cases the correct response is the same regardless of the
+		// "check disk space" user preference (disk full is a physical fact, not an option).
+		// CFileException::diskFull is also raised by the bCheckDiskspace pre-check when
+		// the file would violate the user-configured minimum free space threshold — that
+		// path is intentionally included here as well (same graceful pause behaviour).
 		CString msg;
 		msg.Format(GetResString(IDS_ERR_OUTOFSPACE), (LPCTSTR)GetFileName());
 		LogError(LOG_STATUSBAR, msg);
 		if (theApp.IsRunning() && thePrefs.GetNotifierOnImportantError())
 			theApp.emuledlg->ShowNotifier(msg, TBN_IMPORTANTEVENT);
-
-		// 'CFileException::diskFull' is also used for 'not enough min. free space'
 		if (!theApp.IsClosing())
-			if (thePrefs.IsCheckDiskspaceEnabled() && thePrefs.GetMinFreeDiskSpace() == 0)
-				theApp.downloadqueue->CheckDiskspace(true);
-			else
-				PauseFile(true);
+			PauseFile(true); // bInsufficient=true: disconnects sources, sets m_insufficient
 	} else {
+		// Genuine I/O error (permissions, bad sectors, handle invalid, …) — set PS_ERROR.
 		if (thePrefs.IsErrorBeepEnabled())
 			Beep(800, 200);
-
-		if (ex->m_cause == CFileException::diskFull) {
-			CString msg;
-			msg.Format(GetResString(IDS_ERR_OUTOFSPACE), (LPCTSTR)GetFileName());
-			LogError(LOG_STATUSBAR, msg);
-			// may be called during shutdown!
-			if (thePrefs.GetNotifierOnImportantError() && !theApp.IsClosing())
-				theApp.emuledlg->ShowNotifier(msg, TBN_IMPORTANTEVENT);
-		} else {
-			LogError(LOG_STATUSBAR, GetResString(IDS_ERR_WRITEERROR), (LPCTSTR)GetFileName(), (LPCTSTR)CExceptionStr(*ex));
-			SetStatus(PS_ERROR);
-		}
+		LogError(LOG_STATUSBAR, GetResString(IDS_ERR_WRITEERROR), (LPCTSTR)GetFileName(), (LPCTSTR)CExceptionStr(*ex));
+		SetStatus(PS_ERROR);
 		m_paused = true;
 		m_iLastPausePurge = time(NULL);
 		theApp.downloadqueue->RemoveLocalServerRequest(this);

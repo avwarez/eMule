@@ -17,6 +17,7 @@
 #include "stdafx.h"
 #include "emule.h"
 #include <atlimage.h>
+#include <memory>
 #include <vector>
 #include "quantize.h"
 #include "FrameGrabThread.h"
@@ -92,18 +93,36 @@ BOOL CFrameGrabThread::InitInstance()
 
 BOOL CFrameGrabThread::Run()
 {
-	imgResults = new HBITMAP[nFramesToGrab]{};
-	FrameGrabResult_Struct *result = new FrameGrabResult_Struct;
-	(void)CoInitialize(NULL);
+	// Use RAII so that memory and COM are cleaned up on any exit path,
+	// including exceptions thrown by GrabFrames() (e.g. DirectShow errors,
+	// or COM not available under Wine).
+	auto imgBuf = std::make_unique<HBITMAP[]>(nFramesToGrab);
+	imgResults = imgBuf.get();
+
+	auto resultOwner = std::make_unique<FrameGrabResult_Struct>();
+	FrameGrabResult_Struct *result = resultOwner.get();
+
+	const HRESULT hrCOM = CoInitialize(NULL);
+	// Scope guard: call CoUninitialize exactly once, even if an exception fires.
+	struct CoGuard {
+		HRESULT hr;
+		~CoGuard() { if (SUCCEEDED(hr) || hr == RPC_E_CHANGED_MODE) CoUninitialize(); }
+	} coGuard{ hrCOM };
+
 	result->nImagesGrabbed = (uint8)GrabFrames();
-	CoUninitialize();
-	result->imgResults = imgResults;
+
+	result->imgResults = imgBuf.release(); // ownership transferred to result
+	imgResults = nullptr;
 	result->pSender = pSender;
-	if (!theApp.emuledlg->PostMessage(TM_FRAMEGRABFINISHED, (WPARAM)pOwner, (LPARAM)result)) {
+
+	if (theApp.emuledlg && theApp.emuledlg->PostMessage(TM_FRAMEGRABFINISHED, (WPARAM)pOwner, (LPARAM)result)) {
+		resultOwner.release(); // message handler takes ownership
+	} else {
+		// PostMessage failed (window already destroyed) — clean up here.
 		for (int i = (int)result->nImagesGrabbed; --i >= 0;)
 			::DeleteObject(result->imgResults[i]);
 		delete[] result->imgResults;
-		delete result;
+		// resultOwner destructor will delete result
 	}
 	return 0;
 }

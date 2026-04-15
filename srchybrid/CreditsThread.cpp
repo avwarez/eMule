@@ -98,23 +98,18 @@ BOOL CCreditsThread::InitInstance()
 }
 
 // wait for vertical retrace
-// makes scrolling smoother, especially at fast speeds
-// NT does not like this at all
+// The original implementation used inline x86 IN instructions to poll VGA
+// hardware register 0x3DA (Input Status Register 1).  This worked on real
+// hardware under Windows 9x, but:
+//   - Requires IOPL >= 1; modern Windows and Wine run at IOPL 0, so the IN
+//     instruction raises a General Protection Fault (crash under Wine/Linux).
+//   - Meaningless on any hardware that does not expose a legacy VGA port.
+//   - Doesn't compile on x64 anyway.
+// Replaced by a 1 ms sleep, which gives similar "yield at frame boundary"
+// behaviour without privileged I/O access.
 void waitvrt()
 {
-#ifdef _M_IX86
-	__asm {
-		mov	dx, 3dah
-		VRT :
-		in		al, dx
-			test	al, 8
-			jnz		VRT
-			NoVRT :
-		in		al, dx
-			test	al, 8
-			jz		NoVRT
-	}
-#endif
+	::Sleep(1);
 }
 
 void CCreditsThread::SingleStep()
@@ -474,7 +469,7 @@ void CCreditsThread::InitText()
 	m_arCredits.Add(_T("S:05"));
 	m_arCredits.Add(_T("01:06:Basque: TXiKi"));
 	m_arCredits.Add(_T("S:05"));
-	m_arCredits.Add(_T("01:06:Breton: KAD-Korvigelloù an Drouizig"));
+	m_arCredits.Add(_T("01:06:Breton: KAD-Korvigelloï¿½ an Drouizig"));
 	m_arCredits.Add(_T("S:05"));
 	m_arCredits.Add(_T("01:06:Bulgarian: DapKo, Dumper"));
 	m_arCredits.Add(_T("S:05"));
@@ -522,7 +517,7 @@ void CCreditsThread::InitText()
 	m_arCredits.Add(_T("S:05"));
 	m_arCredits.Add(_T("01:06:Polish: Tomasz \"TMouse\" Broniarek"));
 	m_arCredits.Add(_T("S:05"));
-	m_arCredits.Add(_T("01:06:Portuguese: Filipe, Luís Claro"));
+	m_arCredits.Add(_T("01:06:Portuguese: Filipe, Luï¿½s Claro"));
 	m_arCredits.Add(_T("S:05"));
 	m_arCredits.Add(_T("01:06:Portuguese Brazilian: DarthMaul,Brasco,Ducho"));
 	m_arCredits.Add(_T("S:05"));

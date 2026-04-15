@@ -31,29 +31,33 @@ static char THIS_FILE[] = __FILE__;
 #endif
 
 // ---------------------------------------------------------------------------
-// SyncWrite — cross-platform positional file write
+// SyncWrite — positional file write (equivalent to POSIX pwrite(2))
 //
 // Writes 'count' bytes from 'buf' at byte offset 'offset' in 'hFile'.
-// Does NOT change the file pointer (equivalent to POSIX pwrite(2)).
+// hFile must be opened WITHOUT FILE_FLAG_OVERLAPPED (synchronous handle).
+// Because m_hWrite is exclusively owned by the write thread, moving the
+// file pointer via SetFilePointerEx is perfectly safe.
 //
-// Windows implementation: WriteFile with an OVERLAPPED struct whose Offset
-// fields carry the target position.  Because hFile is opened WITHOUT
-// FILE_FLAG_OVERLAPPED, the call is fully synchronous — it blocks until
-// the kernel has completed the write and returns the byte count directly.
-// No I/O Completion Port is involved.
-//
-// Linux / future native port: replace this function body with
-//     return (DWORD)::pwrite(pFile->m_fdWrite, buf, count, (off_t)offset);
-// and change AddFile / RemFile to open/close a POSIX file descriptor instead
-// of a HANDLE.  No other code in this file needs to change.
+// WHY NOT OVERLAPPED:
+//   Passing a non-NULL OVERLAPPED to WriteFile on a *synchronous* handle
+//   (no FILE_FLAG_OVERLAPPED) is documented to use Offset/OffsetHigh for
+//   positioning on Windows, but Wine implements it inconsistently:
+//   - Some Wine versions return ERROR_IO_PENDING on synchronous handles,
+//     causing the caller to see a failure and set PS_ERROR.
+//   - Other Wine versions ignore the OVERLAPPED offset entirely and write
+//     at the current file pointer, placing all chunks at offset 0 and
+//     corrupting the part file — the hash check then fails → PS_ERROR.
+//   SetFilePointerEx + WriteFile(NULL overlapped) is fully portable and
+//   avoids both problems.
 // ---------------------------------------------------------------------------
 static DWORD SyncWrite(HANDLE hFile, const void *buf, DWORD count, uint64_t offset)
 {
-	OVERLAPPED ov = {};
-	ov.Offset     = static_cast<DWORD>(offset);
-	ov.OffsetHigh = static_cast<DWORD>(offset >> 32);
+	LARGE_INTEGER liPos;
+	liPos.QuadPart = static_cast<LONGLONG>(offset);
+	if (!::SetFilePointerEx(hFile, liPos, NULL, FILE_BEGIN))
+		return 0;
 	DWORD written = 0;
-	if (!::WriteFile(hFile, buf, count, &written, &ov))
+	if (!::WriteFile(hFile, buf, count, &written, NULL))
 		return 0;
 	return written;
 }
@@ -181,17 +185,38 @@ void CPartFileWriteThread::WriteBuffers()
 			} else {
 				pBuffer->dwError = ::GetLastError();
 				pBuffer->flushed = PB_ERROR;
-				theApp.QueueDebugLogLineEx(LOG_WARNING,
-					_T("WriteBuffers error: %lu"), pBuffer->dwError);
+				// Log disk-full immediately so the user sees it in real time.
+				// Any other I/O error is logged later by FlushBuffersExceptionHandler.
+				// ERROR_DISK_FULL (112) and ERROR_HANDLE_DISK_FULL (39) are both
+				// mapped from ENOSPC by Wine, so this check works on Wine/Linux too.
+				if (pBuffer->dwError == ERROR_DISK_FULL || pBuffer->dwError == ERROR_HANDLE_DISK_FULL)
+					theApp.QueueDebugLogLineEx(LOG_ERROR,
+						_T("Write failed — disk full while writing \"%s\""),
+						(LPCTSTR)pFile->GetFileName());
+				else
+					theApp.QueueDebugLogLineEx(LOG_WARNING,
+						_T("WriteBuffers error: %lu"), pBuffer->dwError);
 				RemFile(pFile);
 			}
 		} else {
 			// File space pre-allocation: we wrote a single zero byte at
 			// (end-of-desired-size) to force the OS to extend the file,
 			// then truncate back to the real size.
+			//
+			// WHY m_hWrite instead of m_hpartfile:
+			//   m_hpartfile is a CFile object owned by the main thread.
+			//   Calling SetLength() on it from the write thread is a race
+			//   condition. Under Wine, two open handles to the same file
+			//   can have stale file-size caches, so the truncation may be
+			//   lost or applied to the wrong size.
+			//   We truncate via m_hWrite (exclusively ours) using
+			//   SetFilePointerEx + SetEndOfFile, which is always correct.
 			if (written == 1) {
 				::FlushFileBuffers(pFile->m_hWrite);
-				pFile->m_hpartfile.SetLength(pBuffer->start);
+				LARGE_INTEGER liTrunc;
+				liTrunc.QuadPart = static_cast<LONGLONG>(pBuffer->start);
+				if (::SetFilePointerEx(pFile->m_hWrite, liTrunc, NULL, FILE_BEGIN))
+					::SetEndOfFile(pFile->m_hWrite);
 			}
 			delete pBuffer;
 		}

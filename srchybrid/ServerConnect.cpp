@@ -56,7 +56,7 @@ void CServerConnect::TryAnotherConnectionRequest()
 					LogWarning(LOG_STATUSBAR, GetResString(IDS_OUTOFSERVERS));
 					AddLogLine(false, GetResString(IDS_RECONNECT), CS_RETRYCONNECTTIME);
 					m_uStartAutoConnectPos = 0; // default: start at 0
-					VERIFY((m_idRetryTimer = ::SetTimer(NULL, 0, SEC2MS(CS_RETRYCONNECTTIME), RetryConnectTimer)) != 0);
+					VERIFY((m_idRetryTimer = ::SetTimer(NULL, TIMERID_SERVER_RETRY, SEC2MS(CS_RETRYCONNECTTIME), RetryConnectTimer)) != 0);
 					if (thePrefs.GetVerbose() && !m_idRetryTimer)
 						DebugLogError(_T("Failed to create 'server connect retry' timer - %s"), (LPCTSTR)GetErrorMessage(::GetLastError()));
 				}
@@ -126,7 +126,7 @@ void CServerConnect::ConnectToServer(CServer *server, bool multiconnect, bool bN
 	m_lstOpenSockets.AddTail((void*)newsocket);
 	newsocket->Create(0, SOCK_STREAM, FD_READ | FD_WRITE | FD_CLOSE | FD_CONNECT, thePrefs.GetBindAddr());
 	newsocket->ConnectTo(server, bNoCrypt);
-	connectionattempts[::GetTickCount()] = newsocket;
+	connectionattempts[::GetTickCount64()] = newsocket;
 }
 
 void CServerConnect::StopConnectionTry()
@@ -330,7 +330,7 @@ void CServerConnect::ConnectionFailed(CServerSocket *sender)
 					if (iPosInList >= 0)
 						m_uStartAutoConnectPos = (iPosInList + 1) % theApp.serverlist->GetServerCount();
 				}
-				VERIFY((m_idRetryTimer = ::SetTimer(NULL, 0, SEC2MS(CS_RETRYCONNECTTIME), RetryConnectTimer)) != 0);
+				VERIFY((m_idRetryTimer = ::SetTimer(NULL, TIMERID_SERVER_RETRY, SEC2MS(CS_RETRYCONNECTTIME), RetryConnectTimer)) != 0);
 				if (thePrefs.GetVerbose() && !m_idRetryTimer)
 					DebugLogError(_T("Failed to create 'server connect retry' timer - %s"), (LPCTSTR)GetErrorMessage(::GetLastError()));
 			}
@@ -370,7 +370,7 @@ void CServerConnect::ConnectionFailed(CServerSocket *sender)
 		}
 
 		for (POSITION pos = connectionattempts.GetStartPosition(); pos != NULL;) {
-			DWORD tmpkey;
+			ULONGLONG tmpkey;
 			CServerSocket *tmpsock;
 			connectionattempts.GetNextAssoc(pos, tmpkey, tmpsock);
 			if (tmpsock == sender) {
@@ -408,9 +408,9 @@ void CServerConnect::CheckForTimeout()
 	if (thePrefs.GetProxySettings().bUseProxy)
 		dwServerConnectTimeout = max(dwServerConnectTimeout, CONNECTION_TIMEOUT);
 
-	const DWORD curTick = ::GetTickCount();
+	const ULONGLONG curTick = ::GetTickCount64();
 	for (POSITION pos = connectionattempts.GetStartPosition(); pos != NULL;) {
-		DWORD tmpkey;
+		ULONGLONG tmpkey;
 		CServerSocket *tmpsock;
 		connectionattempts.GetNextAssoc(pos, tmpkey, tmpsock);
 		if (!tmpsock) {

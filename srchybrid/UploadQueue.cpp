@@ -81,7 +81,7 @@ CUploadQueue::CUploadQueue()
 	, m_dwLastResortedUploadSlots()
 	, m_bStatisticsWaitingListDirty(true)
 {
-	VERIFY((h_timer = ::SetTimer(NULL, 0, SEC2MS(1)/10, UploadTimer)) != 0);
+	VERIFY((h_timer = ::SetTimer(NULL, 202, SEC2MS(1)/10, UploadTimer)) != 0);
 	if (thePrefs.GetVerbose() && !h_timer)
 		AddDebugLogLine(true, _T("Failed to create 'upload queue' timer - %s"), (LPCTSTR)GetErrorMessage(::GetLastError()));
 	i1sec = 0;
