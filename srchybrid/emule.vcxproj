@@ -73,7 +73,7 @@
       <WarningLevel>EnableAllWarnings</WarningLevel>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>ADSIId.lib;bcrypt.lib;crypt32.lib;iphlpapi.lib;version.lib;winmm.lib;ws2_32.lib;..\id3lib\libprj\$(Platform)\$(Configuration)\id3lib.lib;..\libpng\projects\visualc\$(Platform)\$(Configuration)\libpng.lib;..\mbedtls\visualc\vs2017\$(Platform)\$(Configuration)\mbedtls.lib;..\miniupnpc\msvc\$(Platform)\$(Configuration)\miniupnpc.lib;..\resizablelib\$(Platform)\$(Configuration)\resizablelib.lib;..\zlib\contrib\vstudio\vc\$(Platform)\$(Configuration)\zlib.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>ADSIId.lib;crypt32.lib;iphlpapi.lib;version.lib;winmm.lib;ws2_32.lib;..\cryptopp\$(Platform)\$(Configuration)\cryptlib.lib;..\id3lib\libprj\$(Platform)\$(Configuration)\id3lib.lib;..\libpng\projects\visualc\$(Platform)\$(Configuration)\libpng.lib;..\mbedtls\visualc\vs2017\$(Platform)\$(Configuration)\mbedtls.lib;..\miniupnpc\msvc\$(Platform)\$(Configuration)\miniupnpc.lib;..\resizablelib\$(Platform)\$(Configuration)\resizablelib.lib;..\zlib\contrib\vstudio\vc\$(Platform)\$(Configuration)\zlib.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalOptions>/safeseh</AdditionalOptions>
       <DelayLoadDLLs>gdiplus.dll;msimg32.dll;oleacc.dll;ws2_32.dll;%(DelayLoadDLLs)</DelayLoadDLLs>
       <IgnoreSpecificDefaultLibraries>mpr.lib;rasapi32.lib;secur32.lib;sensapi.lib;vfw32.lib;%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
@@ -99,7 +99,7 @@
       <WarningLevel>EnableAllWarnings</WarningLevel>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>ADSIId.lib;bcrypt.lib;crypt32.lib;iphlpapi.lib;version.lib;winmm.lib;ws2_32.lib;..\id3lib\libprj\$(Platform)\$(Configuration)\id3lib.lib;..\libpng\projects\visualc\$(Platform)\$(Configuration)\libpng.lib;..\mbedtls\visualc\vs2017\$(Platform)\$(Configuration)\mbedtls.lib;..\miniupnpc\msvc\$(Platform)\$(Configuration)\miniupnpc.lib;..\resizablelib\$(Platform)\$(Configuration)\resizablelib.lib;..\zlib\contrib\vstudio\vc\$(Platform)\$(Configuration)\zlib.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>ADSIId.lib;crypt32.lib;iphlpapi.lib;version.lib;winmm.lib;ws2_32.lib;..\cryptopp\$(Platform)\$(Configuration)\cryptlib.lib;..\id3lib\libprj\$(Platform)\$(Configuration)\id3lib.lib;..\libpng\projects\visualc\$(Platform)\$(Configuration)\libpng.lib;..\mbedtls\visualc\vs2017\$(Platform)\$(Configuration)\mbedtls.lib;..\miniupnpc\msvc\$(Platform)\$(Configuration)\miniupnpc.lib;..\resizablelib\$(Platform)\$(Configuration)\resizablelib.lib;..\zlib\contrib\vstudio\vc\$(Platform)\$(Configuration)\zlib.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <DelayLoadDLLs>gdiplus.dll;msimg32.dll;oleacc.dll;ws2_32.dll;%(DelayLoadDLLs)</DelayLoadDLLs>
       <IgnoreSpecificDefaultLibraries>mpr.lib;rasapi32.lib;secur32.lib;sensapi.lib;vfw32.lib;%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
       <OptimizeReferences>false</OptimizeReferences>
@@ -122,7 +122,7 @@
       <WarningLevel>EnableAllWarnings</WarningLevel>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>ADSIId.lib;bcrypt.lib;crypt32.lib;iphlpapi.lib;version.lib;winmm.lib;ws2_32.lib;..\id3lib\libprj\$(Platform)\$(Configuration)\id3lib.lib;..\libpng\projects\visualc\$(Platform)\$(Configuration)\libpng.lib;..\mbedtls\visualc\vs2017\$(Platform)\$(Configuration)\mbedtls.lib;..\miniupnpc\msvc\$(Platform)\$(Configuration)\miniupnpc.lib;..\resizablelib\$(Platform)\$(Configuration)\resizablelib.lib;..\zlib\contrib\vstudio\vc\$(Platform)\$(Configuration)\zlib.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>ADSIId.lib;crypt32.lib;iphlpapi.lib;version.lib;winmm.lib;ws2_32.lib;..\cryptopp\$(Platform)\$(Configuration)\cryptlib.lib;..\id3lib\libprj\$(Platform)\$(Configuration)\id3lib.lib;..\libpng\projects\visualc\$(Platform)\$(Configuration)\libpng.lib;..\mbedtls\visualc\vs2017\$(Platform)\$(Configuration)\mbedtls.lib;..\miniupnpc\msvc\$(Platform)\$(Configuration)\miniupnpc.lib;..\resizablelib\$(Platform)\$(Configuration)\resizablelib.lib;..\zlib\contrib\vstudio\vc\$(Platform)\$(Configuration)\zlib.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalOptions>/safeseh</AdditionalOptions>
       <DelayLoadDLLs>gdiplus.dll;msimg32.dll;oleacc.dll;ws2_32.dll;%(DelayLoadDLLs)</DelayLoadDLLs>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
@@ -148,7 +148,7 @@
       <WarningLevel>EnableAllWarnings</WarningLevel>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>ADSIId.lib;bcrypt.lib;crypt32.lib;iphlpapi.lib;version.lib;winmm.lib;ws2_32.lib;..\..\id3lib\libprj\$(Platform)\$(Configuration)\id3lib.lib;$(Platform)\$(Configuration)\mbedTLS.lib;$(Platform)\$(Configuration)\miniupnpc.lib;..\..\resizablelib\resizablelib\$(Platform)\$(Configuration)\bin\resizablelib.lib;..\..\zlib\contrib\vstudio\vc17\$(Platform)\ZlibDll$(Configuration)\zlibwapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>ADSIId.lib;crypt32.lib;iphlpapi.lib;version.lib;winmm.lib;ws2_32.lib;..\..\cryptopp\$(Platform)\Output\$(Configuration)\cryptlib.lib;..\..\id3lib\libprj\$(Platform)\$(Configuration)\id3lib.lib;$(Platform)\$(Configuration)\mbedTLS.lib;$(Platform)\$(Configuration)\miniupnpc.lib;..\..\resizablelib\resizablelib\$(Platform)\$(Configuration)\bin\resizablelib.lib;..\..\zlib\contrib\vstudio\vc17\$(Platform)\ZlibDll$(Configuration)\zlibwapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <DelayLoadDLLs>gdiplus.dll;msimg32.dll;oleacc.dll;ws2_32.dll;%(DelayLoadDLLs)</DelayLoadDLLs>
       <IgnoreSpecificDefaultLibraries>mpr.lib;rasapi32.lib;secur32.lib;sensapi.lib;vfw32.lib;%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
@@ -173,7 +173,7 @@
       <WarningLevel>EnableAllWarnings</WarningLevel>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>ADSIId.lib;bcrypt.lib;crypt32.lib;iphlpapi.lib;version.lib;winmm.lib;ws2_32.lib;..\id3lib\libprj\$(Platform)\Debug\id3lib.lib;..\libpng\projects\visualc\$(Platform)\Debug\libpng.lib;..\mbedtls\visualc\vs2017\$(Platform)\Debug\mbedtls.lib;..\miniupnpc\msvc\$(Platform)\Debug\miniupnpc.lib;..\resizablelib\$(Platform)\Debug\resizablelib.lib;..\zlib\contrib\vstudio\vc\$(Platform)\Debug\zlib.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>ADSIId.lib;crypt32.lib;iphlpapi.lib;version.lib;winmm.lib;ws2_32.lib;..\cryptopp\$(Platform)\Debug\cryptlib.lib;..\id3lib\libprj\$(Platform)\Debug\id3lib.lib;..\libpng\projects\visualc\$(Platform)\Debug\libpng.lib;..\mbedtls\visualc\vs2017\$(Platform)\Debug\mbedtls.lib;..\miniupnpc\msvc\$(Platform)\Debug\miniupnpc.lib;..\resizablelib\$(Platform)\Debug\resizablelib.lib;..\zlib\contrib\vstudio\vc\$(Platform)\Debug\zlib.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalOptions>/safeseh</AdditionalOptions>
       <DelayLoadDLLs>gdiplus.dll;msimg32.dll;oleacc.dll;ws2_32.dll;%(DelayLoadDLLs)</DelayLoadDLLs>
       <IgnoreSpecificDefaultLibraries>mpr.lib;rasapi32.lib;secur32.lib;sensapi.lib;vfw32.lib;%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
@@ -199,7 +199,7 @@
       <WarningLevel>EnableAllWarnings</WarningLevel>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>ADSIId.lib;bcrypt.lib;crypt32.lib;iphlpapi.lib;version.lib;winmm.lib;ws2_32.lib;..\id3lib\libprj\$(Platform)\Debug\id3lib.lib;..\libpng\projects\visualc\$(Platform)\Debug\libpng.lib;..\mbedtls\visualc\vs2017\$(Platform)\Debug\mbedtls.lib;..\miniupnpc\msvc\$(Platform)\Debug\miniupnpc.lib;..\resizablelib\$(Platform)\Debug\resizablelib.lib;..\zlib\contrib\vstudio\vc\$(Platform)\Debug\zlib.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>ADSIId.lib;crypt32.lib;iphlpapi.lib;version.lib;winmm.lib;ws2_32.lib;..\cryptopp\$(Platform)\Debug\cryptlib.lib;..\id3lib\libprj\$(Platform)\Debug\id3lib.lib;..\libpng\projects\visualc\$(Platform)\Debug\libpng.lib;..\mbedtls\visualc\vs2017\$(Platform)\Debug\mbedtls.lib;..\miniupnpc\msvc\$(Platform)\Debug\miniupnpc.lib;..\resizablelib\$(Platform)\Debug\resizablelib.lib;..\zlib\contrib\vstudio\vc\$(Platform)\Debug\zlib.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <DelayLoadDLLs>gdiplus.dll;msimg32.dll;oleacc.dll;ws2_32.dll;%(DelayLoadDLLs)</DelayLoadDLLs>
       <IgnoreSpecificDefaultLibraries>mpr.lib;rasapi32.lib;secur32.lib;sensapi.lib;vfw32.lib;%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
       <OptimizeReferences>false</OptimizeReferences>
@@ -339,7 +339,6 @@
     <ClCompile Include="ListViewWalkerPropertySheet.cpp" />
     <ClCompile Include="Log.cpp" />
     <ClCompile Include="MD4.cpp" />
-    <ClCompile Include="emule_md4.cpp" />
     <ClCompile Include="MD5Sum.cpp" />
     <ClCompile Include="Mdump.cpp" />
     <ClCompile Include="MediaInfo.cpp" />

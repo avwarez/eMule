@@ -46,7 +46,7 @@ CMD4::CMD4()
 void CMD4::Reset()
 {
 	m_hash = MD4();
-	emule_md4_init(&m_md4);
+	m_md4.Restart();
 }
 
 // MD4 block update operation. Continues an MD4 message-digest
@@ -54,14 +54,14 @@ void CMD4::Reset()
 //     context
 void CMD4::Add(LPCVOID pData, size_t nLength)
 {
-	emule_md4_update(&m_md4, (const uint8_t*)pData, nLength);
+	m_md4.Update((byte*)pData, nLength);
 }
 
 // MD4 finalization. Ends an MD4 message-digest operation, writing the
 //     the message digest and zeroing the context.
 void CMD4::Finish()
 {
-	emule_md4_finish(&m_md4, m_hash.b);
+	m_md4.Final(m_hash.b);
 }
 
 const byte* CMD4::GetHash() const

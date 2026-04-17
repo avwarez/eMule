@@ -29,7 +29,7 @@ their client on the eMule forum.
 */
 
 #include "stdafx.h"
-#include <bcrypt.h>
+#include "cryptopp/osrng.h"
 #include "kademlia/utils/UInt128.h"
 
 #ifdef _DEBUG
@@ -43,6 +43,7 @@ static char THIS_FILE[] = __FILE__;
 #endif
 
 using namespace Kademlia;
+using namespace CryptoPP;
 
 CUInt128::CUInt128()
 {
@@ -101,8 +102,9 @@ CUInt128& CUInt128::SetValueBE(const byte *pbyValueBE)
 
 CUInt128& CUInt128::SetValueRandom()
 {
+	AutoSeededRandomPool rng;
 	byte byRandomBytes[16];
-	BCryptGenRandom(NULL, byRandomBytes, sizeof byRandomBytes, BCRYPT_USE_SYSTEM_PREFERRED_RNG);
+	rng.GenerateBlock(byRandomBytes, 16);
 	SetValueBE(byRandomBytes);
 	return *this;
 }

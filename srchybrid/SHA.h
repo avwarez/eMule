@@ -34,8 +34,9 @@
  stored in memory. It runs at 22 cycles per byte on a Pentium P4 processor
 */
 #pragma once
+#define CRYPTOPP_ENABLE_NAMESPACE_WEAK 1 //suppress deprecation warning
 #include "shahashset.h"
-#include "mbedtls/sha1.h"
+#include "cryptopp/sha.h"
 //byte sizes
 #define SHA1_BLOCK_SIZE	64
 #define SHA1_DIGEST_SIZE	20
@@ -48,7 +49,8 @@ typedef struct
 class CSHA : public CAICHHashAlgo
 {
 // Attributes
-	mbedtls_sha1_context m_sha;
+	// netfinity: Use cryptlib for non X86 platforms
+	CryptoPP::SHA1 m_sha;
 	SHA1 m_hash;
 
 // Operations

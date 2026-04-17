@@ -19,7 +19,8 @@
 // Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 //
 #pragma once
-#include "emule_md4.h"
+#define CRYPTOPP_ENABLE_NAMESPACE_WEAK 1
+#include "cryptopp/md4.h"
 #include "otherfunctions.h"
 
 #define MD4_BLOCK_SIZE	64
@@ -33,7 +34,7 @@ typedef struct
 class CMD4
 {
 // Attributes
-	emule_md4_context m_md4;
+	CryptoPP::Weak::MD4 m_md4; // netfinity: Use cryptlib
 	MD4 m_hash;
 // Operations
 public:

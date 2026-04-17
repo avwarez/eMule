@@ -30,12 +30,10 @@ void MD5Sum::Calculate(const CString &sSource)
 
 void MD5Sum::Calculate(const byte *pachSource, size_t nLength)
 {
-	mbedtls_md5_context ctx;
-	mbedtls_md5_init(&ctx);
-	mbedtls_md5_starts(&ctx);
-	mbedtls_md5_update(&ctx, pachSource, nLength);
-	mbedtls_md5_finish(&ctx, m_hash.b);
-	mbedtls_md5_free(&ctx);
+	CryptoPP::Weak::MD5 m_md5;
+	m_md5.Restart();
+	m_md5.Update(const_cast<byte*>(pachSource), nLength);
+	m_md5.Final(m_hash.b);
 }
 
 CString MD5Sum::GetHashString() const

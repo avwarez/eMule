@@ -24,23 +24,9 @@
 #include "ServerConnect.h"
 #include "emuledlg.h"
 #include "Log.h"
-#include <bcrypt.h>
-#include <vector>
-#include <stdexcept>
-#include "mbedtls/pk.h"
-#include "mbedtls/rsa.h"
-// Compile-time guard: mbedtls refuses to generate keys smaller than MBEDTLS_RSA_GEN_KEY_MIN_BITS.
-// eMule's secure-ident protocol requires RSAKEYSIZE (384-bit) keys.  If this fires, open
-// mbedtls/include/mbedtls/mbedtls_config.h and set:
-//   #define MBEDTLS_RSA_GEN_KEY_MIN_BITS 384
-#if MBEDTLS_RSA_GEN_KEY_MIN_BITS > RSAKEYSIZE
-#error "In mbedtls_config.h set: #define MBEDTLS_RSA_GEN_KEY_MIN_BITS 384  (see Opcodes.h RSAKEYSIZE)"
-#endif
-#include "mbedtls/sha1.h"
-#include "mbedtls/base64.h"
-#include "mbedtls/asn1.h"
-#include "mbedtls/asn1write.h"
-#include "mbedtls/entropy.h"
+#include "cryptopp/base64.h"
+#include "cryptopp/osrng.h"
+#include "cryptopp/files.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -361,261 +347,59 @@ EIdentState	CClientCredits::GetCurrentIdentState(uint32 dwForIP) const
 	//		 so don't try to spam such clients with "bad guy" messages (besides: spam messages are always bad)
 }
 
-// --- RSA helpers (PKCS#1 RSAPublicKey DER format, wire-compatible with CryptoPP) ---
-
-static int emule_rng(void * /*ctx*/, unsigned char *buf, size_t len)
-{
-	return BCryptGenRandom(NULL, buf, (ULONG)len, BCRYPT_USE_SYSTEM_PREFERRED_RNG) == 0
-		? 0 : MBEDTLS_ERR_ENTROPY_SOURCE_FAILED;
-}
-
-// Write RSA public key as PKCS#1 RSAPublicKey DER (SEQUENCE { N INTEGER, E INTEGER })
-// Returns number of bytes written into buf (starting at buf[0]), or negative on error.
-static int rsa_write_pubkey_pkcs1(unsigned char *buf, size_t buflen, mbedtls_pk_context *pk)
-{
-	unsigned char *c = buf + buflen;
-	size_t len = 0;
-	mbedtls_mpi N, E;
-	mbedtls_mpi_init(&N); mbedtls_mpi_init(&E);
-	int ret = mbedtls_rsa_export(mbedtls_pk_rsa(*pk), &N, NULL, NULL, NULL, &E);
-	if (ret == 0) {
-		MBEDTLS_ASN1_CHK_ADD(len, mbedtls_asn1_write_mpi(&c, buf, &E));
-		MBEDTLS_ASN1_CHK_ADD(len, mbedtls_asn1_write_mpi(&c, buf, &N));
-		MBEDTLS_ASN1_CHK_ADD(len, mbedtls_asn1_write_len(&c, buf, len));
-		MBEDTLS_ASN1_CHK_ADD(len, mbedtls_asn1_write_tag(&c, buf,
-			MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE));
-		memmove(buf, c, len);
-		ret = (int)len;
-	}
-	mbedtls_mpi_free(&N); mbedtls_mpi_free(&E);
-	return ret;
-}
-
-// Parse RSA public key from PKCS#1 RSAPublicKey DER (SEQUENCE { N INTEGER, E INTEGER })
-static int rsa_read_pubkey_pkcs1(mbedtls_pk_context *pk, const unsigned char *der, size_t len)
-{
-	unsigned char *p = const_cast<unsigned char*>(der);
-	const unsigned char *end = der + len;
-	size_t seq_len;
-	mbedtls_mpi N, E;
-	mbedtls_mpi_init(&N); mbedtls_mpi_init(&E);
-
-	int ret = mbedtls_asn1_get_tag(&p, end, &seq_len,
-		MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE);
-	if (ret == 0) ret = mbedtls_asn1_get_mpi(&p, end, &N);
-	if (ret == 0) ret = mbedtls_asn1_get_mpi(&p, end, &E);
-	if (ret == 0) ret = mbedtls_pk_setup(pk, mbedtls_pk_info_from_type(MBEDTLS_PK_RSA));
-	if (ret == 0) ret = mbedtls_rsa_import(mbedtls_pk_rsa(*pk), &N, NULL, NULL, NULL, &E);
-	if (ret == 0) ret = mbedtls_rsa_complete(mbedtls_pk_rsa(*pk));
-
-	mbedtls_mpi_free(&N); mbedtls_mpi_free(&E);
-	return ret;
-}
-
-// Sign message with RSASSA-PKCS1v15-SHA1. Returns signature length or 0 on error.
-static size_t rsa_sign_pkcs1v15_sha1(mbedtls_pk_context *pk,
-	const unsigned char *msg, size_t msglen,
-	unsigned char *sig, size_t sigbuf)
-{
-	unsigned char hash[20];
-	if (mbedtls_sha1(msg, msglen, hash) != 0) return 0;
-	size_t siglen = 0;
-	if (mbedtls_pk_sign(pk, MBEDTLS_MD_SHA1, hash, sizeof hash,
-		sig, sigbuf, &siglen, emule_rng, NULL) != 0) return 0;
-	return siglen;
-}
-
-// Verify signature with RSASSA-PKCS1v15-SHA1. Returns true if valid.
-static bool rsa_verify_pkcs1v15_sha1(mbedtls_pk_context *pk,
-	const unsigned char *msg, size_t msglen,
-	const unsigned char *sig, size_t siglen)
-{
-	unsigned char hash[20];
-	if (mbedtls_sha1(msg, msglen, hash) != 0) return false;
-	return mbedtls_pk_verify(pk, MBEDTLS_MD_SHA1, hash, sizeof hash, sig, siglen) == 0;
-}
+using namespace CryptoPP;
 
 void CClientCreditsList::InitalizeCrypting()
 {
 	m_nMyPublicKeyLen = 0;
-	memset(m_abyMyPublicKey, 0, sizeof m_abyMyPublicKey);
+	memset(m_abyMyPublicKey, 0, sizeof m_abyMyPublicKey); // not really needed; better for debugging tho
 	m_pSignkey = NULL;
 	if (!thePrefs.IsSecureIdentEnabled())
 		return;
-
-	const CString cryptkeypath(thePrefs.GetMuleDirectory(EMULE_CONFIGDIR) + _T("cryptkey.dat"));
-
-	// ---------------------------------------------------------------------------
-	// Helper: parse a raw DER buffer into m_pSignkey and extract the public key.
-	// Returns true on success; leaves object state unchanged on failure.
-	// ---------------------------------------------------------------------------
-	auto tryLoadDer = [this](const unsigned char *der, size_t derLen) -> bool {
-		auto *pk = new mbedtls_pk_context;
-		mbedtls_pk_init(pk);
-		if (mbedtls_pk_parse_key(pk, der, derLen, NULL, 0, emule_rng, NULL) != 0) {
-			mbedtls_pk_free(pk); delete pk;
-			return false;
-		}
-		int n = rsa_write_pubkey_pkcs1(m_abyMyPublicKey, sizeof m_abyMyPublicKey, pk);
-		if (n <= 0) {
-			mbedtls_pk_free(pk); delete pk;
-			return false;
-		}
-		m_pSignkey = pk;
-		m_nMyPublicKeyLen = (uint8)n;
-		return true;
-	};
-
-	// ---------------------------------------------------------------------------
-	// Level 1 loader: raw binary DER — canonical format (CryptoPP and current).
-	// ---------------------------------------------------------------------------
-	auto tryLoadBinaryFile = [&]() -> bool {
-		try {
-			CFile fb;
-			if (!fb.Open(cryptkeypath, CFile::modeRead | CFile::shareDenyWrite | CFile::typeBinary))
-				return false;
-			std::vector<unsigned char> raw((size_t)fb.GetLength());
-			if (raw.empty()) return false;
-			fb.Read(raw.data(), (UINT)raw.size());
-			fb.Close();
-			return tryLoadDer(raw.data(), raw.size());
-		} catch (...) { return false; }
-	};
-
-	// ---------------------------------------------------------------------------
-	// Level 2 loader: base64-encoded DER — transitional format introduced by the
-	// mbedtls migration before this fix.  Recognised so existing files are not lost.
-	// ---------------------------------------------------------------------------
-	auto tryLoadBase64File = [&]() -> bool {
-		try {
-			CStdioFile f;
-			if (!f.Open(cryptkeypath, CFile::modeRead | CFile::shareDenyWrite | CFile::typeText))
-				return false;
-			CString sB64, sLine;
-			while (f.ReadString(sLine)) sB64 += sLine;
-			f.Close();
-			CStringA sB64A(sB64);
-			size_t derLen = 0;
-			// MBEDTLS_ERR_BASE64_BUFFER_TOO_SMALL from a NULL-dst call means valid base64.
-			if (mbedtls_base64_decode(NULL, 0, &derLen,
-					(const unsigned char*)(LPCSTR)sB64A, sB64A.GetLength())
-					!= MBEDTLS_ERR_BASE64_BUFFER_TOO_SMALL || derLen == 0)
-				return false;
-			std::vector<unsigned char> der(derLen);
-			if (mbedtls_base64_decode(der.data(), derLen, &derLen,
-					(const unsigned char*)(LPCSTR)sB64A, sB64A.GetLength()) != 0)
-				return false;
-			return tryLoadDer(der.data(), derLen);
-		} catch (...) { return false; }
-	};
-
-	// ---------------------------------------------------------------------------
-	// Migration helper: rewrite m_pSignkey to cryptkey.dat as raw binary DER,
-	// restoring the canonical format after a Level 2 (base64) load.
-	// ---------------------------------------------------------------------------
-	auto rewriteAsBinaryDer = [&]() {
-		if (!m_pSignkey) return;
-		unsigned char derBuf[1024];
-		int derLen = mbedtls_pk_write_key_der(m_pSignkey, derBuf, sizeof derBuf);
-		if (derLen <= 0) return;
-		const unsigned char *derStart = derBuf + sizeof(derBuf) - derLen;
-		try {
-			CFile f;
-			if (f.Open(cryptkeypath, CFile::modeCreate | CFile::modeWrite | CFile::shareDenyWrite | CFile::typeBinary)) {
-				f.Write(derStart, (UINT)derLen);
-				f.Close();
-			}
-		} catch (...) {}
-	};
-
-	// ---------------------------------------------------------------------------
-	// Check if the key file exists and is non-empty; generate a fresh one if not.
-	// ---------------------------------------------------------------------------
-	{
-		bool bCreateNewKey = false;
-		HANDLE hKeyFile = ::CreateFile(cryptkeypath,
-			GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
-		if (hKeyFile != INVALID_HANDLE_VALUE) {
-			if (::GetFileSize(hKeyFile, NULL) == 0)
-				bCreateNewKey = true;
-			::CloseHandle(hKeyFile);
-		} else
+	// check if keyfile is there
+	bool bCreateNewKey = false;
+	const CString &cryptkeypath(thePrefs.GetMuleDirectory(EMULE_CONFIGDIR) + _T("cryptkey.dat"));
+	HANDLE hKeyFile = ::CreateFile(cryptkeypath
+		, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+	if (hKeyFile != INVALID_HANDLE_VALUE) {
+		if (::GetFileSize(hKeyFile, NULL) == 0)
 			bCreateNewKey = true;
-		if (bCreateNewKey && !CreateKeyPair()) {
-			LogError(LOG_STATUSBAR, GetResString(IDS_CRYPT_INITFAILED));
-			return;
-		}
-	}
+		::CloseHandle(hKeyFile);
+	} else
+		bCreateNewKey = true;
+	if (bCreateNewKey)
+		CreateKeyPair();
 
-	// ---------------------------------------------------------------------------
-	// Three-level load strategy:
-	//   Level 1 — raw binary DER   (canonical format: CryptoPP and current)
-	//   Level 2 — base64 DER       (transitional format from mbedtls migration —
-	//                                auto-corrected back to binary on load)
-	//   Level 3 — regenerate key   (file corrupted or unrecognised)
-	// ---------------------------------------------------------------------------
-	bool bLoaded = tryLoadBinaryFile();
-
-	if (!bLoaded) {
-		bLoaded = tryLoadBase64File();
-		if (bLoaded) {
-			// File was in the transitional base64 format: silently restore the
-			// canonical binary format so old eMule versions can read it again.
-			rewriteAsBinaryDer();
-			if (thePrefs.GetLogSecureIdent())
-				AddDebugLogLine(false, _T("Restored cryptkey.dat from transitional base64 to binary DER format"));
-		}
-	}
-
-	if (!bLoaded) {
-		// File exists but is unreadable (corrupted / unknown format).
-		// Generate a brand new key pair and load it immediately.
-		bLoaded = CreateKeyPair() && tryLoadBinaryFile();
-	}
-
-	if (!bLoaded) {
+	// load key
+	try {
+		// load private key
+		FileSource filesource((CStringA)cryptkeypath, true, new Base64Decoder);
+		m_pSignkey = new RSASSA_PKCS1v15_SHA_Signer(filesource);
+		// calculate and store public key
+		RSASSA_PKCS1v15_SHA_Verifier pubkey(*m_pSignkey);
+		ArraySink asink(m_abyMyPublicKey, sizeof m_abyMyPublicKey);
+		pubkey.GetMaterial().Save(asink);
+		m_nMyPublicKeyLen = (uint8)asink.TotalPutLength();
+		asink.MessageEnd();
+	} catch (...) {
 		delete m_pSignkey;
 		m_pSignkey = NULL;
-		m_nMyPublicKeyLen = 0;
 		LogError(LOG_STATUSBAR, GetResString(IDS_CRYPT_INITFAILED));
 		ASSERT(0);
-		return;
 	}
-
 	ASSERT(Debug_CheckCrypting());
 }
 
 bool CClientCreditsList::CreateKeyPair()
 {
 	try {
-		// Generate RSA key pair
-		mbedtls_pk_context pk;
-		mbedtls_pk_init(&pk);
-		int ret = mbedtls_pk_setup(&pk, mbedtls_pk_info_from_type(MBEDTLS_PK_RSA));
-		if (ret == 0)
-			ret = mbedtls_rsa_gen_key(mbedtls_pk_rsa(pk), emule_rng, NULL, RSAKEYSIZE, 65537);
-		if (ret != 0) {
-			mbedtls_pk_free(&pk);
-			throw std::runtime_error("key generation failed");
-		}
+		AutoSeededRandomPool rng;
+		InvertibleRSAFunction privkey;
+		privkey.Initialize(rng, RSAKEYSIZE);
 
-		// Write PKCS#1 RSAPrivateKey DER (mbedtls writes from end of buffer).
-		// Stored as raw binary — same format as the original CryptoPP implementation,
-		// ensuring bidirectional compatibility with older eMule versions.
-		unsigned char derBuf[1024];
-		int derLen = mbedtls_pk_write_key_der(&pk, derBuf, sizeof derBuf);
-		mbedtls_pk_free(&pk);
-		if (derLen <= 0)
-			throw std::runtime_error("key DER export failed");
-		const unsigned char *derStart = derBuf + sizeof(derBuf) - derLen;
-
-		// Write raw DER to file (binary mode)
-		const CString keypath(thePrefs.GetMuleDirectory(EMULE_CONFIGDIR) + _T("cryptkey.dat"));
-		CFile f;
-		if (!f.Open(keypath, CFile::modeCreate | CFile::modeWrite | CFile::shareDenyWrite | CFile::typeBinary))
-			throw std::runtime_error("cannot write key file");
-		f.Write(derStart, (UINT)derLen);
-		f.Close();
+		Base64Encoder privkeysink(new FileSink((CStringA)(thePrefs.GetMuleDirectory(EMULE_CONFIGDIR) + _T("cryptkey.dat"))));
+		privkey.DEREncode(privkeysink);
+		privkeysink.MessageEnd();
 
 		if (thePrefs.GetLogSecureIdent())
 			AddDebugLogLine(false, _T("Created new RSA keypair"));
@@ -629,34 +413,42 @@ bool CClientCreditsList::CreateKeyPair()
 }
 
 uint8 CClientCreditsList::CreateSignature(CClientCredits *pTarget, uchar *pachOutput, uint8 nMaxSize
-	, uint32 ChallengeIP, uint8 byChaIPKind, mbedtls_pk_context *sigkey) const
+	, uint32 ChallengeIP, uint8 byChaIPKind, CryptoPP::RSASSA_PKCS1v15_SHA_Signer *sigkey) const
 {
 	ASSERT(pTarget != NULL && pachOutput != NULL);
+	// sigkey param is used for debug only
 	if (sigkey == NULL)
 		sigkey = m_pSignkey;
+
+	// create a signature of the public key from pTarget
 	if (!CryptoAvailable())
 		return 0;
-
-	byte abyBuffer[MAXPUBKEYSIZE + 9];
-	size_t keylen = pTarget->GetSecIDKeyLen();
-	memcpy(abyBuffer, pTarget->GetSecureIdent(), keylen);
-	uint32 challenge = pTarget->m_dwCryptRndChallengeFrom;
-	ASSERT(challenge);
-	PokeUInt32(&abyBuffer[keylen], challenge);
-	size_t ChIpLen;
-	if (byChaIPKind == 0)
-		ChIpLen = 0;
-	else {
-		ChIpLen = 5;
-		PokeUInt32(&abyBuffer[keylen + 4], ChallengeIP);
-		abyBuffer[keylen + 4 + 4] = byChaIPKind;
+	try {
+		SecByteBlock sbbSignature(sigkey->SignatureLength());
+		AutoSeededRandomPool rng;
+		byte abyBuffer[MAXPUBKEYSIZE + 9];
+		size_t keylen = pTarget->GetSecIDKeyLen();
+		memcpy(abyBuffer, pTarget->GetSecureIdent(), keylen);
+		// 4 additional bytes of random data sent from this client
+		uint32 challenge = pTarget->m_dwCryptRndChallengeFrom;
+		ASSERT(challenge);
+		PokeUInt32(&abyBuffer[keylen], challenge);
+		size_t ChIpLen;
+		if (byChaIPKind == 0)
+			ChIpLen = 0;
+		else {
+			ChIpLen = 5;
+			PokeUInt32(&abyBuffer[keylen + 4], ChallengeIP);
+			abyBuffer[keylen + 4 + 4] = byChaIPKind;
+		}
+		sigkey->SignMessage(rng, abyBuffer, keylen + 4 + ChIpLen, sbbSignature.begin());
+		ArraySink asink(pachOutput, nMaxSize);
+		asink.Put(sbbSignature.begin(), sbbSignature.size());
+		return (uint8)asink.TotalPutLength();
+	} catch (...) {
+		ASSERT(0);
 	}
-	unsigned char sig[256];
-	size_t siglen = rsa_sign_pkcs1v15_sha1(sigkey, abyBuffer, keylen + 4 + ChIpLen, sig, sizeof sig);
-	if (siglen == 0 || siglen > nMaxSize)
-		return 0;
-	memcpy(pachOutput, sig, siglen);
-	return (uint8)siglen;
+	return 0;
 }
 
 bool CClientCreditsList::VerifyIdent(CClientCredits *pTarget, const uchar *pachSignature, uint8 nInputSize,
@@ -668,17 +460,10 @@ bool CClientCreditsList::VerifyIdent(CClientCredits *pTarget, const uchar *pachS
 		pTarget->IdentState = IS_NOTAVAILABLE;
 		return false;
 	}
-	bool bResult = false;
+	bool bResult;
 	try {
-		mbedtls_pk_context pubkey;
-		mbedtls_pk_init(&pubkey);
-		int ret = rsa_read_pubkey_pkcs1(&pubkey,
-			(const unsigned char*)pTarget->GetSecureIdent(), pTarget->GetSecIDKeyLen());
-		if (ret != 0) {
-			mbedtls_pk_free(&pubkey);
-			throw std::runtime_error("pubkey parse failed");
-		}
-
+		StringSource ss_Pubkey((byte*)pTarget->GetSecureIdent(), pTarget->GetSecIDKeyLen(), true, 0);
+		RSASSA_PKCS1v15_SHA_Verifier pubkey(ss_Pubkey);
 		// 4 additional bytes random data send from this client +5 bytes v2
 		byte abyBuffer[MAXPUBKEYSIZE + 9];
 		memcpy(abyBuffer, m_abyMyPublicKey, m_nMyPublicKeyLen);
@@ -686,6 +471,7 @@ bool CClientCreditsList::VerifyIdent(CClientCredits *pTarget, const uchar *pachS
 		ASSERT(challenge);
 		PokeUInt32(&abyBuffer[m_nMyPublicKeyLen], challenge);
 
+		// v2 security improvements (not supported by 29b, not used as default by 29c)
 		size_t nChIpSize;
 		if (byChaIPKind == 0)
 			nChIpSize = 0;
@@ -704,20 +490,19 @@ bool CClientCreditsList::VerifyIdent(CClientCredits *pTarget, const uchar *pachS
 				} else
 					ChallengeIP = theApp.serverconnect->GetClientID();
 				break;
-			case CRYPT_CIP_NONECLIENT:
+			case CRYPT_CIP_NONECLIENT: // maybe not supported in future versions
 				ChallengeIP = 0;
 			}
 			PokeUInt32(&abyBuffer[m_nMyPublicKeyLen + 4], ChallengeIP);
 			abyBuffer[m_nMyPublicKeyLen + 4 + 4] = byChaIPKind;
 		}
+		//v2 end
 
-		bResult = rsa_verify_pkcs1v15_sha1(&pubkey,
-			abyBuffer, m_nMyPublicKeyLen + 4 + nChIpSize,
-			(const unsigned char*)pachSignature, nInputSize);
-		mbedtls_pk_free(&pubkey);
+		bResult = pubkey.VerifyMessage(abyBuffer, m_nMyPublicKeyLen + 4 + nChIpSize, pachSignature, nInputSize);
 	} catch (...) {
 		if (thePrefs.GetVerbose())
 			AddDebugLogLine(false, _T("Error: Unknown exception in %hs"), __FUNCTION__);
+		//ASSERT(0);
 		bResult = false;
 	}
 	if (!bResult) {
@@ -737,34 +522,41 @@ bool CClientCreditsList::CryptoAvailable() const
 #ifdef _DEBUG
 bool CClientCreditsList::Debug_CheckCrypting()
 {
-	// Generate a temporary RSA keypair for self-test
-	mbedtls_pk_context privpk;
-	mbedtls_pk_init(&privpk);
-	if (mbedtls_pk_setup(&privpk, mbedtls_pk_info_from_type(MBEDTLS_PK_RSA)) != 0 ||
-		mbedtls_rsa_gen_key(mbedtls_pk_rsa(privpk), emule_rng, NULL, RSAKEYSIZE, 65537) != 0) {
-		mbedtls_pk_free(&privpk);
-		return false;
-	}
+	// create random key
+	AutoSeededRandomPool rng;
+
+	RSASSA_PKCS1v15_SHA_Signer priv(rng, 384);
+	RSASSA_PKCS1v15_SHA_Verifier pub(priv);
 
 	byte abyPublicKey[80];
-	int pubLen = rsa_write_pubkey_pkcs1(abyPublicKey, sizeof abyPublicKey, &privpk);
-	if (pubLen <= 0) { mbedtls_pk_free(&privpk); return false; }
-	uint8 PublicKeyLen = (uint8)pubLen;
-
+	ArraySink asink(abyPublicKey, sizeof abyPublicKey);
+	pub.GetMaterial().Save(asink);
+	uint8 PublicKeyLen = (uint8)asink.TotalPutLength();
+	asink.MessageEnd();
 	uint32 challenge = GetRandomUInt32();
+	// create fake client which pretends to be this emule
 	CreditStruct emptystruct{};
 	CClientCredits newcredits(emptystruct);
 	newcredits.SetSecureIdent(m_abyMyPublicKey, m_nMyPublicKeyLen);
 	newcredits.m_dwCryptRndChallengeFrom = challenge;
+	// create signature with fake priv key
 	uchar pachSignature[200] = {};
-	uint8 sigsize = CreateSignature(&newcredits, pachSignature, sizeof pachSignature, 0, 0, &privpk);
+	uint8 sigsize = CreateSignature(&newcredits, pachSignature, sizeof pachSignature, 0, 0, &priv);
 
+	// next fake client uses the random created public key
 	CClientCredits newcredits2(emptystruct);
 	newcredits2.m_dwCryptRndChallengeFor = challenge;
+
+	// if you uncomment one of the following lines the check has to fail
+	//abyPublicKey[5] = 34;
+	//m_abyMyPublicKey[5] = 22;
+	//pachSignature[5] = 232;
+
 	newcredits2.SetSecureIdent(abyPublicKey, PublicKeyLen);
 
+	//now verify this signature - if it's true everything is fine
 	bool bResult = VerifyIdent(&newcredits2, pachSignature, sigsize, 0, 0);
-	mbedtls_pk_free(&privpk);
+
 	return bResult;
 }
 #endif

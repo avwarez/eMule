@@ -57,8 +57,7 @@ CSHA::CSHA()
 void CSHA::Reset()
 {
 	m_hash = SHA1();
-	mbedtls_sha1_init(&m_sha);
-	mbedtls_sha1_starts(&m_sha);
+	m_sha.Restart();
 }
 
 void CSHA::GetHash(SHA1 *pHash) const
@@ -68,13 +67,12 @@ void CSHA::GetHash(SHA1 *pHash) const
 
 void CSHA::Add(LPCVOID pData, DWORD nLength)
 {
-	mbedtls_sha1_update(&m_sha, (const unsigned char*)pData, nLength);
+	m_sha.Update((byte*)pData, nLength);
 }
 
 void CSHA::Finish()
 {
-	mbedtls_sha1_finish(&m_sha, m_hash.b);
-	mbedtls_sha1_free(&m_sha);
+	m_sha.Final(m_hash.b);
 }
 
 void CSHA::GetHash(CAICHHash &rHash)
