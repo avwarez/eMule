@@ -14,6 +14,7 @@
 //along with this program; if not, write to the Free Software
 //Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 #pragma once
+#include <atomic>
 #include "KnownFile.h"
 #include "DeadSourceList.h"
 #include "CorruptionBlackBox.h"
@@ -112,8 +113,15 @@ struct PartFileBufferedData
 	uint64 end;						// Barry - This is the end offset of the data
 	BYTE *data;						// Barry - This is the data to be written
 	Requested_Block_Struct *block;	// Barry - This is the requested block that this data relates to
-	DWORD dwError;					// returned from the writing thread
-	byte flushed;					// 0 - ready 1 - sent to writing thread 2 - error 3 - written
+	DWORD dwError;					// returned from the writing thread. Write BEFORE 'flushed'.
+	// 'flushed' is the publication/synchronisation fence between the main
+	// thread (PB_READY/PB_PENDING) and the write thread (PB_WRITTEN/PB_ERROR).
+	// Writers must store with release semantics; readers must load with
+	// acquire semantics to observe 'dwError' consistently.
+	std::atomic<uint8_t> flushed;	// 0 - ready 1 - sent to writing thread 2 - error 3 - written
+
+	PartFileBufferedData(uint64 s, uint64 e, BYTE *d = nullptr, Requested_Block_Struct *b = nullptr)
+		: start(s), end(e), data(d), block(b), dwError(0), flushed(PB_READY) {}
 };
 
 typedef CTypedPtrList<CPtrList, CUpDownClient*> CUpDownClientPtrList;

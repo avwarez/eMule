@@ -68,5 +68,6 @@ private:
 
 	std::atomic<int>	m_Run; //0 - not running; 1 - idle; 2 - processing
 	bool				m_bNewData;		// protected by m_mutex
+	bool				m_bStop;		// protected by m_mutex — dedicated stop flag
 	bool				m_bSignalThrottler;
 };

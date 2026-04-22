@@ -66,7 +66,11 @@ static DWORD SyncWrite(HANDLE hFile, const void *buf, DWORD count, uint64_t offs
 
 CPartFileWriteThread::CPartFileWriteThread()
 	: m_bNewData(false)
-	, m_Run(RUN_STOP)
+	, m_bStop(false)
+	, m_Run(RUN_IDLE)   // initialised to IDLE *before* the thread starts so
+	                    // that IsRunning() is consistent from the first instant
+	                    // and EndThread() called from another thread before the
+	                    // first iteration never loses the stop signal.
 	// m_thread is default-constructed here; started in the body below so that
 	// all other members are guaranteed initialised before the thread runs.
 {
@@ -75,10 +79,16 @@ CPartFileWriteThread::CPartFileWriteThread()
 
 CPartFileWriteThread::~CPartFileWriteThread()
 {
-	ASSERT(m_Run == RUN_STOP);
-	// Safety net: EndThread() should have been called before deletion.
-	if (m_thread.joinable())
+	// FIX Bug #3: the ASSERT is guarded by joinable() so it does not fire when
+	// EndThread() was already called (the normal path).  It fires only when the
+	// destructor is reached with the thread still running, which is the
+	// programmer-error we want to catch in debug builds.
+	// In release builds the cleanup proceeds unconditionally so we never
+	// std::terminate() with a joinable thread.
+	if (m_thread.joinable()) {
+		ASSERT(m_bStop); // EndThread() should have been called first
 		EndThread();
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -87,9 +97,16 @@ CPartFileWriteThread::~CPartFileWriteThread()
 
 void CPartFileWriteThread::EndThread()
 {
+	// FIX: use a dedicated stop flag instead of overloading m_Run.
+	// The worker thread writes m_Run = RUN_WORK / RUN_IDLE outside the cv lock
+	// while running WriteBuffers(); if we wrote m_Run = RUN_STOP here, a race
+	// would let the worker clobber it with RUN_IDLE on the next loop iteration,
+	// and .join() would block forever because the cv predicate would never
+	// see RUN_STOP again.  m_bStop is touched only here (set) and in the cv
+	// predicate (read), so nothing can overwrite it.
 	{
 		std::lock_guard<std::mutex> lock(m_cvMutex);
-		m_Run    = RUN_STOP;
+		m_bStop    = true;
 		m_bNewData = false;
 	}
 	m_cv.notify_one();
@@ -114,16 +131,17 @@ void CPartFileWriteThread::RunInternal()
 {
 	DbgSetThreadName("PartWriteThread");
 	InitThreadLocale();
-
-	m_Run = RUN_IDLE;
+	// m_Run is already RUN_IDLE (set by the constructor before thread launch).
+	// Writing it again here would create a race with EndThread() if the
+	// destructor is called between thread start and this line.
 
 	for (;;) {
 		// Wait until there is work to do or we are asked to stop.
 		{
 			std::unique_lock<std::mutex> lock(m_cvMutex);
-			m_cv.wait(lock, [this] { return m_bNewData || m_Run == RUN_STOP; });
+			m_cv.wait(lock, [this] { return m_bNewData || m_bStop; });
 
-			if (m_Run == RUN_STOP)
+			if (m_bStop)
 				break;
 
 			m_bNewData = false;
@@ -248,7 +266,10 @@ bool CPartFileWriteThread::AddFile(CPartFile *pFile)
 				_T("Failed to open \"%s\" for write: %s"),
 				(LPCTSTR)sPartFile,
 				(LPCTSTR)GetErrorMessage(::GetLastError(), 1));
-			pFile->SetStatus(PS_ERROR);
+			// FIX: SetStatus() updates the UI; calling it from the write thread
+			// is a cross-thread GUI access.  _SetStatus() only stores the status;
+			// the main thread will pick up PS_ERROR on the next update tick.
+			pFile->_SetStatus(PS_ERROR);
 			return false;
 		}
 	}

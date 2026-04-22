@@ -15,6 +15,7 @@
 //along with this program; if not, write to the Free Software
 //Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 #pragma once
+#include <atomic>
 #include "BarShader.h"
 #include "StatisticFile.h"
 #include "ShareableFile.h"
@@ -140,7 +141,11 @@ public:
 	CCollection *m_pCollection;
 	//overlapped disk reads
 	HANDLE		m_hRead;
-	int			nInUse; //count outstanding I/O (reads) to know if the file is in use
+	// FIX: nInUse is touched from both the main thread and the upload disk-I/O
+	// thread.  The increment happens under the upload-list lock, but the
+	// decrement in ReadCompletionRoutine runs without that lock, so a plain
+	// int would race.  std::atomic<int> makes both operations race-free.
+	std::atomic<int>	nInUse; //count outstanding I/O (reads) to know if the file is in use
 	bool		bCompress;
 	bool		bNoNewReads; //blocks new overlapped reads
 #ifdef _DEBUG

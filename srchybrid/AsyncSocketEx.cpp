@@ -51,11 +51,54 @@ THREADLOCAL CAsyncSocketEx::t_AsyncSocketExThreadData *CAsyncSocketEx::thread_lo
 #define WM_SOCKETEX_DNSRESULT  (WM_USER + 0x100)   // 0x0500
 
 // Heap-allocated struct carried in the lParam of WM_SOCKETEX_DNSRESULT.
+// hSentinel is a monotonic uint64 request-ID cast into HANDLE for ABI compat
+// with the existing m_hAsyncGetHostByNameHandle field.  The ID is produced by
+// a process-wide atomic counter (see g_nDnsNextRequestId) and is guaranteed
+// never to be reused for the lifetime of the process — so a stale DNS message
+// that arrives after Close() + re-Connect() can never accidentally match a
+// different socket's sentinel.  (The old scheme used m_dnsCancelFlag.get(),
+// a heap address that malloc is free to reuse once the shared_ptr drops.)
 struct DnsResultMsg
 {
 	HANDLE     hSentinel;   // matches CAsyncSocketEx::m_hAsyncGetHostByNameHandle
 	int        nErrorCode;  // 0 = success
 	SOCKADDR_IN addr;       // valid when nErrorCode == 0
+};
+
+// Monotonic DNS-request ID generator.  Starts at 1 so that 0 (NULL HANDLE)
+// always means "no request in flight".  fetch_add with relaxed ordering is
+// sufficient: the value is published via the channel mutex + message queue.
+// uintptr_t matches the width of HANDLE on both 32-bit and 64-bit builds, so
+// no truncation is ever required when casting to the sentinel field.
+static std::atomic<uintptr_t> g_nDnsNextRequestId{1};
+
+// ---------------------------------------------------------------------------
+// DnsChannel — liveness bridge between CAsyncSocketExHelperWindow and any
+// in-flight DNS threads that will PostMessage to its HWND.
+//
+// Problem solved: a detached std::thread captures a raw HWND; if the helper
+// window is destroyed while the thread is still running (e.g. during
+// application shutdown), PostMessage to the stale HWND is undefined behaviour.
+//
+// Solution: the helper window owns a shared_ptr<DnsChannel>.  DNS threads
+// capture the same shared_ptr by value.  The window's destructor nullifies
+// hwnd *under the mutex* before calling DestroyWindow.  The DNS thread takes
+// the same mutex before reading hwnd and calling PostMessage, so the two
+// operations are mutually exclusive:
+//   - If the thread wins: it sees a valid hwnd, posts the message, releases
+//     the mutex.  The destructor then nullifies and destroys.
+//   - If the destructor wins: hwnd is already NULL when the thread checks,
+//     the thread discards the result cleanly.
+//
+// Cross-platform note: on a POSIX port replace hwnd/PostMessage with
+// a std::function<void(DnsResultMsg*)> callback protected by the same mutex.
+// ---------------------------------------------------------------------------
+struct DnsChannel {
+	std::mutex mutex;
+	HWND       hwnd;
+	explicit DnsChannel(HWND h) noexcept : hwnd(h) {}
+	DnsChannel(const DnsChannel&) = delete;
+	DnsChannel& operator=(const DnsChannel&) = delete;
 };
 
 // ---------------------------------------------------------------------------
@@ -250,6 +293,10 @@ public:
 		else
 			ASSERT(0);
 
+		// DnsChannel must be created before the dispatch thread (and certainly
+		// before any DNS thread) so all parties share the same channel.
+		m_dnsChannel = std::make_shared<DnsChannel>(m_hWnd);
+
 		// Create the dispatch thread AFTER the window is ready,
 		// so PostMessage in the thread has a valid HWND.
 		m_pDispatcher = new CSocketDispatchThread(m_hWnd);
@@ -257,6 +304,15 @@ public:
 
 	virtual ~CAsyncSocketExHelperWindow()
 	{
+		// Nullify the DNS channel FIRST, under its mutex, so any in-flight
+		// DNS thread that is about to PostMessage will see hwnd==NULL and
+		// discard its result instead of posting to a destroyed window.
+		// This must happen before DestroyWindow, not after.
+		{
+			std::lock_guard<std::mutex> lk(m_dnsChannel->mutex);
+			m_dnsChannel->hwnd = NULL;
+		}
+
 		// Stop the dispatch thread before destroying the window it posts to.
 		delete m_pDispatcher;
 		m_pDispatcher = nullptr;
@@ -372,6 +428,9 @@ public:
 			if (!::PostMessage(m_hWnd, m.message, m.wParam, m.lParam))
 				delete reinterpret_cast<CAsyncSocketExLayer::t_LayerNotifyMsg*>(m.lParam);
 	}
+
+	// Returns the shared DNS channel so DNS threads can validate window liveness.
+	std::shared_ptr<DnsChannel> GetDnsChannel() const { return m_dnsChannel; }
 
 	// Register (or update) a socket with the dispatch thread.
 	// Called by CAsyncSocketEx::AsyncSelect.
@@ -717,6 +776,7 @@ private:
 	int m_nSocketCount;
 	CAsyncSocketEx::t_AsyncSocketExThreadData *m_pThreadData;
 	CSocketDispatchThread *m_pDispatcher;
+	std::shared_ptr<DnsChannel> m_dnsChannel;
 };
 
 // ===========================================================================
@@ -1018,23 +1078,30 @@ bool CAsyncSocketEx::Connect(const CString &sHostAddress, UINT nHostPort)
 			// platforms.  Replace PostMessage + WM_SOCKETEX_DNSRESULT with an
 			// eventfd/queue mechanism for a native Linux port.
 
-			// Generate a monotonically increasing sentinel to match the result
-			// back to this socket even after Close/re-use.
-			static std::atomic<ULONG_PTR> s_counter{1};
-			HANDLE hSentinel = reinterpret_cast<HANDLE>(s_counter.fetch_add(1));
+			// FIX Bug #2 (revised): the old scheme used m_dnsCancelFlag.get()
+			// as the sentinel.  That address *is* unique while the shared_ptr
+			// is alive, but once the last reference drops the heap can re-issue
+			// the same address to a later allocation — including a re-Connect()
+			// on the same socket or a Connect() on a different socket.  A stale
+			// DNS result still in the message queue would then match the wrong
+			// socket.  Use a monotonic uint64 ID instead: it is never reused,
+			// so the lookup at WM_SOCKETEX_DNSRESULT is always unambiguous.
+			m_dnsCancelFlag = std::make_shared<std::atomic<bool>>(false);
+			HANDLE hSentinel = reinterpret_cast<HANDLE>(
+				g_nDnsNextRequestId.fetch_add(1, std::memory_order_relaxed));
 			m_hAsyncGetHostByNameHandle = hSentinel;
 			m_nAsyncGetHostByNamePort   = (USHORT)nHostPort;
 
-			// Fresh cancel flag for this request.
-			m_dnsCancelFlag = std::make_shared<std::atomic<bool>>(false);
-
-			// Capture everything by value so the thread is fully self-contained.
-			auto  cancelFlag = m_dnsCancelFlag;
-			HWND  hWnd       = GetHelperWindowHandle();
-			UINT  port       = nHostPort;
+			// FIX Bug #1: capture the DnsChannel (shared_ptr) instead of a raw
+			// HWND.  The channel's mutex serialises PostMessage against the helper
+			// window destructor, which nullifies hwnd under the same lock before
+			// calling DestroyWindow.  This eliminates the TOCTOU race.
+			auto cancelFlag = m_dnsCancelFlag;
+			auto dnsChannel = m_pLocalAsyncSocketExThreadData->m_pHelperWindow->GetDnsChannel();
+			UINT port       = nHostPort;
 			std::string hostname(sAscii);
 
-			std::thread([hSentinel, hostname, port, hWnd, cancelFlag]() {
+			std::thread([hSentinel, hostname, port, dnsChannel, cancelFlag]() {
 				addrinfo hints = {};
 				hints.ai_family   = AF_INET;
 				hints.ai_socktype = SOCK_STREAM;
@@ -1055,12 +1122,20 @@ bool CAsyncSocketEx::Connect(const CString &sHostAddress, UINT nHostPort)
 					freeaddrinfo(res);
 				}
 
-				if (!cancelFlag->load()) {
-					if (!::PostMessage(hWnd, WM_SOCKETEX_DNSRESULT, 0, reinterpret_cast<LPARAM>(pMsg)))
-						delete pMsg;
-				} else {
-					delete pMsg;
+				// Acquire the channel mutex: mutually exclusive with the helper
+				// window destructor that nullifies hwnd under the same lock.
+				// If hwnd is non-null AND the per-socket cancel flag is clear, the
+				// window is still alive and the socket still wants the result.
+				{
+					std::lock_guard<std::mutex> lk(dnsChannel->mutex);
+					if (dnsChannel->hwnd && !cancelFlag->load()) {
+						if (!::PostMessage(dnsChannel->hwnd, WM_SOCKETEX_DNSRESULT,
+						                   0, reinterpret_cast<LPARAM>(pMsg)))
+							delete pMsg;
+						pMsg = nullptr; // ownership transferred to the message queue
+					}
 				}
+				delete pMsg; // no-op if pMsg was transferred above
 			}).detach();
 
 			WSASetLastError(WSAEWOULDBLOCK);

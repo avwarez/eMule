@@ -62,6 +62,7 @@ private:
 	std::mutex				m_cvMutex;
 	std::condition_variable	m_cv;
 	bool					m_bNewData;
+	bool					m_bStop;	// dedicated stop flag, protected by m_cvMutex
 	std::atomic<int>		m_Run;	// RUN_STOP=0, RUN_IDLE=1, RUN_WORK=2
 
 	std::thread				m_thread;	// must be last: started in constructor body

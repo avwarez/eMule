@@ -15,6 +15,7 @@
 //along with this program; if not, write to the Free Software
 //Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 #include "StdAfx.h"
+#include <memory>
 #include <timeapi.h>
 #include "updownclient.h"
 #include "uploaddiskiothread.h"
@@ -51,6 +52,7 @@ CUploadDiskIOThread::CUploadDiskIOThread()
 	: m_eventThreadEnded(FALSE, TRUE)
 	, m_Run(RUN_STOP)
 	, m_bNewData()
+	, m_bStop(false)
 	, m_bSignalThrottler()
 {
 	ASSERT(theApp.uploadqueue != NULL);
@@ -71,9 +73,15 @@ UINT AFX_CDECL CUploadDiskIOThread::RunProc(LPVOID pParam)
 
 void CUploadDiskIOThread::EndThread()
 {
+	// FIX: use a dedicated stop flag instead of overloading m_Run.
+	// The worker thread writes m_Run = RUN_WORK / RUN_IDLE outside the cv lock
+	// while processing; if we wrote m_Run = RUN_STOP here, a race would let
+	// the worker clobber it with RUN_IDLE on the next iteration, and the cv
+	// predicate would then never see RUN_STOP.  m_bStop is touched only here
+	// and in the cv predicate, so it cannot be overwritten by the worker.
 	{
 		std::lock_guard<std::mutex> lock(m_mutex);
-		m_Run = RUN_STOP;
+		m_bStop = true;
 	}
 	m_cv.notify_one();
 	m_eventThreadEnded.Lock();
@@ -87,8 +95,8 @@ UINT CUploadDiskIOThread::RunInternal()
 		// Wait until there is work to do or we are asked to stop.
 		{
 			std::unique_lock<std::mutex> lock(m_mutex);
-			m_cv.wait(lock, [this] { return m_bNewData || m_Run == RUN_STOP; });
-			if (m_Run == RUN_STOP)
+			m_cv.wait(lock, [this] { return m_bNewData || m_bStop; });
+			if (m_bStop)
 				break;
 			m_bNewData = false;
 		}
@@ -227,15 +235,19 @@ void CUploadDiskIOThread::StartCreateNextBlockPackage(UploadingToClient_Struct *
 
 			// Prepare the read descriptor. The actual ReadFile is deferred to Phase 2
 			// (outside the upload-list lock) to avoid holding the lock during disk I/O.
-			OverlappedRead_Struct *pOverlappedRead = new OverlappedRead_Struct;
+			// FIX: if `new byte[uTogo]` threw bad_alloc we leaked the already-allocated
+			// OverlappedRead_Struct.  Allocate the buffer first, then wrap both in a
+			// unique_ptr so stack unwinding disposes of them cleanly on any throw.
+			std::unique_ptr<byte[]> buf(new byte[(size_t)uTogo]);
+			std::unique_ptr<OverlappedRead_Struct> pOverlappedRead(new OverlappedRead_Struct);
 			pOverlappedRead->pFile = pFile;
 			pOverlappedRead->pUploadClientStruct = pUploadClientStruct;
 			pOverlappedRead->uStartOffset = currentblock->StartOffset;
 			pOverlappedRead->uEndOffset = currentblock->EndOffset;
-			pOverlappedRead->pBuffer = new byte[(size_t)uTogo];
+			pOverlappedRead->pBuffer = buf.release();
 
 			++pFile->nInUse;
-			outPendingReads.AddTail(pOverlappedRead);
+			outPendingReads.AddTail(pOverlappedRead.release());
 
 			addedPayloadQueueSession += uTogo;
 			pClient->SetQueueSessionUploadAdded(addedPayloadQueueSession);
