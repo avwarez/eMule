@@ -46,6 +46,14 @@ static char THIS_FILE[] = __FILE__;
 #define RUN_IDLE	1
 #define RUN_WORK	2
 
+// Number of disk-reader worker threads.  2 is enough to hide per-file seek
+// latency on HDDs while keeping contention on the upload-list lock and the
+// socket send path low.  Raising it gives diminishing returns and more lock
+// contention; lowering it to 1 degenerates to the original unpatched 0.70c
+// "one read at a time" behaviour which is exactly what produced the "speed
+// drops to zero" symptom.
+#define UPLOAD_DISK_WORKER_COUNT	2
+
 IMPLEMENT_DYNCREATE(CUploadDiskIOThread, CWinThread)
 
 CUploadDiskIOThread::CUploadDiskIOThread()
@@ -53,7 +61,9 @@ CUploadDiskIOThread::CUploadDiskIOThread()
 	, m_Run(RUN_STOP)
 	, m_bNewData()
 	, m_bStop(false)
-	, m_bSignalThrottler()
+	, m_bSignalThrottler(false)
+	, m_nInFlight(0)
+	, m_bWorkersStop(false)
 {
 	ASSERT(theApp.uploadqueue != NULL);
 	AfxBeginThread(RunProc, (LPVOID)this);
@@ -62,6 +72,7 @@ CUploadDiskIOThread::CUploadDiskIOThread()
 CUploadDiskIOThread::~CUploadDiskIOThread()
 {
 	ASSERT(!m_Run);
+	ASSERT(m_workers.empty());
 }
 
 UINT AFX_CDECL CUploadDiskIOThread::RunProc(LPVOID pParam)
@@ -73,12 +84,10 @@ UINT AFX_CDECL CUploadDiskIOThread::RunProc(LPVOID pParam)
 
 void CUploadDiskIOThread::EndThread()
 {
-	// FIX: use a dedicated stop flag instead of overloading m_Run.
-	// The worker thread writes m_Run = RUN_WORK / RUN_IDLE outside the cv lock
-	// while processing; if we wrote m_Run = RUN_STOP here, a race would let
-	// the worker clobber it with RUN_IDLE on the next iteration, and the cv
-	// predicate would then never see RUN_STOP.  m_bStop is touched only here
-	// and in the cv predicate, so it cannot be overwritten by the worker.
+	// Use a dedicated stop flag instead of overloading m_Run: the worker writes
+	// m_Run = RUN_WORK / RUN_IDLE outside the cv lock while processing, so a
+	// RUN_STOP written here could be clobbered on the next iteration.  m_bStop
+	// is touched only here and in the cv predicate, so it cannot race.
 	{
 		std::lock_guard<std::mutex> lock(m_mutex);
 		m_bStop = true;
@@ -87,9 +96,45 @@ void CUploadDiskIOThread::EndThread()
 	m_eventThreadEnded.Lock();
 }
 
+void CUploadDiskIOThread::StopWorkers()
+{
+	{
+		std::lock_guard<std::mutex> lock(m_queueMutex);
+		m_bWorkersStop = true;
+	}
+	m_cvQueue.notify_all();
+	for (std::thread &t : m_workers) {
+		if (t.joinable())
+			t.join();
+	}
+	m_workers.clear();
+	// No jobs should remain — workers drain everything before honouring
+	// m_bWorkersStop.  Assert, and as a defensive safety net also free any
+	// leftovers so we don't leak on an unexpected shutdown path.
+	{
+		std::lock_guard<std::mutex> lock(m_queueMutex);
+		ASSERT(m_workQueue.IsEmpty() && m_nInFlight == 0);
+		while (!m_workQueue.IsEmpty()) {
+			OverlappedRead_Struct *p = m_workQueue.RemoveHead();
+			if (p) {
+				if (p->pFile) --p->pFile->nInUse;
+				delete[] p->pBuffer;
+				delete p;
+			}
+		}
+		m_nInFlight = 0;
+	}
+}
+
 UINT CUploadDiskIOThread::RunInternal()
 {
 	m_Run = RUN_IDLE;
+
+	// Spawn the worker pool now that the coordinator is live.  std::thread is
+	// backed by pthread on Wine, which is the most battle-tested path.
+	m_workers.reserve(UPLOAD_DISK_WORKER_COUNT);
+	for (int i = 0; i < UPLOAD_DISK_WORKER_COUNT; ++i)
+		m_workers.emplace_back([this] { WorkerProc(); });
 
 	for (;;) {
 		// Wait until there is work to do or we are asked to stop.
@@ -103,48 +148,139 @@ UINT CUploadDiskIOThread::RunInternal()
 
 		m_Run = RUN_WORK;
 
-		// Phase 1 (under upload-list lock, no I/O):
-		// Collect read requests for all uploading clients and perform bookkeeping
-		// (move blocks from the request queue to the done list, update upload counter).
-		// No ReadFile here — keeping I/O out of the lock avoids priority inversion.
+		// ---- Phase 1: collect read requests (under upload-list lock) ----
+		//
+		// Round-robin across clients: each pass adds at most ONE block per
+		// client; loop until a pass adds nothing.  This matters because
+		// workers pop from the queue in order — if all of client A's blocks
+		// were queued first, then all of B's, workers would all converge on
+		// A and finish it before starting B, causing B/C/D's socket queues
+		// to drain to zero.  Interleaved = fair.
 		CTypedPtrList<CPtrList, OverlappedRead_Struct*> pendingReads;
 		{
 			CCriticalSection *pcsUploadListRead = NULL;
 			const CUploadingPtrList &rUploadList = theApp.uploadqueue->GetUploadListTS(&pcsUploadListRead);
 			pcsUploadListRead->Lock();
-			for (POSITION pos = rUploadList.GetHeadPosition(); pos != NULL;)
-				StartCreateNextBlockPackage(rUploadList.GetNext(pos), pendingReads);
+			for (;;) {
+				const INT_PTR cBefore = pendingReads.GetCount();
+				for (POSITION pos = rUploadList.GetHeadPosition(); pos != NULL;)
+					StartCreateNextBlockPackage(rUploadList.GetNext(pos), pendingReads, true);
+				if (pendingReads.GetCount() == cBefore)
+					break;
+			}
 			pcsUploadListRead->Unlock();
 		}
 
-		// Phase 2 (no lock held): synchronous reads + packet creation/dispatch.
-		// Sequential reads on the same file handle are safe: we call SetFilePointerEx
-		// before each ReadFile, and there is only one upload thread.
-		while (!pendingReads.IsEmpty()) {
-			OverlappedRead_Struct *pRead = pendingReads.RemoveHead();
-			DWORD dwRead = 0;
-			DWORD toRead = (DWORD)(pRead->uEndOffset - pRead->uStartOffset);
-			LARGE_INTEGER li;
-			li.QuadPart = (LONGLONG)pRead->uStartOffset;
-			if (::SetFilePointerEx(pRead->pFile->m_hRead, li, NULL, FILE_BEGIN))
-				::ReadFile(pRead->pFile->m_hRead, pRead->pBuffer, toRead, &dwRead, NULL);
-			// dwRead == 0 on seek/read failure: ReadCompletionRoutine treats it as an I/O error
-			ReadCompletionRoutine(dwRead, pRead);
+		// ---- Phase 2: hand the batch to the worker pool ----
+		//
+		// Enqueue all jobs, then wait for the pool to drain.  Workers perform
+		// each ReadFile synchronously on their own stack — no async, no IOCP.
+		// They also call ReadCompletionRoutine, which builds the packets,
+		// pushes them on the socket, and signals the throttler.  The
+		// coordinator therefore has nothing to do while workers run except
+		// wait; in particular it does NOT hold any upload-list lock during
+		// this wait, so client-add, block-request, and completion paths all
+		// keep working.
+		if (!pendingReads.IsEmpty()) {
+			{
+				std::lock_guard<std::mutex> lock(m_queueMutex);
+				while (!pendingReads.IsEmpty())
+					m_workQueue.AddTail(pendingReads.RemoveHead());
+			}
+			// Wake all workers (cheap; they re-check the predicate).
+			m_cvQueue.notify_all();
+
+			// Wait for drain.
+			{
+				std::unique_lock<std::mutex> lock(m_queueMutex);
+				m_cvBatchDone.wait(lock, [this] { return m_workQueue.IsEmpty() && m_nInFlight == 0; });
+			}
 		}
 
 		m_Run = RUN_IDLE;
 
-		if (m_bSignalThrottler && theApp.uploadBandwidthThrottler != NULL) {
+		// Defensive end-of-batch throttler signal.  Workers already signal
+		// per-read, so this is normally a no-op; it just closes the race
+		// window where the very last read completed just before the
+		// coordinator re-acquired m_queueMutex.
+		if (m_bSignalThrottler.exchange(false) && theApp.uploadBandwidthThrottler != NULL)
 			theApp.uploadBandwidthThrottler->NewUploadDataAvailable();
-			m_bSignalThrottler = false;
-		}
-		// If WakeUpCall() arrived while we were processing, m_bNewData is already true;
-		// the cv.wait predicate will detect it on the next iteration without blocking.
+
+		// If WakeUpCall() arrived while we were processing, m_bNewData is
+		// already true; cv.wait predicate on the next iteration picks it up.
 	}
+
+	// Shutdown: stop workers first so no thread still holds OverlappedRead_Struct
+	// pointers, then tear down the thread cleanly.
+	StopWorkers();
 
 	m_Run = RUN_STOP;
 	m_eventThreadEnded.SetEvent();
 	return 0;
+}
+
+void CUploadDiskIOThread::WorkerProc()
+{
+	DbgSetThreadName("UploadDiskIOWorker");
+	InitThreadLocale();
+
+	for (;;) {
+		OverlappedRead_Struct *pRead = NULL;
+
+		// Wait for a job or shutdown signal.
+		{
+			std::unique_lock<std::mutex> lock(m_queueMutex);
+			m_cvQueue.wait(lock, [this] { return !m_workQueue.IsEmpty() || m_bWorkersStop; });
+			if (m_workQueue.IsEmpty() && m_bWorkersStop)
+				return; // drain-first policy: stop only after the queue is empty
+			pRead = m_workQueue.RemoveHead();
+			++m_nInFlight;
+		}
+
+		// Synchronous read with per-call offset — equivalent to pread() on
+		// POSIX, which is exactly how Wine implements it.  The handle is
+		// opened WITHOUT FILE_FLAG_OVERLAPPED; passing an OVERLAPPED struct
+		// just tells ReadFile where to start reading, without using the
+		// handle's shared file pointer.  Therefore multiple workers can
+		// safely call ReadFile on the same handle at the same time.
+		DWORD dwRead = 0;
+		if (pRead->pFile->m_hRead != INVALID_HANDLE_VALUE) {
+			OVERLAPPED ov = {};
+			// Offset / OffsetHigh together form a 64-bit offset.
+			*(uint64*)&ov.Offset = pRead->uStartOffset;
+			const DWORD toRead = (DWORD)(pRead->uEndOffset - pRead->uStartOffset);
+			if (!::ReadFile(pRead->pFile->m_hRead, pRead->pBuffer, toRead, &dwRead, &ov)) {
+				// ERROR_HANDLE_EOF is possible if the block straddles EOF
+				// on a freshly truncated part-file.  All other errors (incl.
+				// ERROR_INVALID_HANDLE if the file was closed mid-read) are
+				// treated as zero-byte reads and ReadCompletionRoutine will
+				// mark the client's m_bIOError.
+				dwRead = 0;
+			}
+		}
+
+		// Build packets, send them, and signal the throttler.  This runs
+		// fully outside the queue mutex.  ReadCompletionRoutine internally
+		// takes the upload-list lock for the duration of packet creation
+		// (which is brief) — contention between workers on that lock is
+		// minor because packet creation is CPU-bound and short.
+		ReadCompletionRoutine(dwRead, pRead);
+
+		// Signal the throttler per-read, not per-batch: with multiple
+		// workers a slow read in worker #0 must not hold back the packets
+		// that worker #1 has already prepared for a different slot.  The
+		// coordinator also does a defensive final signal at batch end.
+		if (m_bSignalThrottler.exchange(false) && theApp.uploadBandwidthThrottler != NULL)
+			theApp.uploadBandwidthThrottler->NewUploadDataAvailable();
+
+		// Mark completion and wake the coordinator if this was the last one.
+		{
+			std::lock_guard<std::mutex> lock(m_queueMutex);
+			--m_nInFlight;
+			if (m_workQueue.IsEmpty() && m_nInFlight == 0)
+				m_cvBatchDone.notify_one();
+		}
+	}
 }
 
 bool CUploadDiskIOThread::AssociateFile(CKnownFile *pFile)
@@ -154,11 +290,20 @@ bool CUploadDiskIOThread::AssociateFile(CKnownFile *pFile)
 		CString fullname = (pFile->IsPartFile())
 			? RemoveFileExtension(static_cast<const CPartFile*>(pFile)->GetFullName())
 			: pFile->GetFilePath();
-		// Open without FILE_FLAG_OVERLAPPED: reads are now synchronous.
-		// FILE_FLAG_SEQUENTIAL_SCAN is kept as a hint to the OS prefetcher.
-		pFile->m_hRead = ::CreateFile(fullname, GENERIC_READ, FILE_SHARE_WRITE | FILE_SHARE_READ | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, FILE_FLAG_SEQUENTIAL_SCAN, NULL);
+		// IMPORTANT: do NOT pass FILE_FLAG_OVERLAPPED.  The handle is used by
+		// multiple worker threads concurrently, each passing its own offset
+		// in an OVERLAPPED struct — MSDN explicitly supports this as a
+		// synchronous atomic seek+read (Raymond Chen, 2015-01-21).  Using
+		// FILE_FLAG_OVERLAPPED would hit Wine's overlapped-disk-I/O path,
+		// which is the sub-system the 0.70c rewrite was specifically trying
+		// to avoid.
+		// FILE_FLAG_SEQUENTIAL_SCAN is kept as a prefetcher hint.
+		pFile->m_hRead = ::CreateFile(fullname, GENERIC_READ,
+			FILE_SHARE_WRITE | FILE_SHARE_READ | FILE_SHARE_DELETE, NULL,
+			OPEN_EXISTING, FILE_FLAG_SEQUENTIAL_SCAN, NULL);
 		if (pFile->m_hRead == INVALID_HANDLE_VALUE) {
-			theApp.QueueDebugLogLineEx(LOG_ERROR, _T("Failed to open \"%s\" for reading: %s"), (LPCTSTR)fullname, (LPCTSTR)GetErrorMessage(::GetLastError(), 1));
+			theApp.QueueDebugLogLineEx(LOG_ERROR, _T("Failed to open \"%s\" for reading: %s")
+				, (LPCTSTR)fullname, (LPCTSTR)GetErrorMessage(::GetLastError(), 1));
 			return false;
 		}
 		pFile->bCompress = ShouldCompressBasedOnFilename(fullname);
@@ -176,7 +321,8 @@ void CUploadDiskIOThread::DissociateFile(CKnownFile *pFile)
 }
 
 void CUploadDiskIOThread::StartCreateNextBlockPackage(UploadingToClient_Struct *pUploadClientStruct,
-	CTypedPtrList<CPtrList, OverlappedRead_Struct*> &outPendingReads)
+	CTypedPtrList<CPtrList, OverlappedRead_Struct*> &outPendingReads,
+	bool bSinglePass)
 {
 	if (pUploadClientStruct->m_bIOError || pUploadClientStruct->m_BlockRequests_queue.IsEmpty())
 		return;
@@ -203,7 +349,9 @@ void CUploadDiskIOThread::StartCreateNextBlockPackage(UploadingToClient_Struct *
 		return; // the buffered data is large enough already
 
 	try {
-		// Get more data if currently buffered was less than nBufferLimit Bytes
+		// Get more data if currently buffered was less than nBufferLimit Bytes.
+		// When bSinglePass is true we break after one block so the caller can
+		// round-robin across the other clients.
 		while (!pUploadClientStruct->m_BlockRequests_queue.IsEmpty()
 			&& (addedPayloadQueueSession <= nCurQueueSessionPayloadUp || addedPayloadQueueSession - nCurQueueSessionPayloadUp < nBufferLimit))
 		{
@@ -233,13 +381,10 @@ void CUploadDiskIOThread::StartCreateNextBlockPackage(UploadingToClient_Struct *
 			if (!AssociateFile(pFile))
 				throwCStr(_T("StartCreateNextBlockPackage: cannot open CKnownFile"));
 
-			// Prepare the read descriptor. The actual ReadFile is deferred to Phase 2
-			// (outside the upload-list lock) to avoid holding the lock during disk I/O.
-			// FIX: if `new byte[uTogo]` threw bad_alloc we leaked the already-allocated
-			// OverlappedRead_Struct.  Allocate the buffer first, then wrap both in a
-			// unique_ptr so stack unwinding disposes of them cleanly on any throw.
+			// Buffer first then struct, wrapped in unique_ptr so unwinding
+			// disposes of both on any throw.
 			std::unique_ptr<byte[]> buf(new byte[(size_t)uTogo]);
-			std::unique_ptr<OverlappedRead_Struct> pOverlappedRead(new OverlappedRead_Struct);
+			std::unique_ptr<OverlappedRead_Struct> pOverlappedRead(new OverlappedRead_Struct());
 			pOverlappedRead->pFile = pFile;
 			pOverlappedRead->pUploadClientStruct = pUploadClientStruct;
 			pOverlappedRead->uStartOffset = currentblock->StartOffset;
@@ -252,6 +397,9 @@ void CUploadDiskIOThread::StartCreateNextBlockPackage(UploadingToClient_Struct *
 			addedPayloadQueueSession += uTogo;
 			pClient->SetQueueSessionUploadAdded(addedPayloadQueueSession);
 			pUploadClientStruct->m_DoneBlocks_list.AddHead(pUploadClientStruct->m_BlockRequests_queue.RemoveHead());
+
+			if (bSinglePass)
+				break;
 		}
 		return; //no errors
 	} catch (const CString &ex) {
@@ -308,7 +456,7 @@ void CUploadDiskIOThread::ReadCompletionRoutine(DWORD dwRead, const OverlappedRe
 					else
 						CreateStandardPackets(*pOvRead, packetsList);
 
-					m_bSignalThrottler = true;
+					m_bSignalThrottler.store(true);
 				} else
 					theApp.QueueDebugLogLineEx(LOG_ERROR, _T("ReadCompletionRoutine: Client has no connected socket, %s"), (LPCTSTR)pClient->DbgGetClientInfo(true));
 

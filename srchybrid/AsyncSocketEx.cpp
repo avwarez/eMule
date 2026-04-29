@@ -29,8 +29,6 @@ to tim.kosse@filezilla-project.org
 #include <thread>
 #include <mutex>
 #include <atomic>
-#include <vector>
-#include <algorithm>
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -102,168 +100,6 @@ struct DnsChannel {
 };
 
 // ---------------------------------------------------------------------------
-// CSocketDispatchThread
-//
-// Replaces WSAAsyncSelect + the HWND-based event source.
-// One instance lives inside CAsyncSocketExHelperWindow (one per thread).
-//
-// Responsibilities:
-//   - Register sockets with WSAEventSelect (sets non-blocking mode too).
-//   - Run a background thread that waits on a shared WSAEVENT.
-//   - When any socket has network events, enumerate them and PostMessage
-//     to the helper window exactly as WSAAsyncSelect would have done.
-//
-// Cross-platform migration path:
-//   Phase 2 (Linux):  replace the WSAEventSelect/WSAEnumNetworkEvents calls
-//   with poll(2)/epoll_wait(2).  Replace PostMessage with a platform-agnostic
-//   delivery mechanism (eventfd + queue).  The dispatch loop logic is identical.
-// ---------------------------------------------------------------------------
-class CSocketDispatchThread
-{
-public:
-	explicit CSocketDispatchThread(HWND hWnd)
-		: m_hWnd(hWnd)
-		, m_bRunning(true)
-	{
-		m_hSharedEvent = WSACreateEvent();
-		ASSERT(m_hSharedEvent != WSA_INVALID_EVENT);
-		m_thread = std::thread([this] { RunInternal(); });
-	}
-
-	~CSocketDispatchThread()
-	{
-		m_bRunning = false;
-		WSASetEvent(m_hSharedEvent); // wake thread so it sees m_bRunning == false
-		if (m_thread.joinable())
-			m_thread.join();
-		WSACloseEvent(m_hSharedEvent);
-	}
-
-	CSocketDispatchThread(const CSocketDispatchThread&) = delete;
-	CSocketDispatchThread& operator=(const CSocketDispatchThread&) = delete;
-
-	// Called from the main thread when a socket is attached or its event mask changes.
-	// WSAEventSelect sets the socket to non-blocking mode automatically.
-	void AddSocket(SOCKET hSocket, int nSocketIndex, long lEvents)
-	{
-		if (hSocket == INVALID_SOCKET)
-			return;
-		WSAEventSelect(hSocket, m_hSharedEvent, lEvents);
-		{
-			std::lock_guard<std::mutex> lock(m_pendingMutex);
-			m_pending.push_back({Op::ADD, hSocket, nSocketIndex});
-		}
-		WSASetEvent(m_hSharedEvent);
-	}
-
-	// Called from the main thread when a socket is detached (before or after close).
-	void RemoveSocket(SOCKET hSocket)
-	{
-		if (hSocket == INVALID_SOCKET)
-			return;
-		WSAEventSelect(hSocket, NULL, 0); // deregister
-		{
-			std::lock_guard<std::mutex> lock(m_pendingMutex);
-			m_pending.push_back({Op::REMOVE, hSocket, -1});
-		}
-		WSASetEvent(m_hSharedEvent);
-	}
-
-private:
-	struct SocketEntry
-	{
-		SOCKET hSocket;
-		int    nSocketIndex;
-	};
-
-	struct Op
-	{
-		enum Type { ADD, REMOVE } type;
-		SOCKET hSocket;
-		int    nSocketIndex;
-	};
-
-	HWND             m_hWnd;
-	WSAEVENT         m_hSharedEvent;
-	std::atomic<bool> m_bRunning;
-
-	std::mutex       m_pendingMutex;
-	std::vector<Op>  m_pending;
-
-	// Owned exclusively by the dispatch thread — no locking needed:
-	std::vector<SocketEntry> m_sockets;
-
-	std::thread m_thread;
-
-	// -----------------------------------------------------------------------
-	void RunInternal()
-	{
-		while (m_bRunning) {
-			// --- Apply pending add/remove operations ----------------------
-			{
-				std::vector<Op> pending;
-				{
-					std::lock_guard<std::mutex> lock(m_pendingMutex);
-					pending.swap(m_pending);
-				}
-				for (const Op &op : pending) {
-					if (op.type == Op::ADD) {
-						auto it = std::find_if(m_sockets.begin(), m_sockets.end(),
-							[&](const SocketEntry &e) { return e.hSocket == op.hSocket; });
-						if (it == m_sockets.end())
-							m_sockets.push_back({op.hSocket, op.nSocketIndex});
-						else
-							it->nSocketIndex = op.nSocketIndex; // update index (re-attach)
-					} else {
-						m_sockets.erase(
-							std::remove_if(m_sockets.begin(), m_sockets.end(),
-								[&](const SocketEntry &e){ return e.hSocket == op.hSocket; }),
-							m_sockets.end());
-					}
-				}
-			}
-
-			// --- Wait for any socket event (or wakeup) --------------------
-			WSAWaitForMultipleEvents(1, &m_hSharedEvent, FALSE, 100 /*ms*/, FALSE);
-
-			if (!m_bRunning)
-				break;
-
-			// Reset BEFORE enumeration: new events arriving during enumeration
-			// will immediately re-signal the event and be caught next iteration.
-			WSAResetEvent(m_hSharedEvent);
-
-			// --- Enumerate all sockets for pending network events ---------
-			for (const SocketEntry &e : m_sockets) {
-				WSANETWORKEVENTS ne = {};
-				if (WSAEnumNetworkEvents(e.hSocket, NULL, &ne) == SOCKET_ERROR)
-					continue; // socket closed/invalid — pending REMOVE will clean it up
-
-				if (!ne.lNetworkEvents)
-					continue;
-
-				// Post one message per event type, matching the format that
-				// the original WSAAsyncSelect notifications used, so the
-				// existing WindowProc dispatch logic is completely unchanged.
-				auto post = [&](int event, int bitIndex) {
-					if (ne.lNetworkEvents & event)
-						::PostMessage(m_hWnd,
-							WM_SOCKETEX_NOTIFY + e.nSocketIndex,
-							(WPARAM)e.hSocket,
-							MAKELPARAM(event, ne.iErrorCode[bitIndex]));
-				};
-				post(FD_READ,    FD_READ_BIT);
-				post(FD_WRITE,   FD_WRITE_BIT);
-				post(FD_CONNECT, FD_CONNECT_BIT);
-				post(FD_CLOSE,   FD_CLOSE_BIT);
-				post(FD_ACCEPT,  FD_ACCEPT_BIT);
-				post(FD_OOB,     FD_OOB_BIT);
-			}
-		}
-	}
-};
-
-// ---------------------------------------------------------------------------
 // Helper Window
 // ---------------------------------------------------------------------------
 
@@ -275,7 +111,6 @@ public:
 		, m_nWindowDataPos()
 		, m_nSocketCount()
 		, m_pThreadData(pThreadData)
-		, m_pDispatcher(nullptr)
 	{
 		static LPCTSTR const sHelperWnd = _T("CAsyncSocketEx Helper Window");
 		m_pAsyncSocketExWindowData = new t_AsyncSocketExWindowData[m_nWindowDataSize]{};
@@ -293,13 +128,9 @@ public:
 		else
 			ASSERT(0);
 
-		// DnsChannel must be created before the dispatch thread (and certainly
-		// before any DNS thread) so all parties share the same channel.
+		// DnsChannel owns the DNS-reply delivery mutex.  It must be created
+		// before any DNS thread is spawned so all parties share the same channel.
 		m_dnsChannel = std::make_shared<DnsChannel>(m_hWnd);
-
-		// Create the dispatch thread AFTER the window is ready,
-		// so PostMessage in the thread has a valid HWND.
-		m_pDispatcher = new CSocketDispatchThread(m_hWnd);
 	}
 
 	virtual ~CAsyncSocketExHelperWindow()
@@ -312,10 +143,6 @@ public:
 			std::lock_guard<std::mutex> lk(m_dnsChannel->mutex);
 			m_dnsChannel->hwnd = NULL;
 		}
-
-		// Stop the dispatch thread before destroying the window it posts to.
-		delete m_pDispatcher;
-		m_pDispatcher = nullptr;
 
 		delete[] m_pAsyncSocketExWindowData;
 		m_pAsyncSocketExWindowData = NULL;
@@ -394,10 +221,10 @@ public:
 				WM_SOCKETEX_NOTIFY + nSocketIndex,
 				WM_SOCKETEX_NOTIFY + nSocketIndex, PM_REMOVE));
 
-			// Tell the dispatch thread to stop watching this socket.
-			// Use hOld since pSocket->m_SocketData.hSocket is already INVALID_SOCKET.
-			if (m_pDispatcher && hOld != INVALID_SOCKET)
-				m_pDispatcher->RemoveSocket(hOld);
+			// WSAAsyncSelect is automatically cancelled when the socket is
+			// closed by the caller (closesocket), so no explicit deregistration
+			// is needed here.  hOld is kept in the function signature for ABI
+			// compatibility with the 0.70c caller chain.
 
 			ASSERT(m_pAsyncSocketExWindowData);
 			ASSERT(m_nWindowDataSize > 0);
@@ -431,14 +258,6 @@ public:
 
 	// Returns the shared DNS channel so DNS threads can validate window liveness.
 	std::shared_ptr<DnsChannel> GetDnsChannel() const { return m_dnsChannel; }
-
-	// Register (or update) a socket with the dispatch thread.
-	// Called by CAsyncSocketEx::AsyncSelect.
-	void RegisterSocket(SOCKET hSocket, int nSocketIndex, long lEvents)
-	{
-		if (m_pDispatcher)
-			m_pDispatcher->AddSocket(hSocket, nSocketIndex, lEvents);
-	}
 
 	static LRESULT CALLBACK WindowProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	{
@@ -775,7 +594,6 @@ private:
 	int m_nWindowDataPos;
 	int m_nSocketCount;
 	CAsyncSocketEx::t_AsyncSocketExThreadData *m_pThreadData;
-	CSocketDispatchThread *m_pDispatcher;
 	std::shared_ptr<DnsChannel> m_dnsChannel;
 };
 
@@ -1300,15 +1118,27 @@ BOOL CAsyncSocketEx::Attach(SOCKET hSocket, long lEvent /*=FD_DEFAULT*/)
 }
 
 // ---------------------------------------------------------------------------
-// AsyncSelect — register the socket with the dispatch thread.
+// AsyncSelect — register the socket for notifications via WSAAsyncSelect.
 //
 // When layers are in use: always register for FD_DEFAULT so the layer chain
 // receives every low-level event; m_lEvent still filters which high-level
 // callbacks reach the application.
 // When no layers: register for exactly lEvent.
 //
-// Cross-platform note: on Linux replace RegisterSocket (which calls
-// WSAEventSelect) with the platform-equivalent (e.g. epoll_ctl ADD/MOD).
+// WSAAsyncSelect is the right primitive for this job: it delivers events
+// directly to the helper window's message queue with a distinct message ID
+// per socket (WM_SOCKETEX_NOTIFY + nSocketIndex), so dispatch is O(1) per
+// event — no enumeration of N sockets on every network event, which was the
+// source of the CPU-to-100% symptom in the unpatched 0.70c's custom
+// WSAEventSelect dispatch thread.
+//
+// Wine compatibility: WSAAsyncSelect is one of the oldest and most stable
+// parts of Wine's Winsock implementation (present since 1999), used by many
+// large Windows apps (FileZilla, PuTTY, historically eMule itself).  No
+// scalability issues on Linux via Wine.
+//
+// Cross-platform note: for a native Linux port, replace WSAAsyncSelect with
+// epoll_ctl ADD/MOD and dispatch via an eventfd-based message queue.
 // ---------------------------------------------------------------------------
 BOOL CAsyncSocketEx::AsyncSelect(long lEvent /*=FD_DEFAULT*/)
 {
@@ -1322,9 +1152,10 @@ BOOL CAsyncSocketEx::AsyncSelect(long lEvent /*=FD_DEFAULT*/)
 		return FALSE;
 
 	long registerEvents = m_pFirstLayer ? FD_DEFAULT : lEvent;
-	m_pLocalAsyncSocketExThreadData->m_pHelperWindow->RegisterSocket(
-		m_SocketData.hSocket, m_SocketData.nSocketIndex, registerEvents);
-	return TRUE;
+	return !WSAAsyncSelect(m_SocketData.hSocket,
+		GetHelperWindowHandle(),
+		WM_SOCKETEX_NOTIFY + m_SocketData.nSocketIndex,
+		registerEvents);
 }
 
 BOOL CAsyncSocketEx::Listen(int nConnectionBacklog /*=5*/)
