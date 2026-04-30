@@ -25,4 +25,13 @@ typedef struct
 	char is_valid;
 } mbedtls_threading_mutex_t;
 
+/* Required by mbedtls test framework (threading_helpers.h/.c) when
+ * MBEDTLS_THREADING_ALT is defined. eMule does not use mbedtls test threads,
+ * but the framework files are compiled into the library, so this stub
+ * satisfies the type requirement. */
+typedef struct mbedtls_test_thread_t
+{
+	unsigned dummy;
+} mbedtls_test_thread_t;
+
 #endif

@@ -31,11 +31,12 @@
     <ProjectGuid>{584EA69D-3443-4197-8994-364880FC1B9B}</ProjectGuid>
     <ProjectName>emule</ProjectName>
     <RootNamespace>emule</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Label="Configuration">
     <CharacterSet>Unicode</CharacterSet>
-    <PlatformToolset>v141_xp</PlatformToolset>
+    <PlatformToolset>v145</PlatformToolset>
     <UseOfMfc>Static</UseOfMfc>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
@@ -67,7 +68,7 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <Optimization>Disabled</Optimization>
       <PrecompiledHeader>Use</PrecompiledHeader>
-      <PreprocessorDefinitions>ID3LIB_LINKOPTION=1;MINIUPNP_STATICLIB;SUPPORT_LARGE_FILES;XP_BUILD;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>ID3LIB_LINKOPTION=1;MINIUPNP_STATICLIB;SUPPORT_LARGE_FILES;XP_BUILD;CXIMAGE_SUPPORT_PNG=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <WarningLevel>EnableAllWarnings</WarningLevel>
     </ClCompile>
@@ -93,7 +94,7 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <Optimization>Disabled</Optimization>
       <PrecompiledHeader>Use</PrecompiledHeader>
-      <PreprocessorDefinitions>ID3LIB_LINKOPTION=1;MINIUPNP_STATICLIB;SUPPORT_LARGE_FILES;XP_BUILD;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>ID3LIB_LINKOPTION=1;MINIUPNP_STATICLIB;SUPPORT_LARGE_FILES;XP_BUILD;CXIMAGE_SUPPORT_PNG=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <WarningLevel>EnableAllWarnings</WarningLevel>
     </ClCompile>
@@ -111,17 +112,17 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
-      <AdditionalIncludeDirectories>.;..;..\id3lib\include;..\mbedtls\include;..\mbedtls\tf-psa-crypto\include;..\mbedtls\tf-psa-crypto\drivers\builtin\include;$(VC_ATLMFC_SourcePath);$(UniversalCRTSdkDir)Include\10.0.26100.0\um\;$(UniversalCRTSdkDir)Include\10.0.26100.0\shared;</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.;..\..;..\..\cximage;..\..\miniupnp;..\..\resizablelib;..\..\id3lib\include;..\mbedtls\include\mbedtls;..\..\mbedtls\include;..\..\mbedtls\tf-psa-crypto\include;..\..\mbedtls\tf-psa-crypto\drivers\builtin\include;$(VC_ATLMFC_SourcePath);$(UniversalCRTSdkDir)Include\10.0.26100.0\um\;$(UniversalCRTSdkDir)Include\10.0.26100.0\shared;</AdditionalIncludeDirectories>
       <AdditionalOptions>/Zc:throwingNew</AdditionalOptions>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <OmitFramePointers>true</OmitFramePointers>
       <PrecompiledHeader>Use</PrecompiledHeader>
-      <PreprocessorDefinitions>ID3LIB_LINKOPTION=1;MINIUPNP_STATICLIB;SUPPORT_LARGE_FILES;NDEBUG;XP_BUILD;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>ZLIB_WINAPI;MBEDTLS_THREADING_C;MBEDTLS_THREADING_ALT;ID3LIB_LINKOPTION=1;MINIUPNP_STATICLIB;SUPPORT_LARGE_FILES;NDEBUG;CXIMAGE_SUPPORT_PNG=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <WarningLevel>EnableAllWarnings</WarningLevel>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>ADSIId.lib;crypt32.lib;iphlpapi.lib;version.lib;winmm.lib;ws2_32.lib;..\cryptopp\$(Platform)\$(Configuration)\cryptlib.lib;..\cximage\$(Platform)\$(Configuration)\cximage.lib;..\id3lib\libprj\$(Platform)\$(Configuration)\id3lib.lib;..\libpng\projects\visualc\$(Platform)\$(Configuration)\libpng.lib;..\mbedtls\visualc\vs2017\$(Platform)\$(Configuration)\mbedtls.lib;..\miniupnpc\msvc\$(Platform)\$(Configuration)\miniupnpc.lib;..\resizablelib\$(Platform)\$(Configuration)\resizablelib.lib;..\zlib\contrib\vstudio\vc\$(Platform)\$(Configuration)\zlib.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>ADSIId.lib;crypt32.lib;iphlpapi.lib;version.lib;winmm.lib;ws2_32.lib;..\..\cryptopp\$(Platform)\$(Configuration)\cryptlib.lib;..\..\cximage\cximage\$(Platform)\$(Configuration)\cximage.lib;..\..\id3lib\libprj\$(Platform)\$(Configuration)\id3lib.lib;..\..\libpng\projects\vstudio\libpng\$(Platform)\$(Configuration)\libpng.lib;..\..\mbedtls\visualc\vs2017\$(Platform)\$(Configuration)\mbedtls.lib;..\..\miniupnp\miniupnpc\msvc\$(Platform)\$(Configuration)\miniupnpc.lib;..\..\resizablelib\resizablelib\$(Platform)\$(Configuration)\resizablelib.lib;..\..\zlib\contrib\vstudio\vc17\$(Platform)\$(Configuration)\zlib.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalOptions>/safeseh</AdditionalOptions>
       <DelayLoadDLLs>gdiplus.dll;msimg32.dll;oleacc.dll;ws2_32.dll;%(DelayLoadDLLs)</DelayLoadDLLs>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
@@ -137,17 +138,17 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
-      <AdditionalIncludeDirectories>.;..;..\id3lib\include;..\mbedtls\include;..\mbedtls\tf-psa-crypto\include;..\mbedtls\tf-psa-crypto\drivers\builtin\include;$(VC_ATLMFC_SourcePath);$(UniversalCRTSdkDir)Include\10.0.26100.0\um\;$(UniversalCRTSdkDir)Include\10.0.26100.0\shared;</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.;..\..;..\..\cximage;..\..\miniupnp;..\..\resizablelib;..\..\id3lib\include;..\mbedtls\include\mbedtls;..\..\mbedtls\include;..\..\mbedtls\tf-psa-crypto\include;..\..\mbedtls\tf-psa-crypto\drivers\builtin\include;$(VC_ATLMFC_SourcePath);$(UniversalCRTSdkDir)Include\10.0.26100.0\um\;$(UniversalCRTSdkDir)Include\10.0.26100.0\shared;</AdditionalIncludeDirectories>
       <AdditionalOptions>/Zc:throwingNew</AdditionalOptions>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <OmitFramePointers>true</OmitFramePointers>
       <PrecompiledHeader>Use</PrecompiledHeader>
-      <PreprocessorDefinitions>ID3LIB_LINKOPTION=1;MINIUPNP_STATICLIB;SUPPORT_LARGE_FILES;NDEBUG;XP_BUILD;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>ZLIB_WINAPI;MBEDTLS_THREADING_C;MBEDTLS_THREADING_ALT;ID3LIB_LINKOPTION=1;MINIUPNP_STATICLIB;SUPPORT_LARGE_FILES;NDEBUG;CXIMAGE_SUPPORT_PNG=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <WarningLevel>EnableAllWarnings</WarningLevel>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>ADSIId.lib;crypt32.lib;iphlpapi.lib;version.lib;winmm.lib;ws2_32.lib;..\cryptopp\$(Platform)\$(Configuration)\cryptlib.lib;..\cximage\$(Platform)\$(Configuration)\cximage.lib;..\id3lib\libprj\$(Platform)\$(Configuration)\id3lib.lib;..\libpng\projects\visualc\$(Platform)\$(Configuration)\libpng.lib;..\mbedtls\visualc\vs2017\$(Platform)\$(Configuration)\mbedtls.lib;..\miniupnpc\msvc\$(Platform)\$(Configuration)\miniupnpc.lib;..\resizablelib\$(Platform)\$(Configuration)\resizablelib.lib;..\zlib\contrib\vstudio\vc\$(Platform)\$(Configuration)\zlib.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>ADSIId.lib;crypt32.lib;iphlpapi.lib;version.lib;winmm.lib;ws2_32.lib;..\..\cryptopp\$(Platform)\$(Configuration)\cryptlib.lib;..\..\cximage\cximage\$(Platform)\$(Configuration)\cximage.lib;..\..\id3lib\libprj\$(Platform)\$(Configuration)\id3lib.lib;..\..\libpng\projects\vstudio\libpng\$(Platform)\$(Configuration)\libpng.lib;..\..\mbedtls\visualc\vs2017\$(Platform)\$(Configuration)\mbedtls.lib;..\..\miniupnp\miniupnpc\msvc\$(Platform)\$(Configuration)\miniupnpc.lib;..\..\resizablelib\resizablelib\$(Platform)\$(Configuration)\resizablelib.lib;..\..\zlib\contrib\vstudio\vc17\$(Platform)\$(Configuration)\zlib.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <DelayLoadDLLs>gdiplus.dll;msimg32.dll;oleacc.dll;ws2_32.dll;%(DelayLoadDLLs)</DelayLoadDLLs>
       <IgnoreSpecificDefaultLibraries>mpr.lib;rasapi32.lib;secur32.lib;sensapi.lib;vfw32.lib;%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
