@@ -12,7 +12,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        platform: [x64, Win32]
+        platform: [x64, Win32, ARM64]
         configuration: [Debug, Release]
 
     steps:
