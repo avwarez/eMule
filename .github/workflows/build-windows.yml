@@ -96,17 +96,20 @@ jobs:
         with:
           path: artifacts
 
-      - name: Flatten artifacts into uniquely-named release assets
+      - name: Zip each build into a uniquely-named release asset
         # download-artifact restores each of the 6 upload-artifact names
         # (emule-<platform>-<configuration>) as its own subfolder, each
-        # containing an emule.exe - collapse those into a flat directory of
-        # distinctly-named files, since release assets share one flat
-        # namespace and would otherwise all collide on "emule.exe".
+        # containing an emule.exe. Zip each one individually (one archive per
+        # matrix combination, rather than one big archive) instead of
+        # attaching the raw .exe - direct .exe download links are routinely
+        # blocked or flagged by browsers/mail/chat tools, while a .zip isn't.
+        # Naming the archive after the subfolder also keeps every release
+        # asset unique, since release assets share one flat namespace.
         run: |
           mkdir -p release-assets
           for dir in artifacts/*/; do
             name=$(basename "$dir")
-            cp "$dir/emule.exe" "release-assets/${name}.exe"
+            (cd "$dir" && zip -j "${GITHUB_WORKSPACE}/release-assets/${name}.zip" emule.exe)
           done
           ls -l release-assets
 
