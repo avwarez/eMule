@@ -6,6 +6,14 @@ on:
     branches:
       - v0.72a-build
 
+# Two pushes to v0.72a-build in quick succession would otherwise run two full
+# matrices in parallel and each publish their own release for the branch -
+# cancel the older run instead so only the latest commit's build ever reaches
+# the release job.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: windows-latest
@@ -74,9 +82,11 @@ jobs:
           if-no-files-found: error
           # These are just short-lived build-verification artifacts (require
           # a GitHub login to download, and would otherwise pile up for 90
-          # days). Every push that gets this far also gets a public, permanent
-          # GitHub Release below with the same binaries attached, so there's
-          # no reason to keep the artifact copies around too.
+          # days). Release-config pushes that get this far also get a public,
+          # permanent GitHub Release below with the same binaries attached,
+          # so there's no reason to keep those artifact copies around too;
+          # Debug configs are never published (see the release job below)
+          # and only live here for the 1 day.
           retention-days: 1
 
   release:
@@ -96,18 +106,22 @@ jobs:
         with:
           path: artifacts
 
-      - name: Zip each build into a uniquely-named release asset
+      - name: Zip each Release build into a uniquely-named release asset
         # download-artifact restores each of the 6 upload-artifact names
         # (emule-<platform>-<configuration>) as its own subfolder, each
-        # containing an emule.exe. Zip each one individually (one archive per
-        # matrix combination, rather than one big archive) instead of
-        # attaching the raw .exe - direct .exe download links are routinely
-        # blocked or flagged by browsers/mail/chat tools, while a .zip isn't.
-        # Naming the archive after the subfolder also keeps every release
-        # asset unique, since release assets share one flat namespace.
+        # containing an emule.exe. Only the *-Release subfolders are zipped
+        # here - Debug builds are build-verification output (unoptimized,
+        # /RTC1 runtime checks enabled) with no reason to reach end users, so
+        # they stay as the 1-day artifacts from the build job instead of
+        # being attached to the public release. Zipping each one individually
+        # (one archive per matrix combination, rather than one big archive)
+        # instead of attaching the raw .exe - direct .exe download links are
+        # routinely blocked or flagged by browsers/mail/chat tools, while a
+        # .zip isn't. Naming the archive after the subfolder also keeps every
+        # release asset unique, since release assets share one flat namespace.
         run: |
           mkdir -p release-assets
-          for dir in artifacts/*/; do
+          for dir in artifacts/*-Release/; do
             name=$(basename "$dir")
             (cd "$dir" && zip -j "${GITHUB_WORKSPACE}/release-assets/${name}.zip" emule.exe)
           done
