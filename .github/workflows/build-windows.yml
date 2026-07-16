@@ -21,6 +21,19 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Set up Python
+        # Pin an exact interpreter and put it first on PATH, so the "pip
+        # install" below and CMake's own find_package(Python3) (used to run
+        # mbedtls/tf-psa-crypto's code-gen scripts) resolve to the SAME
+        # Python. Without this, plain "pip install jsonschema" installed into
+        # a different interpreter than the one CMake found on its own
+        # (C:/hostedtoolcache/windows/Python/3.14.6/x64/python3.exe) -
+        # confirmed by an actual run: the install step reported success, but
+        # the build still failed with ModuleNotFoundError.
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
       - name: Install mbedtls code-gen Python dependency
         # mbedtls/tf-psa-crypto/scripts/generate_driver_wrappers.py (run by
         # GEN_FILES=ON, forced on in the top-level CMakeLists.txt for a
