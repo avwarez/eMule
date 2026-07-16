@@ -36,7 +36,7 @@ set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
 # ---------------------------------------------------------------------------
 # mbedtls - vanilla git submodule (mbedtls/, with nested tf-psa-crypto/ and
-# framework/ submodules), pinned to v4.0.0. Never edited in place; see
+# framework/ submodules), pinned to v4.2.0. Never edited in place; see
 # mbedtls_overrides/README.md for how eMule's two required customizations
 # (threading_alt.h and enabling MBEDTLS_THREADING_ALT) are supplied from
 # outside the submodule instead, using mechanisms mbedtls itself documents
