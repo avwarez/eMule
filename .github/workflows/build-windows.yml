@@ -35,14 +35,16 @@ jobs:
           python-version: "3.x"
 
       - name: Install mbedtls code-gen Python dependencies
-        # mbedtls/tf-psa-crypto/scripts/generate_driver_wrappers.py (run by
-        # GEN_FILES=ON, forced on in the top-level CMakeLists.txt for a
-        # submodule checkout) imports jsonschema and jinja2 - both confirmed
-        # missing on this runner's Python by actual build attempts
-        # (ModuleNotFoundError, one at a time), even though they're present on
-        # the dev machine this project is otherwise built on (already
-        # installed there from something else).
-        run: pip install jsonschema jinja2
+        # Installed from mbedtls's own requirements file rather than named
+        # ad-hoc, so this tracks whatever upstream actually needs instead of
+        # us guessing/discovering packages one ModuleNotFoundError at a time.
+        # Verified which scripts our exact build config runs (GEN_FILES=ON,
+        # ENABLE_TESTING=OFF on MSVC): only
+        # tf-psa-crypto/scripts/generate_driver_wrappers.py needs third-party
+        # packages (jsonschema, jinja2) - everything else invoked
+        # (generate_config_checks.py, generate_ssl_debug_helpers.py) is
+        # stdlib-only. driver.requirements.txt is exactly those two packages.
+        run: pip install -r mbedtls/tf-psa-crypto/scripts/driver.requirements.txt
 
       - name: Configure (CMake)
         # No -G: let CMake auto-detect whatever Visual Studio version is
