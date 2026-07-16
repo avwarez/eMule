@@ -21,6 +21,15 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Install mbedtls code-gen Python dependency
+        # mbedtls/tf-psa-crypto/scripts/generate_driver_wrappers.py (run by
+        # GEN_FILES=ON, forced on in the top-level CMakeLists.txt for a
+        # submodule checkout) imports jsonschema - confirmed missing on this
+        # runner's Python by an actual build attempt (ModuleNotFoundError),
+        # even though it's present on the dev machine this project is
+        # otherwise built on (already installed there from something else).
+        run: pip install jsonschema
+
       - name: Configure (CMake)
         # No -G: let CMake auto-detect whatever Visual Studio version is
         # actually on the runner image, instead of hardcoding a generator
