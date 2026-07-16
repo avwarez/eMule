@@ -52,23 +52,45 @@ endif()
 
 if(_cryptopp_platform STREQUAL "Win32" OR _cryptopp_platform STREQUAL "x64")
     enable_language(ASM_MASM)
-    list(APPEND CRYPTOPP_ASM_SOURCES
+    set(CRYPTOPP_ASM_RDSOURCES
         "${CRYPTOPP_SRC_DIR}/rdrand.asm"
         "${CRYPTOPP_SRC_DIR}/rdseed.asm"
     )
+    list(APPEND CRYPTOPP_ASM_SOURCES ${CRYPTOPP_ASM_RDSOURCES})
+
+    # cryptlib.vcxproj's custom-build commands for these two files (only) add
+    # /Cx (preserve case of user identifiers - matters for the extern "C"
+    # symbols the C++ side links against) and, Win32 only, /safeseh (the final
+    # emule.exe link also passes /SAFESEH for Win32 - an object not marked
+    # safeseh-compatible would make that link fail with LNK2026). Every
+    # asm custom-build command also passes /W3 /Zi unconditionally (not
+    # config-gated in the vcxproj). _cryptopp_platform is a plain configure-
+    # time variable (not a generator expression) so a plain if() is enough.
+    if(_cryptopp_platform STREQUAL "Win32")
+        set_source_files_properties(${CRYPTOPP_ASM_RDSOURCES} PROPERTIES COMPILE_OPTIONS "/Cx;/Zi;/W3;/safeseh")
+    else()
+        set_source_files_properties(${CRYPTOPP_ASM_RDSOURCES} PROPERTIES COMPILE_OPTIONS "/Cx;/Zi;/W3")
+    endif()
+
     if(_cryptopp_platform STREQUAL "x64")
-        list(APPEND CRYPTOPP_ASM_SOURCES
+        set(CRYPTOPP_ASM_X64SOURCES
             "${CRYPTOPP_SRC_DIR}/x64dll.asm"
             "${CRYPTOPP_SRC_DIR}/x64masm.asm"
         )
+        list(APPEND CRYPTOPP_ASM_SOURCES ${CRYPTOPP_ASM_X64SOURCES})
+        # x64dll.asm/x64masm.asm's own custom-build commands don't pass /Cx
+        # (only rdrand.asm/rdseed.asm's do) - just /W3 /Zi, same as above.
+        set_source_files_properties(${CRYPTOPP_ASM_X64SOURCES} PROPERTIES COMPILE_OPTIONS "/Zi;/W3")
     endif()
+
     # cryptlib.vcxproj passes _M_X86/_M_X64 explicitly on the ml/ml64 command
     # line (its default preprocessor set doesn't include it the way ClCompile's
-    # does) - CMake's ASM_MASM flags need the same.
+    # does) - CMake's ASM_MASM flags need the same. APPEND (not overwriting)
+    # onto the COMPILE_OPTIONS list already set per-file above.
     if(_cryptopp_platform STREQUAL "Win32")
-        set_source_files_properties(${CRYPTOPP_ASM_SOURCES} PROPERTIES COMPILE_OPTIONS "/D_M_X86")
+        set_property(SOURCE ${CRYPTOPP_ASM_SOURCES} APPEND PROPERTY COMPILE_OPTIONS "/D_M_X86")
     else()
-        set_source_files_properties(${CRYPTOPP_ASM_SOURCES} PROPERTIES COMPILE_OPTIONS "/D_M_X64")
+        set_property(SOURCE ${CRYPTOPP_ASM_SOURCES} APPEND PROPERTY COMPILE_OPTIONS "/D_M_X64")
     endif()
 endif()
 

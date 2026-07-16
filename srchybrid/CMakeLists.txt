@@ -19,9 +19,8 @@ list(LENGTH EMULE_SOURCES _n_sources)
 message(STATUS "eMule: ${_n_sources} source files read from emule.vcxproj")
 
 # ---------------------------------------------------------------------------
-# Third-party dependencies - paths/lib names copied from the <Link>
-# AdditionalDependencies list and <AdditionalIncludeDirectories> in
-# emule.vcxproj. Sibling directories of this repo, none vendored here yet.
+# Platform (Win32/x64/ARM64) - still needed below for the XP_BUILD/SAFESEH/
+# arch-specific compile and link options.
 # ---------------------------------------------------------------------------
 if(CMAKE_VS_PLATFORM_NAME)
     set(EMULE_PLATFORM_DIR "${CMAKE_VS_PLATFORM_NAME}")
@@ -35,30 +34,36 @@ endif()
 
 set(DEPENDENCY_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/..")
 
-# mbedtls and cryptopp are built from source via add_subdirectory() in the
-# top-level CMakeLists.txt (vanilla submodules, no prebuilt .lib - see
-# there); linked below as CMake targets (MbedTLS::mbedtls, cryptopp) instead
-# of fixed paths like the others. The rest are still expected as prebuilt
-# libs at the same paths emule.vcxproj's AdditionalDependencies used, none
-# vendored here yet.
-set(ID3LIB_LIB        "${DEPENDENCY_ROOT}/id3lib/libprj/${EMULE_PLATFORM_DIR}/$<CONFIG>/id3lib.lib")
-set(MINIUPNPC_LIB      "${DEPENDENCY_ROOT}/miniupnpc/msvc/${EMULE_PLATFORM_DIR}/$<CONFIG>/miniupnpc.lib")
-set(RESIZABLELIB_LIB   "${DEPENDENCY_ROOT}/resizablelib/${EMULE_PLATFORM_DIR}/$<CONFIG>/resizablelib.lib")
-set(ZLIB_LIB           "${DEPENDENCY_ROOT}/zlib/contrib/vstudio/vc/${EMULE_PLATFORM_DIR}/$<CONFIG>/zlib.lib")
+# $<COMPILE_LANGUAGE:RC> in target_compile_definitions() is silently ignored by
+# CMake's Visual Studio generator (confirmed: a decoy define through that
+# mechanism never made it into the generated .vcxproj, in any config, with or
+# without combining it via AND with a $<CONFIG:...>) - CMAKE_RC_FLAGS is used
+# instead, which does work (it's how CMake's own default "-DWIN32" ends up in
+# every ResourceCompile item, and "-D_DEBUG" via CMAKE_RC_FLAGS_DEBUG for Debug).
+#
+# _VC80_UPGRADE=0x0710: MSBuild's own rc.exe invocation for emule.vcxproj always
+# passes this (confirmed with a direct MSBuild build of the vcxproj - "/D
+# _VC80_UPGRADE=0x0710" is present verbatim in both its Debug and Release
+# ResourceCompile command lines), injected by the Microsoft.CPP.UpgradeFromVC71.props
+# property sheet imported in the vcxproj; CMake has no equivalent import, so this
+# replicates its effect directly. Without it, emule.rc's
+# "#if !(defined(_VC80_UPGRADE) && (_VC80_UPGRADE >= 0x0700) && (_VC80_UPGRADE < 0x0800))"
+# guard evaluates true and tries to embed a legacy CREATEPROCESS_MANIFEST_RESOURCE_ID
+# pointing at a "res\emule.manifest" that has never existed in this repo (RC2135) -
+# dead code intentionally disabled in the real project, since the modern
+# per-platform manifest is instead merged in at link time (see target_link_options'
+# /MANIFESTINPUT below).
+set(CMAKE_RC_FLAGS "${CMAKE_RC_FLAGS} -D_VC80_UPGRADE=0x0710")
 
-set(THIRDPARTY_LIBS ${ID3LIB_LIB} ${MINIUPNPC_LIB} ${RESIZABLELIB_LIB} ${ZLIB_LIB})
-
-# Configure-time sanity check (non-fatal): these paths are config-specific
-# ($<CONFIG> generator expressions can't be evaluated here), so this only
-# checks that each dependency's directory tree exists at all. The link step
-# will fail with a precise "file not found" for anything still missing.
-# mbedtls/cryptopp are excluded - submodules, checked by their own build, not by path.
-foreach(_dep id3lib miniupnpc resizablelib zlib)
-    if(NOT IS_DIRECTORY "${DEPENDENCY_ROOT}/${_dep}")
-        message(WARNING "eMule: sibling dependency directory not found: ${DEPENDENCY_ROOT}/${_dep} "
-                         "(expected to contain a prebuilt ${_dep} matching emule.vcxproj's AdditionalDependencies)")
-    endif()
-endforeach()
+# CMAKE_MFC_FLAG (a variable, not a target property - "MFC_FLAG" is not a real
+# CMake target property at all; set_target_properties() silently accepts and
+# ignores unknown property names, so that never actually enabled MFC linkage,
+# confirmed by an actual build attempt failing with "unresolved external
+# symbol WinMain": libcmt.lib's own CRT startup expects the user to supply
+# WinMain, which is exactly what MFC's static library would otherwise provide,
+# via AfxWinMain, if UseOfMfc were actually set). 1 = static MFC (matches
+# UseOfMfc=Static in the vcxproj); must be set before add_executable().
+set(CMAKE_MFC_FLAG 1)
 
 # ---------------------------------------------------------------------------
 # Target
@@ -66,10 +71,21 @@ endforeach()
 add_executable(emule WIN32 ${EMULE_SOURCES} emule.rc)
 
 set_target_properties(emule PROPERTIES
-    MFC_FLAG 2                                  # static MFC/ATL, matches UseOfMfc=Static
     MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
     OUTPUT_NAME "emule"
+    VS_DPI_AWARE "OFF"                          # EnableDpiAwareness=false in the vcxproj (both configs)
 )
+
+# KNOWN LIMITATION: emule.vcxproj targets PlatformToolset v141_xp for Win32/x64
+# (a Windows-XP-compatible VS2017 toolset) and v145 for ARM64; id3lib.vcxproj
+# wants v141, ResizableLib.vcxproj wants v140_xp. None of those toolsets are
+# installed here - every target in this build instead uses whatever toolset
+# ships with the installed VS generator (confirmed: only MSVC 14.50/14.51 are
+# present, no v14x_xp/v141/v140_xp component). Accepted as-is for now; install
+# the matching "Windows XP support for C++" / VS2017/VS2015 toolset components
+# via the Visual Studio Installer and set PlatformToolset (top-level
+# CMakeLists.txt, before add_subdirectory(srchybrid)/(id3lib_build)/
+# (resizablelib_build)) if XP-compatible code generation is ever required.
 
 # Stdafx.h directly #includes <afximpl.h>, an MFC *implementation* header
 # under ATLMFC\src\mfc - not part of the public ATLMFC\include tree that
@@ -91,23 +107,30 @@ endif()
 # against MbedTLS::mbedtls below - it declares them PUBLIC. Only the
 # threading_alt.h override directory is added explicitly, via
 # include_directories() in the top-level CMakeLists.txt.
+# UPnPImplMiniLib.cpp does #include "miniupnpc\include\miniupnpc.h" - the
+# miniupnpc submodule lives at eMule/miniupnp/miniupnpc (miniupnp/miniupnp is
+# the upstream monorepo; "miniupnpc" is one of its subdirectories, not the
+# submodule's own directory name), so eMule/miniupnp is on the include path
+# here to make that one "miniupnpc/..." segment in the #include resolve.
 target_include_directories(emule PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/..
-    ${DEPENDENCY_ROOT}/id3lib/include
+    ${DEPENDENCY_ROOT}/miniupnp
     ${ATLMFC_SRC_MFC}
 )
 
 target_compile_definitions(emule PRIVATE
-    ID3LIB_LINKOPTION=1
-    MINIUPNP_STATICLIB
     SUPPORT_LARGE_FILES
     UNICODE
     _UNICODE
     $<$<NOT:$<STREQUAL:${EMULE_PLATFORM_DIR},ARM64>>:XP_BUILD>
-    $<$<CONFIG:Debug>:_DEBUG>
     $<$<CONFIG:Release>:NDEBUG>
 )
+# _DEBUG is deliberately NOT in the list above for C++ compilation: emule.vcxproj's
+# Debug <ClCompile> block does not define it either (confirmed - absent from its
+# PreprocessorDefinitions), so MFC's ASSERT/VERIFY/TRACE stay compiled out even in
+# a Debug build, matching the original project. (Its Debug <ResourceCompile> block
+# DOES set "/D _DEBUG" - see CMAKE_RC_FLAGS above add_executable().)
 
 # WarningLevel=EnableAllWarnings in the vcxproj -> /Wall (very noisy: enables
 # every MSVC warning, including ones off by default at /W4). Kept faithful
@@ -131,6 +154,14 @@ target_compile_options(emule PRIVATE
 target_precompile_headers(emule PRIVATE Stdafx.h)
 set_source_files_properties(Parser.cpp Scanner.cpp PROPERTIES SKIP_PRECOMPILE_HEADERS ON)
 
+# Scanner.cpp per-file PreprocessorDefinitions from the vcxproj: only Win32
+# gets _USE_32BIT_TIME_T; both Win32 and x64 get _CRT_SECURE_NO_DEPRECATE.
+# ARM64 gets neither - the vcxproj has no ARM64 condition for this file at all
+# (never updated when the ARM64 platform was added), replicated as-is.
+set_source_files_properties(Scanner.cpp PROPERTIES
+    COMPILE_DEFINITIONS "$<$<STREQUAL:${EMULE_PLATFORM_DIR},Win32>:_USE_32BIT_TIME_T;>$<$<OR:$<STREQUAL:${EMULE_PLATFORM_DIR},Win32>,$<STREQUAL:${EMULE_PLATFORM_DIR},x64>>:_CRT_SECURE_NO_DEPRECATE>"
+)
+
 # ---------------------------------------------------------------------------
 # Linking
 # ---------------------------------------------------------------------------
@@ -144,7 +175,10 @@ target_link_libraries(emule PRIVATE
     ws2_32.lib
     MbedTLS::mbedtls
     cryptopp
-    ${THIRDPARTY_LIBS}
+    id3lib
+    zlibstatic
+    miniupnpc::miniupnpc
+    resizablelib
 )
 
 target_link_options(emule PRIVATE
@@ -159,6 +193,8 @@ target_link_options(emule PRIVATE
     /NODEFAULTLIB:vfw32.lib
     $<$<STREQUAL:${EMULE_PLATFORM_DIR},Win32>:/SAFESEH>
     "/MANIFESTINPUT:${CMAKE_CURRENT_SOURCE_DIR}/res/emule${EMULE_PLATFORM_DIR}.manifest"
+    $<$<CONFIG:Release>:/OPT:REF>                                     # OptimizeReferences=true (Release only; Debug's explicit "false" is CMake's default anyway)
+    $<$<CONFIG:Release>:/OPT:ICF>                                     # EnableCOMDATFolding=true (Release only)
 )
 # WIN32 on add_executable() already implies /SUBSYSTEM:WINDOWS.
 
