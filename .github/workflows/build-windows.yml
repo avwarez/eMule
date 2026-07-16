@@ -127,6 +127,7 @@ jobs:
         run: |
           gh release create "${{ steps.meta.outputs.tag }}" \
             --repo "${{ github.repository }}" \
+            --target "${{ github.sha }}" \
             --title "${{ steps.meta.outputs.tag }}" \
             --notes "Automated build from commit ${{ github.sha }}." \
             --prerelease \
