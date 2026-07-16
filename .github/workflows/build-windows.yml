@@ -72,3 +72,59 @@ jobs:
           name: emule-${{ matrix.platform }}-${{ matrix.configuration }}
           path: build/srchybrid/${{ matrix.configuration }}/emule.exe
           if-no-files-found: error
+          # These are just short-lived build-verification artifacts (require
+          # a GitHub login to download, and would otherwise pile up for 90
+          # days). Every push that gets this far also gets a public, permanent
+          # GitHub Release below with the same binaries attached, so there's
+          # no reason to keep the artifact copies around too.
+          retention-days: 1
+
+  release:
+    name: Publish release
+    needs: build
+    # Only real pushes to v0.72a-build become a permanent public release -
+    # manual workflow_dispatch runs (ad-hoc/test builds) stay as the 1-day
+    # artifacts above and don't clutter the Releases page.
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Flatten artifacts into uniquely-named release assets
+        # download-artifact restores each of the 6 upload-artifact names
+        # (emule-<platform>-<configuration>) as its own subfolder, each
+        # containing an emule.exe - collapse those into a flat directory of
+        # distinctly-named files, since release assets share one flat
+        # namespace and would otherwise all collide on "emule.exe".
+        run: |
+          mkdir -p release-assets
+          for dir in artifacts/*/; do
+            name=$(basename "$dir")
+            cp "$dir/emule.exe" "release-assets/${name}.exe"
+          done
+          ls -l release-assets
+
+      - name: Compute release tag
+        id: meta
+        # Tag/title = branch name + UTC generation timestamp, e.g.
+        # "v0.72a-build-20260716-144500", so every run gets its own permanent,
+        # chronologically sortable release instead of one being overwritten
+        # by the next.
+        run: echo "tag=${{ github.ref_name }}-$(date -u +%Y%m%d-%H%M%S)" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ steps.meta.outputs.tag }}" \
+            --repo "${{ github.repository }}" \
+            --title "${{ steps.meta.outputs.tag }}" \
+            --notes "Automated build from commit ${{ github.sha }}." \
+            --prerelease \
+            release-assets/*
