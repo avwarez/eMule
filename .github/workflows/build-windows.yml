@@ -22,7 +22,13 @@ jobs:
           submodules: recursive
 
       - name: Configure (CMake)
-        run: cmake -S . -B build -G "Visual Studio 17 2022" -A ${{ matrix.platform }}
+        # No -G: let CMake auto-detect whatever Visual Studio version is
+        # actually on the runner image, instead of hardcoding a generator
+        # name that stops matching once GitHub updates windows-latest to a
+        # newer VS release (confirmed the cause of the first run's failure -
+        # "could not find any instance of Visual Studio" for a hardcoded
+        # "Visual Studio 17 2022" generator).
+        run: cmake -S . -B build -A ${{ matrix.platform }}
 
       - name: Build
         run: cmake --build build --config ${{ matrix.configuration }} --target emule
