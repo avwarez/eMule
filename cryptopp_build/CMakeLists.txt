@@ -11,6 +11,39 @@ cmake_minimum_required(VERSION 3.20)
 # ---------------------------------------------------------------------------
 set(CRYPTOPP_SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../cryptopp")
 
+# integer.cpp/zdeflate.cpp call stdext::make_checked_array_iterator()/
+# make_unchecked_array_iterator() unconditionally on any CRYPTOPP_MSC_VERSION
+# (== _MSC_VER) >= 1500/1600 - non-standard MSVC STL (Dinkumware) extensions
+# cryptopp assumes every such MSVC ships. Newer MSVC STL releases have removed
+# them entirely (confirmed by an actual CI build attempt: C2653/C3861, "not a
+# class or namespace name" / "identifier not found", on a toolset newer than
+# the one this project is otherwise developed against, which still has them).
+# Redefining CRYPTOPP_MSC_VERSION itself to dodge this would be wrong - it
+# gates plenty of other, legitimate feature detection that should still see
+# the real (and genuinely more capable) compiler version. Instead, probe
+# directly for just these two functions at configure time, and only force-
+# include our own compatibility shim (msvc_stdext_compat.h - a raw-pointer
+# passthrough; both functions only ever existed to silence the old "Checked
+# Iterators" MSVC debug feature, not to add real bounds enforcement cryptopp's
+# logic depends on) when they're genuinely missing - inert on a toolset (like
+# this project's own dev machine, as of this writing) where they still exist.
+include(CheckCXXSourceCompiles)
+check_cxx_source_compiles("
+    #include <iterator>
+    int main() {
+        int a[1] = {0};
+        (void)stdext::make_unchecked_array_iterator(a);
+        (void)stdext::make_checked_array_iterator(a, 1u);
+        return 0;
+    }
+" CRYPTOPP_HAS_MSVC_ARRAY_ITERATOR_SHIMS)
+
+if(CMAKE_VS_PLATFORM_NAME)
+    set(_cryptopp_platform "${CMAKE_VS_PLATFORM_NAME}")
+else()
+    set(_cryptopp_platform "x64")
+endif()
+
 # Source list - read directly from cryptlib.vcxproj so this can never drift.
 # Order matters for the first 3 (cryptlib.cpp, cpu.cpp, integer.cpp - see the
 # vcxproj's own "The order of the first three matters" comment), so they're
@@ -32,6 +65,19 @@ endforeach()
 # instead, so this stub is compiled by neither.
 list(REMOVE_ITEM CRYPTOPP_SOURCES eccrypto.cpp eprecomp.cpp pch.cpp)
 
+# neon_simd.cpp (ARM64 only): defines CPU_ProbeARMv7()/CPU_ProbeNEON(), called
+# unconditionally from cpu.cpp's ARM feature-detection path. cryptlib.vcxproj
+# never lists this file at all - confirmed (diffed cryptopp/*.cpp against the
+# vcxproj's own ClCompile list) - because upstream never shipped an ARM64/ARM
+# MSVC config for it to belong to (same reason the MASM block below skips
+# ARM64), so it can't be "read from the vcxproj" the way everything else here
+# is; it has to be added by hand for the one platform that actually needs it.
+# Without it: LNK2001 unresolved CPU_ProbeARMv7/CPU_ProbeNEON, confirmed by an
+# actual build attempt.
+if(_cryptopp_platform STREQUAL "ARM64")
+    list(APPEND CRYPTOPP_SOURCES neon_simd.cpp)
+endif()
+
 list(TRANSFORM CRYPTOPP_SOURCES PREPEND "${CRYPTOPP_SRC_DIR}/")
 
 list(LENGTH CRYPTOPP_SOURCES _n_sources)
@@ -44,11 +90,6 @@ message(STATUS "cryptopp: ${_n_sources} source files read from cryptlib.vcxproj"
 # ARM64 config for them.
 # ---------------------------------------------------------------------------
 set(CRYPTOPP_ASM_SOURCES "")
-if(CMAKE_VS_PLATFORM_NAME)
-    set(_cryptopp_platform "${CMAKE_VS_PLATFORM_NAME}")
-else()
-    set(_cryptopp_platform "x64")
-endif()
 
 if(_cryptopp_platform STREQUAL "Win32" OR _cryptopp_platform STREQUAL "x64")
     enable_language(ASM_MASM)
@@ -121,6 +162,17 @@ target_include_directories(cryptopp PUBLIC "${CRYPTOPP_SRC_DIR}")
 target_compile_definitions(cryptopp PRIVATE
     USE_PRECOMPILED_HEADERS
     $<$<CONFIG:Release>:NDEBUG>
+    # ARM64 only: config_asm.h's CRYPTOPP_ARM_ACLE_HEADER auto-detection
+    # (triggered by __ARM_ARCH/__aarch64__/__ARM_ACLE, which this MSVC ARM64
+    # toolset defines) assumes any such compiler ships <arm_acle.h> the way
+    # GCC/Clang do - confirmed by an actual build attempt (C1083, header not
+    # found) that this toolset's include dir has no arm_acle.h at all (only
+    # arm_neon.h/arm64_neon.h/arm64intr.h/arm_sve.h). Forcing this to 0 here
+    # (before config_asm.h's own "#if !defined(...)" guard runs) skips that
+    # include; cryptopp's arm_simd.h/adv_simd.h etc. all have a parallel
+    # CRYPTOPP_MSC_VERSION-guarded intrinsics path that's used instead - no
+    # loss of ARM64 crypto acceleration.
+    $<$<STREQUAL:${_cryptopp_platform},ARM64>:CRYPTOPP_ARM_ACLE_HEADER=0>
 )
 
 # COMPILE_LANGUAGE:CXX guards every flag here - without it, these (pure
@@ -146,6 +198,12 @@ target_compile_options(cryptopp PRIVATE
     # x64 baseline already).
     $<$<COMPILE_LANGUAGE:CXX>:$<$<AND:$<CXX_COMPILER_ID:MSVC>,$<STREQUAL:${_cryptopp_platform},Win32>>:/arch:SSE2>>
 )
+
+if(NOT CRYPTOPP_HAS_MSVC_ARRAY_ITERATOR_SHIMS)
+    target_compile_options(cryptopp PRIVATE
+        $<$<COMPILE_LANGUAGE:CXX>:$<$<CXX_COMPILER_ID:MSVC>:/FI${CMAKE_CURRENT_SOURCE_DIR}/msvc_stdext_compat.h>>
+    )
+endif()
 
 # chacha_avx.cpp: EnableEnhancedInstructionSet=AdvancedVectorExtensions2 for
 # this one file only (excluded on the pre-2013 toolsets the vcxproj still
