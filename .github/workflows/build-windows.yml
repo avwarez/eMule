@@ -28,7 +28,17 @@ jobs:
         # newer VS release (confirmed the cause of the first run's failure -
         # "could not find any instance of Visual Studio" for a hardcoded
         # "Visual Studio 17 2022" generator).
-        run: cmake -S . -B build -A ${{ matrix.platform }}
+        #
+        # -T version=14.50: request the exact same MSVC toolset installed on
+        # the dev machine this project is otherwise built/verified on (VC/Tools/
+        # MSVC/14.50.35717). The runner's default auto-detected toolset was
+        # confirmed to be a different one (14.51.36231) via a previous failed
+        # run, which also surfaced a real cryptopp/MSVC-STL incompatibility
+        # (stdext::make_checked_array_iterator removed) not yet reproducible
+        # locally - matching the toolset removes that variable. If the runner
+        # image doesn't carry 14.50 as an installed side-by-side component,
+        # this step will fail fast with a clear "could not find toolset" error.
+        run: cmake -S . -B build -A ${{ matrix.platform }} -T version=14.50
 
       - name: Build
         run: cmake --build build --config ${{ matrix.configuration }} --target emule
