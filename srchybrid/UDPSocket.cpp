@@ -155,6 +155,8 @@ void CUDPSocket::OnReceive(int nErrorCode)
 	int iSockAddrLen = sizeof sockAddr;
 	int length = ReceiveFrom(buffer, sizeof buffer, (LPSOCKADDR)&sockAddr, &iSockAddrLen);
 	if (length != SOCKET_ERROR) {
+		if (length == 0)
+			return;
 		int nPayLoadLen = length;
 		CServer *pServer = theApp.serverlist->GetServerByIPUDP(sockAddr.sin_addr.s_addr, ntohs(sockAddr.sin_port), true);
 		if (pServer != NULL && thePrefs.IsCryptLayerEnabled()
@@ -211,8 +213,10 @@ void CUDPSocket::OnReceive(int nErrorCode)
 	}
 }
 
-bool CUDPSocket::ProcessPacket(const BYTE *packet, UINT size, UINT opcode, uint32 nIP, uint16 nUDPPort)
+bool CUDPSocket::ProcessPacket(const BYTE *packet, int size, UINT opcode, uint32 nIP, uint16 nUDPPort)
 {
+	if (size < 0)
+		return false;
 	try {
 		theStats.AddDownDataOverheadServer(size);
 		CServer *pServer = theApp.serverlist->GetServerByIPUDP(nIP, nUDPPort, true);
