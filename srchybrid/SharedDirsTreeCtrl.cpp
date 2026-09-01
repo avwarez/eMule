@@ -505,7 +505,7 @@ void CSharedDirsTreeCtrl::OnContextMenu(CWnd*, CPoint point)
 		// - even if it can be done in other ways if the user really wants to do it
 		bool bWideRangeSelection = (pSelectedDir->m_nCatFilter == -1 && pSelectedDir->m_eItemType != SDI_NO);
 
-		m_SharedFilesMenu.EnableMenuItem((UINT)m_PrioMenu.m_hMenu, iSelectedItems > 0 ? MF_ENABLED : MF_GRAYED);
+		m_SharedFilesMenu.EnableMenuItem(HandleToULong(m_PrioMenu.m_hMenu), iSelectedItems > 0 ? MF_ENABLED : MF_GRAYED);
 		m_PrioMenu.CheckMenuRadioItem(MP_PRIOVERYLOW, MP_PRIOAUTO, uPrioMenuItem, 0);
 
 		m_SharedFilesMenu.EnableMenuItem(MP_OPENFOLDER, !pSelectedDir->m_strFullPath.IsEmpty() || pSelectedDir->m_eItemType == SDI_INCOMING || pSelectedDir->m_eItemType == SDI_TEMP || pSelectedDir->m_eItemType == SDI_CATINCOMING ? MF_ENABLED : MF_GRAYED);
