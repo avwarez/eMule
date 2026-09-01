@@ -666,7 +666,10 @@ BOOL CemuleApp::PumpMessage()
 		TT("STARVED|gap_ms=%I64u|posted=%I64u", s_uLastTimerUs ? (ttNow - s_uLastTimerUs) / 1000 : 0, s_uPostedSinceTimer);
 		s_uLastTimerUs = ttNow;
 		s_uPostedSinceTimer = 0;
-	} else if (uMsg >= WM_USER)
+	} else if (uMsg >= WM_USER || uMsg == WM_SOCKET_NOTIFY || uMsg == WM_SOCKET_DEAD)
+		// CAsyncSocketEx posts WM_SOCKETEX_NOTIFY + socket index, which is above
+		// WM_USER, but the sockets left on MFC's CAsyncSocket are notified with
+		// WM_SOCKET_NOTIFY (0x0373), which is below it and would not be counted.
 		++s_uPostedSinceTimer;
 	TT_IF(us >= TT_PUMP_MIN_US, TTS_PUMP, "PUMP|msg=0x%04X|us=%I64u", uMsg, us);
 	return bResult;
