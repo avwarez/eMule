@@ -236,6 +236,7 @@ void CServerListCtrl::DrawItem(LPDRAWITEMSTRUCT lpDrawItemStruct)
 					m_pImageList->Draw(dc, iImage, point, ILD_NORMAL | INDEXTOOVERLAYMASK(uOverlayImage));
 					rcItem.left += 16 + sm_iLabelOffset - sm_iSubItemInset;
 				}
+				[[fallthrough]];
 			default: //any text column
 				rcItem.left += sm_iSubItemInset;
 				dc.DrawText(sItem, &rcItem, MLC_DT_TEXT | uDrawTextAlignment);

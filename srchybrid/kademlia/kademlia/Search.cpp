@@ -106,6 +106,7 @@ CSearch::~CSearch()
 	case FINDSOURCE: // maybe also exclude
 		if (m_uClosestDistantFound != 0)
 			CKademlia::StatsAddClosestDistance(m_uClosestDistantFound);
+			[[fallthrough]];
 	default: // NODE, NODESPECIAL, NODEFWCHECKUDP, FINDBUDDY
 		break;
 	}

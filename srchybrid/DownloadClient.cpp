@@ -2184,6 +2184,7 @@ void CUpDownClient::ProcessAICHFileHash(CSafeMemFile *data, CPartFile *file, con
 					pPartFile->SetAICHHashSetNeeded(true);
 					m_fHashsetRequestingAICH = false;
 				}
+				[[fallthrough]];
 			case DS_CONNECTED:
 			case DS_ONQUEUE:
 			case DS_NONEEDEDPARTS:

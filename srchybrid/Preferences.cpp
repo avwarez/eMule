@@ -2954,6 +2954,7 @@ CString CPreferences::GetDefaultDirectory(EDefaultDirectory eDirectory, bool bCr
 								strSelectedDataBaseDirectory = strPublicDownloads + _T("eMule\\");
 								strSelectedConfigBaseDirectory = strProgramData + _T("eMule\\");
 								strSelectedExpansionBaseDirectory = strProgramData + _T("eMule\\");
+								[[fallthrough]];
 							case 2: //program directory
 								break;
 							default:

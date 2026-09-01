@@ -830,6 +830,7 @@ HRESULT CUPnPImplWinServ::InvokeAction(ServicePointer pService
 			// If connection services return value is empty
 			// then OUT arguments are returned
 			GetStringFromOutArgs(&vaOutArgs, strResult);
+			[[fallthrough]];
 		default:
 			bInvalid = true;
 		}

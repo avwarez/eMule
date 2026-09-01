@@ -1558,6 +1558,7 @@ void CDownloadQueue::KademliaSearchFile(uint32 nSearchID, const Kademlia::CUInt1
 			pcontactID->ToByteArray(cID);
 			ctemp->SetUserHash(cID);
 		}
+		[[fallthrough]];
 	case 2:
 		//Don't use this type... Some clients will process it wrong.
 		break;

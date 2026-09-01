@@ -681,6 +681,7 @@ void CALLBACK CemuleDlg::StartupTimer(HWND /*hwnd*/, UINT /*uiMsg*/, UINT_PTR /*
 			++theApp.emuledlg->status;
 			theApp.sharedfiles->SetOutputCtrl(&theApp.emuledlg->sharedfileswnd->sharedfilesctrl);
 			++theApp.emuledlg->status;
+			[[fallthrough]];
 		case 1:
 			break;
 		case 2:
@@ -692,6 +693,7 @@ void CALLBACK CemuleDlg::StartupTimer(HWND /*hwnd*/, UINT /*uiMsg*/, UINT_PTR /*
 				LogError(LOG_STATUSBAR, _T("Failed to initialize server list - Unknown exception"));
 			}
 			++theApp.emuledlg->status;
+			[[fallthrough]];
 		case 3:
 			break;
 		case 4:
@@ -1302,6 +1304,7 @@ void CemuleDlg::ProcessED2KLink(LPCWSTR pszData)
 				SetActiveDialog(searchwnd);
 				searchwnd->ProcessEd2kSearchLinkRequest(pListLink->GetSearchTerm());
 			}
+			[[fallthrough]];
 		default:
 			break;
 		}

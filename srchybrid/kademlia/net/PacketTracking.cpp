@@ -137,6 +137,7 @@ int CPacketTracking::InTrackListIsAllowedPacket(uint32 uIP, uint8 byOpcode, bool
 		break;
 	case KADEMLIA_FIREWALLED2_REQ:
 		byOpcode = KADEMLIA_FIREWALLED_REQ;
+		[[fallthrough]];
 	case KADEMLIA_FIREWALLED_REQ:
 	case KADEMLIA_FINDBUDDY_REQ:
 		token = MIN2MS(1) / 2;

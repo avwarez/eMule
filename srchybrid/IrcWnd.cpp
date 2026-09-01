@@ -435,6 +435,7 @@ BOOL CIrcWnd::OnCommand(WPARAM wParam, LPARAM)
 		break;
 	case IDC_SMILEY:
 		OnBnClickedSmiley();
+		[[fallthrough]];
 	default:
 		return TRUE;
 	}
