@@ -15,6 +15,7 @@
 //along with this program; if not, write to the Free Software
 //Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 #pragma once
+#include <atomic>
 #include "MuleListCtrl.h"
 #include "TitledMenu.h"
 #include "ListCtrlItemWalk.h"
@@ -73,7 +74,7 @@ protected:
 	bool			m_aSortBySecondValue[4];
 	CImageList		m_ImageList;
 	CDirectoryItem	*m_pDirectoryFilter;
-	volatile INT_PTR	nAICHHashing;
+	std::atomic<INT_PTR>	nAICHHashing;
 	CToolTipCtrlX	*m_pToolTip;
 	CTypedPtrList<CPtrList, CShareableFile*>	liTempShareableFilesInDir;
 	CShareableFile	*m_pHighlightedItem;
