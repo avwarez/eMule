@@ -55,6 +55,8 @@ static LCX_COLUMN_INIT s_aColumns[] =
 
 IMPLEMENT_DYNAMIC(CMetaDataDlg, CResizablePage)
 
+#pragma warning(push)
+#pragma warning(disable:4191) // MFC message maps cast every handler to AFX_PMSG; only a pragma inside the .cpp reaches this
 BEGIN_MESSAGE_MAP(CMetaDataDlg, CResizablePage)
 	ON_COMMAND(MP_COPYSELECTED, OnCopyTags)
 	ON_COMMAND(MP_SELECTALL, OnSelectAllTags)
@@ -62,6 +64,7 @@ BEGIN_MESSAGE_MAP(CMetaDataDlg, CResizablePage)
 	ON_NOTIFY(LVN_KEYDOWN, IDC_TAGS, OnLvnKeydownTags)
 	ON_WM_DESTROY()
 END_MESSAGE_MAP()
+#pragma warning(pop)
 
 CMetaDataDlg::CMetaDataDlg()
 	: CResizablePage(CMetaDataDlg::IDD)

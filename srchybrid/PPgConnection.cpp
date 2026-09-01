@@ -42,6 +42,8 @@ static char THIS_FILE[] = __FILE__;
 
 IMPLEMENT_DYNAMIC(CPPgConnection, CPropertyPage)
 
+#pragma warning(push)
+#pragma warning(disable:4191) // MFC message maps cast every handler to AFX_PMSG; only a pragma inside the .cpp reaches this
 BEGIN_MESSAGE_MAP(CPPgConnection, CPropertyPage)
 	ON_BN_CLICKED(IDC_STARTTEST, OnStartPortTest)
 	ON_EN_CHANGE(IDC_DOWNLOAD_CAP, OnSettingsChange)
@@ -66,6 +68,7 @@ BEGIN_MESSAGE_MAP(CPPgConnection, CPropertyPage)
 	ON_BN_CLICKED(IDC_OPENPORTS, OnBnClickedOpenPorts)
 	ON_BN_CLICKED(IDC_PREF_UPNPONSTART, OnSettingsChange)
 END_MESSAGE_MAP()
+#pragma warning(pop)
 
 CPPgConnection::CPPgConnection()
 	: CPropertyPage(CPPgConnection::IDD)

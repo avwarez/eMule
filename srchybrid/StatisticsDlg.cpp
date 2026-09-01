@@ -50,6 +50,8 @@ extern _CRT_ALLOC_HOOK g_pfnPrevCrtAllocHook;
 
 IMPLEMENT_DYNAMIC(CStatisticsDlg, CDialog)
 
+#pragma warning(push)
+#pragma warning(disable:4191) // MFC message maps cast every handler to AFX_PMSG; only a pragma inside the .cpp reaches this
 BEGIN_MESSAGE_MAP(CStatisticsDlg, CResizableDialog)
 	ON_WM_SHOWWINDOW()
 	ON_WM_SIZE()
@@ -62,6 +64,7 @@ BEGIN_MESSAGE_MAP(CStatisticsDlg, CResizableDialog)
 	ON_MESSAGE(UM_OSCOPEPOSITION, OnOscopePositionMsg)
 	ON_WM_HELPINFO()
 END_MESSAGE_MAP()
+#pragma warning(pop)
 
 CStatisticsDlg::CStatisticsDlg(CWnd *pParent /*=NULL*/)
 	: CResizableDialog(CStatisticsDlg::IDD, pParent)

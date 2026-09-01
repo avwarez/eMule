@@ -57,6 +57,8 @@ IMPLEMENT_DYNAMIC(CtrlItem_Struct, CObject)
 
 IMPLEMENT_DYNAMIC(CDownloadListCtrl, CMuleListCtrl)
 
+#pragma warning(push)
+#pragma warning(disable:4191) // MFC message maps cast every handler to AFX_PMSG; only a pragma inside the .cpp reaches this
 BEGIN_MESSAGE_MAP(CDownloadListCtrl, CMuleListCtrl)
 	ON_NOTIFY_REFLECT(LVN_COLUMNCLICK, OnLvnColumnClick)
 	ON_NOTIFY_REFLECT(LVN_DELETEITEM, OnListModified)
@@ -69,6 +71,7 @@ BEGIN_MESSAGE_MAP(CDownloadListCtrl, CMuleListCtrl)
 	ON_WM_CONTEXTMENU()
 	ON_WM_SYSCOLORCHANGE()
 END_MESSAGE_MAP()
+#pragma warning(pop)
 
 CDownloadListCtrl::CDownloadListCtrl()
 	: CDownloadListListCtrlItemWalk(this)

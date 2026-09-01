@@ -37,12 +37,15 @@ static char THIS_FILE[] = __FILE__;
 
 IMPLEMENT_DYNAMIC(CFriendListCtrl, CMuleListCtrl)
 
+#pragma warning(push)
+#pragma warning(disable:4191) // MFC message maps cast every handler to AFX_PMSG; only a pragma inside the .cpp reaches this
 BEGIN_MESSAGE_MAP(CFriendListCtrl, CMuleListCtrl)
 	ON_NOTIFY_REFLECT(LVN_COLUMNCLICK, OnLvnColumnClick)
 	ON_NOTIFY_REFLECT(NM_DBLCLK, OnNmDblClk)
 	ON_WM_CONTEXTMENU()
 	ON_WM_SYSCOLORCHANGE()
 END_MESSAGE_MAP()
+#pragma warning(pop)
 
 CFriendListCtrl::CFriendListCtrl()
 {

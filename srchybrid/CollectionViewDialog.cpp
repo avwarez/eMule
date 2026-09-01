@@ -35,11 +35,14 @@ static char THIS_FILE[] = __FILE__;
 
 IMPLEMENT_DYNAMIC(CCollectionViewDialog, CDialog)
 
+#pragma warning(push)
+#pragma warning(disable:4191) // MFC message maps cast every handler to AFX_PMSG; only a pragma inside the .cpp reaches this
 BEGIN_MESSAGE_MAP(CCollectionViewDialog, CResizableDialog)
 	ON_BN_CLICKED(IDC_VCOLL_CLOSE, OnBnClickedOk)
 	ON_BN_CLICKED(IDC_VIEWCOLLECTIONDL, OnBnClickedViewCollection)
 	ON_NOTIFY(NM_DBLCLK, IDC_COLLECTIONVEWLIST, OnNmDblClkCollectionList)
 END_MESSAGE_MAP()
+#pragma warning(pop)
 
 CCollectionViewDialog::CCollectionViewDialog(CWnd *pParent /*=NULL*/)
 	: CResizableDialog(CCollectionViewDialog::IDD, pParent)

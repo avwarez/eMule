@@ -82,6 +82,8 @@ enum ESearchResultImage
 
 IMPLEMENT_DYNCREATE(CSearchResultsWnd, CResizableFormView)
 
+#pragma warning(push)
+#pragma warning(disable:4191) // MFC message maps cast every handler to AFX_PMSG; only a pragma inside the .cpp reaches this
 BEGIN_MESSAGE_MAP(CSearchResultsWnd, CResizableFormView)
 	ON_WM_TIMER()
 	ON_BN_CLICKED(IDC_SDOWNLOAD, OnBnClickedDownloadSelected)
@@ -102,6 +104,7 @@ BEGIN_MESSAGE_MAP(CSearchResultsWnd, CResizableFormView)
 	ON_MESSAGE(UM_DELAYED_EVALUATE, OnChangeFilter)
 	ON_NOTIFY(TBN_DROPDOWN, IDC_SEARCHLST_ICO, OnSearchListMenuBtnDropDown)
 END_MESSAGE_MAP()
+#pragma warning(pop)
 
 CSearchResultsWnd::CSearchResultsWnd(CWnd* /*pParent*/)
 	: CResizableFormView(CSearchResultsWnd::IDD)
@@ -1708,9 +1711,12 @@ void CSearchResultsWnd::SearchRelatedFiles(CPtrList &listFiles)
 ///////////////////////////////////////////////////////////////////////////////
 // CSearchResultsSelector
 
+#pragma warning(push)
+#pragma warning(disable:4191) // MFC message maps cast every handler to AFX_PMSG; only a pragma inside the .cpp reaches this
 BEGIN_MESSAGE_MAP(CSearchResultsSelector, CClosableTabCtrl)
 	ON_WM_CONTEXTMENU()
 END_MESSAGE_MAP()
+#pragma warning(pop)
 
 BOOL CSearchResultsSelector::OnCommand(WPARAM wParam, LPARAM lParam)
 {

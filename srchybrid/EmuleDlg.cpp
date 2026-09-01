@@ -123,6 +123,8 @@ static const UINT UWM_TASK_BUTTON_CREATED = RegisterWindowMessage(_T("TaskbarBut
 
 IMPLEMENT_DYNAMIC(CMsgBoxException, CException)
 
+#pragma warning(push)
+#pragma warning(disable:4191) // MFC message maps cast every handler to AFX_PMSG; only a pragma inside the .cpp reaches this
 BEGIN_MESSAGE_MAP(CemuleDlg, CTrayDialog)
 	///////////////////////////////////////////////////////////////////////////
 	// Windows messages
@@ -203,6 +205,7 @@ BEGIN_MESSAGE_MAP(CemuleDlg, CTrayDialog)
 #endif
 
 END_MESSAGE_MAP()
+#pragma warning(pop)
 
 CemuleDlg::CemuleDlg(CWnd *pParent /*=NULL*/)
 	: CTrayDialog(CemuleDlg::IDD, pParent)
@@ -376,6 +379,10 @@ BOOL CemuleDlg::OnInitDialog()
 		m_bInitedCOM = SUCCEEDED(::CoInitialize(NULL));
 		if (m_bInitedCOM) {
 			typedef BOOL(WINAPI *PChangeWindowMessageFilter)(UINT message, DWORD dwFlag);
+			// C4191: GetProcAddress returns FARPROC, so every typed use of it is a
+			// cast between unrelated function types. Same reason as above: the
+			// suppression only works from inside the .cpp.
+#pragma warning(suppress: 4191)
 			PChangeWindowMessageFilter ChangeWindowMessageFilter
 				= (PChangeWindowMessageFilter)(::GetProcAddress(::GetModuleHandle(_T("user32.dll")), "ChangeWindowMessageFilter"));
 			if (ChangeWindowMessageFilter) {
