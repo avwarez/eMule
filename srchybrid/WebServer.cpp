@@ -3628,8 +3628,8 @@ CString CWebServer::_GetDownloadGraph(const ThreadData &Data, const CString &fil
 	} else {
 		const CStringA &s_ChunkBar(pPartFile->GetProgressString(pThis->m_Templates.iProgressbarWidth));
 		// now draw progress bars based on the character array
-		int compl = static_cast<int>((pThis->m_Templates.iProgressbarWidth / 100.0f) * pPartFile->GetPercentCompleted());
-		Out.Format(pThis->m_Templates.sProgressbarImgsPercent, barcolours[compl > 0 ? 10 : 11], (compl > 0 ? compl : 5));
+		int iCompl = static_cast<int>((pThis->m_Templates.iProgressbarWidth / 100.0f) * pPartFile->GetPercentCompleted());
+		Out.Format(pThis->m_Templates.sProgressbarImgsPercent, barcolours[iCompl > 0 ? 10 : 11], (iCompl > 0 ? iCompl : 5));
 		Out += _T("<br>");
 
 		BYTE lastcolor = 1;

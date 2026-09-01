@@ -1217,7 +1217,7 @@ CString CTransferWnd::GetTabStatistic(int tab)
 	}
 
 	int total;
-	int compl = downloadlistctrl.GetCompleteDownloads(tab, total);
+	int iCompl = downloadlistctrl.GetCompleteDownloads(tab, total);
 
 	UINT uid;
 	switch (thePrefs.GetCategory(tab)->prio) {
@@ -1233,11 +1233,11 @@ CString CTransferWnd::GetTabStatistic(int tab)
 
 	CString title(GetResString(IDS_FILES));
 	title.AppendFormat(_T(": %i\n\n%s: %i\n%s: %i\n%s: %i\n%s: %i\n\n%s: %s\n\n%s: %.1f %s\n%s: %s/%s\n%s%s") TOOLTIP_AUTOFORMAT_SUFFIX
-		, count + compl
+		, count + iCompl
 		, (LPCTSTR)GetResString(IDS_DOWNLOADING), dwl
 		, (LPCTSTR)GetResString(IDS_PAUSED), paus
 		, (LPCTSTR)GetResString(IDS_ERRORLIKE), err
-		, (LPCTSTR)GetResString(IDS_DL_TRANSFCOMPL), compl
+		, (LPCTSTR)GetResString(IDS_DL_TRANSFCOMPL), iCompl
 		, (LPCTSTR)GetResString(IDS_PRIORITY), (LPCTSTR)GetResString(uid)
 		, (LPCTSTR)GetResString(IDS_DL_SPEED), speed, (LPCTSTR)GetResString(IDS_KBYTESPERSEC)
 		, (LPCTSTR)GetResString(IDS_DL_SIZE), (LPCTSTR)CastItoXBytes(trsize), (LPCTSTR)CastItoXBytes(size)
