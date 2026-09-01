@@ -648,7 +648,7 @@ LRESULT CFileInfoDialog::OnMediaInfoResult(WPARAM, LPARAM lParam)
 		if (!bDiffVideoStreamCount && ami.iVideoStreams > 1)
 			SetDlgItemText(IDC_FD_XI3, GetResString(IDS_VIDEO) + _T(" #1"));
 
-		SetDlgItemText(IDC_VCODEC, bDiffVideoCompression ? _T("") : ami.strVideoFormat);
+		SetDlgItemText(IDC_VCODEC, bDiffVideoCompression ? _T("") : (LPCTSTR)ami.strVideoFormat);
 
 		if (!bDiffVideoBitRate && ami.video.dwBitRate) {
 			if (ami.video.dwBitRate == _UI32_MAX)
@@ -685,7 +685,7 @@ LRESULT CFileInfoDialog::OnMediaInfoResult(WPARAM, LPARAM lParam)
 		if (!bDiffAudioStreamCount && ami.iAudioStreams > 1)
 			SetDlgItemText(IDC_FD_XI4, GetResString(IDS_AUDIO) + _T(" #1"));
 
-		SetDlgItemText(IDC_ACODEC, bDiffAudioCompression ? _T("") : ami.strAudioFormat);
+		SetDlgItemText(IDC_ACODEC, bDiffAudioCompression ? _T("") : (LPCTSTR)ami.strAudioFormat);
 
 		LPCTSTR pChan;
 		if (!bDiffAudioChannels && ami.audio.nChannels) {
@@ -723,7 +723,7 @@ LRESULT CFileInfoDialog::OnMediaInfoResult(WPARAM, LPARAM lParam)
 		} else
 			SetDlgItemText(IDC_ABITRATE, _T(""));
 
-		SetDlgItemText(IDC_ALANGUAGE, bDiffAudioLanguage ? _T("") : ami.strAudioLanguage);
+		SetDlgItemText(IDC_ALANGUAGE, bDiffAudioLanguage ? _T("") : (LPCTSTR)ami.strAudioLanguage);
 	}
 
 	if (!m_bReducedDlg) {

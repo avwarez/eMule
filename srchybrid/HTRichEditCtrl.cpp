@@ -553,7 +553,7 @@ BOOL CHTRichEditCtrl::OnCommand(WPARAM wParam, LPARAM)
 bool CHTRichEditCtrl::SaveLog(LPCTSTR pszDefName)
 {
 	bool bResult = false;
-	const CString &fname(pszDefName ? pszDefName : m_strTitle);
+	const CString &fname(pszDefName ? CString(pszDefName) : m_strTitle);
 	CFileDialog dlg(FALSE, _T("log"), (LPCTSTR)ValidFilename(fname), OFN_HIDEREADONLY | OFN_OVERWRITEPROMPT, _T("Log Files (*.log)|*.log||"), this, 0);
 	if (dlg.DoModal() == IDOK) {
 		FILE *fp = _tfsopen(dlg.GetPathName(), _T("wb"), _SH_DENYWR);

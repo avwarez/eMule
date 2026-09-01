@@ -406,7 +406,7 @@ void CMuleListCtrl::SetColors()
 
 	CIni *ini = thePrefs.GetSkinIni();
 	if (ini) {
-		const CString strKey(m_strSkinKey.IsEmpty() ? _T("DefLv") : m_strSkinKey);
+		const CString strKey(m_strSkinKey.IsEmpty() ? CString(_T("DefLv")) : m_strSkinKey);
 
 		if (theApp.LoadSkinColorAlt(strKey + _T("Bk"), _T("DefLvBk"), m_crWindow))
 			m_crWindowTextBk = m_crWindow;

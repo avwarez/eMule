@@ -1761,7 +1761,7 @@ BOOL CSharedFilesCtrl::CShareDropTarget::OnDrop(CWnd*, COleDataObject *pDataObje
 					VERIFY(theApp.emuledlg->sharedfileswnd->m_ctlSharedDirTree.ShowFileSystemDirectory(strSingleDirectory));
 				} else if (!liToAddDirs.IsEmpty() && !bHaveFiles) {
 					// only directories added, if only one select the specific shared dir, otherwise the Shared Directories section
-					const CString &sShow(liToAddDirs.GetCount() == 1 ? liToAddDirs.GetHead() : _T(""));
+					const CString &sShow(liToAddDirs.GetCount() == 1 ? liToAddDirs.GetHead() : CString());
 					theApp.emuledlg->sharedfileswnd->m_ctlSharedDirTree.ShowSharedDirectory(sShow);
 				} else {
 					// otherwise select the All Shared Files category

@@ -405,7 +405,7 @@ void Pinger::PIcmpErr(LPCTSTR pszMsg, DWORD nICMPErr)
 	bool b = (nICMPErr >= IP_STATUS_BASE && nICMPErr < IP_STATUS_BASE + _countof(aszSendEchoErr));
 	theApp.QueueDebugLogLine(false, _T("%sPinger: %s")
 		, pszMsg ? pszMsg : _T("")
-		, (LPCTSTR)(b ? aszSendEchoErr[nICMPErr - IP_STATUS_BASE] : GetErrorMessage(nICMPErr, 1)));
+		, b ? aszSendEchoErr[nICMPErr - IP_STATUS_BASE] : (LPCTSTR)GetErrorMessage(nICMPErr, 1));
 #else
 	DWORD dwSize = 511;
 	CStringW sErr;

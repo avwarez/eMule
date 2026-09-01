@@ -456,7 +456,7 @@ void CChatWnd::ScrollHistory(bool down)
 	else
 		--ci->history_pos;
 
-	const CString &sTxt((ci->history_pos < last) ? ci->history[ci->history_pos] : _T(""));
+	const CString &sTxt((ci->history_pos < last) ? ci->history[ci->history_pos] : CString());
 	m_wndMessage.SetWindowText(sTxt);
 	int len = sTxt.GetLength();
 	m_wndMessage.SetSel(len, len);
