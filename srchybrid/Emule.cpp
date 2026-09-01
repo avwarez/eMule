@@ -66,6 +66,7 @@
 #include "UPnPImplWrapper.h"
 #include "UploadDiskIOThread.h"
 #include "PartFileWriteThread.h"
+#include "TimeTrace.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -640,6 +641,43 @@ BOOL CemuleApp::InitInstance()
 	delete emuledlg;
 	emuledlg = NULL;
 	return FALSE;
+}
+
+// Time tracing hooks, see TimeTrace.h. The message pump is where hypothesis A
+// (WM_TIMER starvation) is decided: WM_TIMER is the lowest priority class
+// GetMessage() serves, below every posted message, and the socket
+// notifications from WSAAsyncSelect are posted ones.
+BOOL CemuleApp::PumpMessage()
+{
+	static uint64 s_uLastTimerUs;
+	static uint64 s_uPostedSinceTimer;
+
+	TT_TIME(ttStart);
+	const BOOL bResult = CWinApp::PumpMessage();
+	TT_ELAPSED(us, ttStart);
+	// m_msgCur is filled by the GetMessage() inside the base call, so it can
+	// only be read afterwards; a nested message loop entered by the dispatch
+	// (a modal dialog, a menu) overwrites it, and those lines report the last
+	// nested message instead of ours.
+	const UINT uMsg = m_msgCur.message;
+	if (uMsg == WM_TIMER) {
+		TT_TIME(ttNow);
+		TT("STARVED|gap_ms=%I64u|posted=%I64u", s_uLastTimerUs ? (ttNow - s_uLastTimerUs) / 1000 : 0, s_uPostedSinceTimer);
+		s_uLastTimerUs = ttNow;
+		s_uPostedSinceTimer = 0;
+	} else if (uMsg >= WM_USER)
+		++s_uPostedSinceTimer;
+	TT_IF(us >= TT_PUMP_MIN_US, TTS_PUMP, "PUMP|msg=0x%04X|us=%I64u", uMsg, us);
+	return bResult;
+}
+
+BOOL CemuleApp::OnIdle(LONG lCount)
+{
+	TT_TIME(ttStart);
+	const BOOL bResult = CWinApp::OnIdle(lCount);
+	TT_ELAPSED(us, ttStart);
+	TT("IDLE|count=%ld|us=%I64u|qs=0x%08lX", lCount, us, ::GetQueueStatus(QS_ALLINPUT));
+	return bResult;
 }
 
 int CemuleApp::ExitInstance()

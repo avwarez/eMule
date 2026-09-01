@@ -49,6 +49,7 @@
 #include "ClientList.h"
 #include "shahashset.h"
 #include "Log.h"
+#include "TimeTrace.h"
 #include "Collection.h"
 #include "CollectionViewDialog.h"
 #include "uploaddiskiothread.h"
@@ -3983,6 +3984,9 @@ uint32 CPartFile::WriteToBuffer(uint64 transize, const BYTE *data, uint64 start,
 	// Increment buffer size marker
 	m_nTotalBufferData += lenData;
 
+	TT_IF(m_BufferedData_list.GetCount() % TT_WBUF_EVERY == 0, TTS_WBUF, "WBUF|bytes=%u|items=%Id|kb=%I64u"
+		, (unsigned)lenData, m_BufferedData_list.GetCount(), m_nTotalBufferData >> 10);
+
 	// Mark this small section of the file as filled
 	FillGap(newitem->start, newitem->end);
 
@@ -4008,6 +4012,14 @@ void CPartFile::FlushBuffer(bool bForceICH, bool bNoAICH)
 	m_nLastBufferFlushTime = ::GetTickCount();
 	if (GetPartCount() <= 0) //&& m_BufferedData_list.IsEmpty())
 		return;
+
+	// Time tracing, see TimeTrace.h. The 'us' of the FLUSH line below is the
+	// time this whole function held the main thread; 'sent' counts the items
+	// handed over to the write thread, 'reaped' the ones it had completed.
+	TT_TIME(ttFlush);
+	TT("FLUSHIN|items=%Id|kb=%I64u", m_BufferedData_list.GetCount(), m_nTotalBufferData >> 10);
+	uint64 uSent = 0;
+	uint64 uReaped = 0;
 
 	//if (thePrefs.GetVerbose())
 	//	AddDebugLogLine(false, _T("Flushing file %s - buffer size = %ld bytes (%ld queued items) transferred = %ld [time = %ld]"), (LPCTSTR)GetFileName(), m_nTotalBufferData, m_BufferedData_list.GetCount(), m_uTransferred, m_nLastBufferFlushTime);
@@ -4060,8 +4072,12 @@ void CPartFile::FlushBuffer(bool bForceICH, bool bNoAICH)
 				AfxThrowFileException(CFileException::diskFull, 0, m_hpartfile.GetFileName());
 		}
 		// Ensure file is big enough for asynchronous writes
-		if (newsize)
+		if (newsize) {
+			TT_TIME(ttSetLen);
 			m_hpartfile.SetLength(newsize); // may throw 'diskFull'
+			TT_ELAPSED(usSetLen, ttSetLen);
+			TT("SETLEN|mb=%I64u|us=%I64u", (uint64)newsize >> 20, usSetLen);
+		}
 
 		//pass data to the writing thread
 		CPartFileWriteThread *pThread = theApp.m_pPartFileWriteThread;
@@ -4082,6 +4098,7 @@ void CPartFile::FlushBuffer(bool bForceICH, bool bNoAICH)
 						pThread->m_FlushList.AddTail(ToWrite{this, item});
 					item->dwError = 0; //reset error (this could be a retry)
 					item->flushed = PB_PENDING;
+					++uSent;
 				}
 			}
 			if (bLocked)
@@ -4106,6 +4123,7 @@ void CPartFile::FlushBuffer(bool bForceICH, bool bNoAICH)
 			//default:
 			case PB_WRITTEN: //success
 				DeleteWrittenItem(pos2);
+				++uReaped;
 			}
 		}
 
@@ -4113,7 +4131,10 @@ void CPartFile::FlushBuffer(bool bForceICH, bool bNoAICH)
 		if (m_hpartfile.GetLength() > m_nFileSize) {
 			// "last chance" correction. the real bugfix had to be applied elsewhere
 			TRACE(_T("Partfile \"%s\" is too large! Truncating %I64u byte(s).\n"), (LPCTSTR)GetFileName(), m_hpartfile.GetLength() - (uint64)m_nFileSize);
+			TT_TIME(ttTrunc);
 			m_hpartfile.SetLength(m_nFileSize);
+			TT_ELAPSED(usTrunc, ttTrunc);
+			TT("SETLEN|mb=%I64u|us=%I64u", (uint64)m_nFileSize >> 20, usTrunc);
 		}
 
 		// Check every changed part of the file
@@ -4196,7 +4217,10 @@ void CPartFile::FlushBuffer(bool bForceICH, bool bNoAICH)
 
 		if (m_bUpdateMet) {
 			if (m_nNextMetFlushTime < m_nLastBufferFlushTime) {
+				TT_TIME(ttSaveMet);
 				SavePartFile();	// Update met file
+				TT_ELAPSED(usSaveMet, ttSaveMet);
+				TT("SAVEMET|us=%I64u", usSaveMet);
 				m_bUpdateMet = false;
 				m_nNextMetFlushTime = m_nLastBufferFlushTime + SEC2MS(29);
 			}
@@ -4249,6 +4273,8 @@ void CPartFile::FlushBuffer(bool bForceICH, bool bNoAICH)
 		FlushBuffersExceptionHandler();
 #endif
 	}
+	TT_ELAPSED(usFlush, ttFlush);
+	TT("FLUSH|items=%Id|us=%I64u|sent=%I64u|reaped=%I64u", m_BufferedData_list.GetCount(), usFlush, uSent, uReaped);
 }
 
 void CPartFile::FlushBuffersExceptionHandler(CFileException *ex)

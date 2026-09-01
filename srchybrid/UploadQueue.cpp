@@ -43,6 +43,7 @@
 #include "Kademlia/Kademlia/Kademlia.h"
 #include "Kademlia/Kademlia/Prefs.h"
 #include "Log.h"
+#include "TimeTrace.h"
 #include "collection.h"
 
 #ifdef _DEBUG
@@ -847,10 +848,24 @@ VOID CALLBACK CUploadQueue::UploadTimer(HWND /*hwnd*/, UINT /*uMsg*/, UINT_PTR /
 		if (theApp.IsClosing())
 			return;
 
+		// Time tracing, see TimeTrace.h: TICKGAP is how regularly this 100 ms
+		// timer is actually delivered, TICK how long one turn of it holds the
+		// main thread.
+		{
+			static uint64 s_uLastEntryUs;
+			TT_TIME(ttEntry);
+			TT("TICKGAP|ms=%I64u", s_uLastEntryUs ? (ttEntry - s_uLastEntryUs) / 1000 : 0);
+			s_uLastEntryUs = ttEntry;
+		}
+		TT_SCOPE("TICK");
+
 		// Elandal:ThreadSafeLogging -->
 		// other threads may have queued up log lines. This prints them.
-		theApp.HandleDebugLogQueue();
-		theApp.HandleLogQueue();
+		{
+			TT_SCOPE("TICKLOG");
+			theApp.HandleDebugLogQueue();
+			theApp.HandleLogQueue();
+		}
 		// Elandal: ThreadSafeLogging <--
 
 		// ZZ:UploadSpeedSense -->
@@ -871,8 +886,14 @@ VOID CALLBACK CUploadQueue::UploadTimer(HWND /*hwnd*/, UINT /*uMsg*/, UINT_PTR /
 			theApp.emuledlg->SetStatusBarPartsSize();
 		// ZZ:UploadSpeedSense <--
 
-		theApp.uploadqueue->Process();
-		theApp.downloadqueue->Process();
+		{
+			TT_SCOPE("TICKUP");
+			theApp.uploadqueue->Process();
+		}
+		{
+			TT_SCOPE("TICKDOWN");
+			theApp.downloadqueue->Process();
+		}
 		if (thePrefs.ShowOverhead()) {
 			theStats.CompUpDatarateOverhead();
 			theStats.CompDownDatarateOverhead();

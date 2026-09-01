@@ -126,6 +126,8 @@ public:
 	virtual BOOL InitInstance();
 	virtual int	ExitInstance();
 	virtual BOOL IsIdleMessage(MSG *pMsg);
+	virtual BOOL PumpMessage();
+	virtual BOOL OnIdle(LONG lCount);
 
 	// ed2k link functions
 	void		AddEd2kLinksToDownload(const CString &strLinks, int cat);

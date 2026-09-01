@@ -378,6 +378,7 @@
     <ClCompile Include="TaskbarNotifier.cpp" />
     <ClCompile Include="TextToSpeech.cpp" />
     <ClCompile Include="TimeTick.cpp" />
+    <ClCompile Include="TimeTrace.cpp" />
     <ClCompile Include="TitledMenu.cpp" />
     <ClCompile Include="TLSthreading.cpp" />
     <ClCompile Include="ToolBarCtrlX.cpp" />
@@ -662,6 +663,7 @@
     <ClInclude Include="TextToSpeech.h" />
     <ClInclude Include="ThrottledSocket.h" />
     <ClInclude Include="TimeTick.h" />
+    <ClInclude Include="TimeTrace.h" />
     <ClInclude Include="TitledMenu.h" />
     <ClInclude Include="TLSthreading.h" />
     <ClInclude Include="ToolBarCtrlX.h" />

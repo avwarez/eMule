@@ -20,6 +20,7 @@
 #include "emule.h"
 #include "partfile.h"
 #include "log.h"
+#include "TimeTrace.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -77,13 +78,18 @@ UINT CPartFileWriteThread::RunInternal()
 		&& completionKey)
 	{
 		m_Run = RUN_WORK;
+		TT("WTWAKE|pending=%Id", m_listPendingIO.GetCount());
 		//move buffer list into the local storage
 		if (!m_FlushList.IsEmpty()) {
+			INT_PTR iDrained = 0;
 			m_lockFlushList.Lock();
-			while (!m_FlushList.IsEmpty())
+			while (!m_FlushList.IsEmpty()) {
 				m_listToWrite.AddTail(m_FlushList.RemoveHead());
+				++iDrained;
+			}
 			InterlockedExchange8(&m_bNewData, 0);
 			m_lockFlushList.Unlock();
+			TT("WTDRAIN|items=%Id", iDrained);
 		}
 		//start new writes
 		WriteBuffers();
@@ -137,9 +143,16 @@ void CPartFileWriteThread::WriteBuffers()
 			pOvWrite->pBuffer = pBuffer;
 
 			static const BYTE zero = 0;
-			if (!::WriteFile(pFile->m_hWrite, pBuffer->data ? pBuffer->data : &zero, (DWORD)(pBuffer->end - pBuffer->start + 1), NULL, (LPOVERLAPPED)pOvWrite)) {
+			TT_TIME(ttWrite);
+			const BOOL bIssued = ::WriteFile(pFile->m_hWrite, pBuffer->data ? pBuffer->data : &zero, (DWORD)(pBuffer->end - pBuffer->start + 1), NULL, (LPOVERLAPPED)pOvWrite);
+			TT_ELAPSED(usWrite, ttWrite);
+			// Overlapped: this is the time to issue the write, not to complete it.
+			TT_IF(usWrite >= TT_WRITE_MIN_US, TTS_WRITE, "WRITE|bytes=%u|us=%I64u|pending=%Id"
+				, (unsigned)(pBuffer->end - pBuffer->start + 1), usWrite, m_listPendingIO.GetCount());
+			if (!bIssued) {
 				DWORD dwError = ::GetLastError();
 				if (dwError != ERROR_IO_PENDING) {
+					TT("WTERR|err=%lu|stage=%d", dwError, 1);
 					delete pOvWrite;
 					if (item.pBuffer->data) { //check for an allocation request
 						item.pBuffer->dwError = dwError;
@@ -172,6 +185,8 @@ void CPartFileWriteThread::WriteCompletionRoutine(DWORD dwBytesWritten, const Ov
 		m_listPendingIO.RemoveAt(pOvWrite->pos);
 		if (dwBytesWritten && dwWrite == dwBytesWritten) {
 			if (pFile) {
+				static unsigned s_uDone;
+				TT_IF(++s_uDone % TT_WTDONE_EVERY == 0, TTS_WTDONE, "WTDONE|bytes=%lu|iwrites=%d", dwBytesWritten, pFile->m_iWrites);
 				--pFile->m_iWrites;
 				if (pBuffer->data) { //write data
 					ASSERT(pBuffer->flushed == PB_PENDING && pFile->m_iWrites >= 0);
@@ -187,6 +202,7 @@ void CPartFileWriteThread::WriteCompletionRoutine(DWORD dwBytesWritten, const Ov
 			}
 		} else {
 			pBuffer->flushed = PB_ERROR; //error code is unknown
+			TT("WTERR|err=%lu|stage=%d", 0ul, 3);
 			Debug(_T("  Completed write size: expected %lu, written %lu\n"), dwWrite, dwBytesWritten);
 		}
 	} else if (pFile)
@@ -202,12 +218,16 @@ bool CPartFileWriteThread::AddFile(CPartFile *pFile)
 		const CString sPartFile(RemoveFileExtension(pFile->GetFullName()));
 		pFile->m_hWrite = ::CreateFile(sPartFile, GENERIC_WRITE, FILE_SHARE_WRITE | FILE_SHARE_READ | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, NULL);
 		if (pFile->m_hWrite == INVALID_HANDLE_VALUE) {
-			theApp.QueueDebugLogLineEx(LOG_ERROR, _T("Failed to open \"%s\" for overlapped write: %s"), (LPCTSTR)sPartFile, (LPCTSTR)GetErrorMessage(::GetLastError(), 1));
+			const DWORD dwError = ::GetLastError();
+			TT("WTERR|err=%lu|stage=%d", dwError, 2);
+			theApp.QueueDebugLogLineEx(LOG_ERROR, _T("Failed to open \"%s\" for overlapped write: %s"), (LPCTSTR)sPartFile, (LPCTSTR)GetErrorMessage(dwError, 1));
 			pFile->SetStatus(PS_ERROR);
 			return false;
 		}
 		if (m_hPort != ::CreateIoCompletionPort(pFile->m_hWrite, m_hPort, (ULONG_PTR)pFile, 0)) {
-			theApp.QueueDebugLogLineEx(LOG_ERROR, _T("Failed to associate \"%s\" with IOCP: %s"), (LPCTSTR)sPartFile, (LPCTSTR)GetErrorMessage(::GetLastError(), 1));
+			const DWORD dwError = ::GetLastError();
+			TT("WTERR|err=%lu|stage=%d", dwError, 2);
+			theApp.QueueDebugLogLineEx(LOG_ERROR, _T("Failed to associate \"%s\" with IOCP: %s"), (LPCTSTR)sPartFile, (LPCTSTR)GetErrorMessage(dwError, 1));
 			RemFile(pFile);
 			pFile->SetStatus(PS_ERROR);
 			return false;

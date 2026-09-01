@@ -27,6 +27,7 @@
 #include "UploadBandwidthThrottler.h"
 #include "Preferences.h"
 #include "Log.h"
+#include "TimeTrace.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -272,6 +273,7 @@ void CEMSocket::OnReceive(int nErrorCode)
 	if (downloadLimitEnable && downloadLimit == 0 && nErrorCode != WSAESHUTDOWN) {
 		EMTrace("CEMSocket::OnReceive blocked by limit");
 		pendingOnReceive = true;
+		TT("RECVBLOCK|sock=%I64u", (uint64)GetSocketHandle());
 		return;
 	}
 
@@ -281,7 +283,10 @@ void CEMSocket::OnReceive(int nErrorCode)
 		readMax = downloadLimit;
 
 	// We attempt to read up to 2 megs at a time (minus whatever is in our internal read buffer)
+	TT_TIME(ttRecv);
 	int ret = Receive(GlobalReadBuffer + pendingHeaderSize, (int)readMax);
+	TT_ELAPSED(usRecv, ttRecv);
+	TT_IF(usRecv >= TT_RECV_MIN_US, TTS_RECV, "RECV|bytes=%d|us=%I64u|pending=%d", ret, usRecv, (int)pendingOnReceive);
 	if (ret == SOCKET_ERROR || byConnected == EMS_DISCONNECTED)
 		return;
 
@@ -402,8 +407,13 @@ void CEMSocket::SetDownloadLimit(uint32 limit)
 	downloadLimitEnable = true;
 
 	// CPU load improvement
-	if (limit > 0 && pendingOnReceive)
+	if (limit > 0 && pendingOnReceive) {
+		// Called from CPartFile::Process(), i.e. from inside the 100 ms tick:
+		// the re-entrant OnReceive() below moves socket reading out of the
+		// message pump and into the tick.
+		TT("RECVREARM|sock=%I64u", (uint64)GetSocketHandle());
 		OnReceive(0);
+	}
 }
 
 void CEMSocket::DisableDownloadLimit()
@@ -411,8 +421,10 @@ void CEMSocket::DisableDownloadLimit()
 	downloadLimitEnable = false;
 
 	// CPU load improvement
-	if (pendingOnReceive)
+	if (pendingOnReceive) {
+		TT("RECVREARM|sock=%I64u", (uint64)GetSocketHandle());
 		OnReceive(0);
+	}
 }
 
 /**
