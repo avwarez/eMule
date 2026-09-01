@@ -297,6 +297,8 @@ UINT AFX_CDECL WebSocketAcceptedFunc(LPVOID pD)
 			stWebSocket.m_dwHttpHeaderLen = 0;
 			stWebSocket.m_dwHttpContentLen = 0;
 			stWebSocket.m_ssl = &ssl;
+			// declared before the "goto thread_exit"s below, which would otherwise jump over its initialization
+			HANDLE pWait[] = {hEvent, s_hTerminate};
 
 			if (thePrefs.GetWebUseHttps()) {
 				mbedtls_ssl_init(&ssl);
@@ -310,7 +312,6 @@ UINT AFX_CDECL WebSocketAcceptedFunc(LPVOID pD)
 						goto thread_exit;
 					}
 			}
-			HANDLE pWait[] = {hEvent, s_hTerminate};
 
 			while (WAIT_OBJECT_0 == ::WaitForMultipleObjects(DWORD(_countof(pWait)), pWait, FALSE, INFINITE)) {
 				while (stWebSocket.m_bValid) {

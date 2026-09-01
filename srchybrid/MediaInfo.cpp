@@ -632,6 +632,7 @@ bool GetRIFFHeaders(LPCTSTR pszFileName, SMediaInfo *mi, bool &rbIsAVI, bool bFu
 	FOURCC fccType;
 	DWORD dwLength;
 	DWORD dwMovieChunkSize = 0;
+	bool bHaveReadAllStreams;		// declared here (uninitialized) so the "goto cleanup"s below do not jump over an initialization
 	DWORD uVideoFrames = 0;
 	DWORD dwAllNonVideoAvgBytesPerSec = 0;
 	int	iNonAVStreams = 0;
@@ -663,7 +664,7 @@ bool GetRIFFHeaders(LPCTSTR pszFileName, SMediaInfo *mi, bool &rbIsAVI, bool bFu
 		goto cleanup;
 
 	// We need to read almost all streams (regardless of 'bFullInfo' mode) because we need to get the 'dwMovieChunkSize'
-	bool bHaveReadAllStreams = false;
+	bHaveReadAllStreams = false;
 	while (!bHaveReadAllStreams && dwLengthLeft >= sizeof(DWORD) * 2) {
 		if (!ReadChunkHeader(hAviFile, &fccType, &dwLength))
 			goto inv_format_errno;
