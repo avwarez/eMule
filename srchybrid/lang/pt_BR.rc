@@ -1972,6 +1972,23 @@ STRINGTABLE
 BEGIN
     IDS_WEB_GENERATE        "Criar novo certificado"
     IDS_CERT_ERR_CREATE     "Certificado não criado (veja Verbose log)"
+    IDS_AUTHMETHOD          "Método de autenticação"
+    IDS_BOOTSTRAPFAILED     "Falha ao iniciar a Kad. Seu arquivo nodes.dat pode estar desatualizado ou há um problema de conexão."
+    IDS_CERT_CREATED        "Novo certificado criado; número de série %d"
+//    IDS_CONTENTDB           "ContentDB (Web)"
+    IDS_DELETEAFTERFILEOP   "O arquivo '%s' será apagado após a conclusão da operação atual"
+    IDS_DL_RESUMED          "Retomando o download de ""%s"""
+    IDS_ED2KSERVER          "Servidor eD2K"
+    IDS_ENABLEIMPORTPARTS   "Habilitar a importação de partes"
+    IDS_ERR_REGEXP          "Expressão regular inválida"
+    IDS_IMPORTPARTS         "Importar partes..."
+    IDS_IMPORTPARTS_ERR_ALREADYCOMPLETE "Importação cancelada: não é possível importar para um arquivo completo."
+    IDS_IMPORTPARTS_ERR_CANTOPENFILE "Importação cancelada: não foi possível abrir %s."
+    IDS_IMPORTPARTS_IMPORTSTART "Importando %i partes para %s."
+    IDS_IMPORTPARTS_STOP    "Parar a importação de partes"
+    IDS_IRC_BAN             "Banir"
+    IDS_PREVIEWREQUESTED    "Pré-visualização solicitada - aguarde"
+    IDS_UNCADD              "Adicionar caminho UNC..."
 END
 
 #endif    // Portuguese (Brazil) resources
