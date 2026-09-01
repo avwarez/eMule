@@ -2180,8 +2180,8 @@ CString GetFormatedUInt(ULONG ulVal)
 		nf.LeadingZero = 0;
 		nf.Grouping = 3;
 		// we are hardcoding the following two format chars intentionally because the C-RTL also has the decimal sep hardcoded to '.'
-		nf.lpDecimalSep = _T(".");
-		nf.lpThousandSep = _T(",");
+		nf.lpDecimalSep = const_cast<LPTSTR>(_T("."));
+		nf.lpThousandSep = const_cast<LPTSTR>(_T(","));
 		nf.NegativeOrder = 0;
 	}
 	CString strVal;
@@ -2202,8 +2202,8 @@ CString GetFormatedUInt64(ULONGLONG ullVal)
 		nf.LeadingZero = 0;
 		nf.Grouping = 3;
 		// we are hardcoding the following two format chars intentionally because the C-RTL also has the decimal sep hardcoded to '.'
-		nf.lpDecimalSep = _T(".");
-		nf.lpThousandSep = _T(",");
+		nf.lpDecimalSep = const_cast<LPTSTR>(_T("."));
+		nf.lpThousandSep = const_cast<LPTSTR>(_T(","));
 		nf.NegativeOrder = 0;
 	}
 	const int iBuffSize = _countof(szVal) * 2;

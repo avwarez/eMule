@@ -118,7 +118,7 @@ BOOL CPPgGeneral::OnInitDialog()
 	thePrefs.GetLanguages(aLanguageIDs);
 	for (INT_PTR i = 0; i < aLanguageIDs.GetCount(); ++i) {
 		TCHAR szLang[128];
-		TCHAR *pLang = szLang;
+		LPCTSTR pLang = szLang;
 		int ret = GetLocaleInfo(aLanguageIDs[i], LOCALE_SLANGUAGE, szLang, _countof(szLang));
 
 		if (ret == 0)

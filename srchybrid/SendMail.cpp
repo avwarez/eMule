@@ -56,7 +56,7 @@ void LogCertificate(PCCERT_CONTEXT pCertContext)
 		if (CertNameToStr(X509_ASN_ENCODING | PKCS_7_ASN_ENCODING, &pCertInfo->Issuer, CERT_X500_NAME_STR, szString, _countof(szString)))
 			DebugLog(LOG_DONTNOTIFY, _T("Email Encryption: Issuer: %s"), szString);
 	} else {
-		if (CertGetNameString(pCertContext, CERT_NAME_SIMPLE_DISPLAY_TYPE, CERT_NAME_DISABLE_IE4_UTF8_FLAG, szOID_COMMON_NAME, szString, _countof(szString)))
+		if (CertGetNameString(pCertContext, CERT_NAME_SIMPLE_DISPLAY_TYPE, CERT_NAME_DISABLE_IE4_UTF8_FLAG, const_cast<LPSTR>(szOID_COMMON_NAME), szString, _countof(szString)))
 			DebugLog(LOG_DONTNOTIFY, _T("Email Encryption: Name: %s"), szString);
 
 		BYTE md5[16];
@@ -97,7 +97,7 @@ bool Encrypt(const CStringA &rstrContentA, CByteArray &raEncrypted, LPCWSTR pwsz
 			//PCCERT_CONTEXT RecipientCertArray[1] = { pRecipientCert };
 
 			CRYPT_ALGORITHM_IDENTIFIER EncryptAlgorithm = {};
-			EncryptAlgorithm.pszObjId = szOID_RSA_DES_EDE3_CBC;
+			EncryptAlgorithm.pszObjId = const_cast<LPSTR>(szOID_RSA_DES_EDE3_CBC);
 
 			CRYPT_ENCRYPT_MESSAGE_PARA EncryptParams = {};
 			EncryptParams.cbSize = (DWORD)sizeof EncryptParams;

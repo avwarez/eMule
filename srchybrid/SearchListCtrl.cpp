@@ -1687,8 +1687,8 @@ CString CSearchListCtrl::FormatFileSize(ULONGLONG ullFileSize) const
 			nf.LeadingZero = 1;
 			nf.Grouping = 3;
 			// we are hardcoding the following two format chars by intention because the C-RTL also has the decimal sep hardcoded to '.'
-			nf.lpDecimalSep = _T(".");
-			nf.lpThousandSep = _T(",");
+			nf.lpDecimalSep = const_cast<LPTSTR>(_T("."));
+			nf.lpThousandSep = const_cast<LPTSTR>(_T(","));
 			nf.NegativeOrder = 0;
 		}
 		CString sVal, strVal;
