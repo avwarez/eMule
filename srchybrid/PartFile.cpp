@@ -1769,7 +1769,7 @@ bool CPartFile::GetNextEmptyBlockInPart(UINT partNumber, Requested_Block_Struct 
 	uint64 start = partStart;
 
 	// The end of the part must be within file size
-	uint64 partEnd = min(partStart + PARTSIZE, m_nFileSize) - 1;
+	uint64 partEnd = min(partStart + PARTSIZE, (uint64)m_nFileSize) - 1;
 	ASSERT(partStart <= partEnd);
 
 	// Loop until a suitable gap is found and return true, or no more gaps and return false
@@ -4120,7 +4120,7 @@ void CPartFile::FlushBuffer(bool bForceICH, bool bNoAICH)
 			m_aChangedPart[uPartNumber] = false;
 
 			const uint64 uStart = PARTSIZE * uPartNumber;
-			const uint64 uEnd = min(uStart + PARTSIZE, m_nFileSize) - 1;
+			const uint64 uEnd = min(uStart + PARTSIZE, (uint64)m_nFileSize) - 1;
 			// Is this 9MB part complete
 			if (IsCompleteBD(uStart, uEnd)) {
 				// Is part corrupt
@@ -4648,7 +4648,7 @@ bool CPartFile::GetNextRequestedBlock(CUpDownClient *sender, Requested_Block_Str
 				// Offsets of chunk
 				UINT uCurChunkPart = cur_chunk.part; // help VC71...
 				const uint64 uStart = uCurChunkPart * PARTSIZE;
-				const uint64 uEnd = min(uStart + PARTSIZE, m_nFileSize) - 1;
+				const uint64 uEnd = min(uStart + PARTSIZE, (uint64)m_nFileSize) - 1;
 				ASSERT(uStart <= uEnd);
 
 				// Criterion 2. Parts used for preview

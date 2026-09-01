@@ -547,7 +547,7 @@ bool CAICHRecoveryHashSet::GetPartHashes(CArray<CAICHHash> &rResult) const
 		return true; // No AICH Part hashes
 	for (uint32 nPart = 0; nPart < uPartCount; ++nPart) {
 		uint64 nPartStartPos = nPart * PARTSIZE;
-		uint64 nPartSize = min(PARTSIZE, m_pOwner->GetFileSize() - nPartStartPos);
+		uint64 nPartSize = min(PARTSIZE, (uint64)(m_pOwner->GetFileSize() - nPartStartPos));
 		const CAICHHashTree *pPartHashTree = m_pHashTree.FindExistingHash(nPartStartPos, nPartSize);
 		if (pPartHashTree == NULL || !pPartHashTree->m_bHashValid) {
 			rResult.RemoveAll();
@@ -566,7 +566,7 @@ const CAICHHashTree* CAICHRecoveryHashSet::FindPartHash(uint16 nPart)
 	if (fsize <= PARTSIZE)
 		return &m_pHashTree;
 	uint64 nPartStartPos = nPart * PARTSIZE;
-	uint64 nPartSize = min(PARTSIZE, fsize - nPartStartPos);
+	uint64 nPartSize = min(PARTSIZE, (uint64)(fsize - nPartStartPos));
 	const CAICHHashTree *phtResult = m_pHashTree.FindHash(nPartStartPos, nPartSize);
 	ASSERT(phtResult != NULL);
 	return phtResult;
@@ -590,7 +590,7 @@ bool CAICHRecoveryHashSet::CreatePartRecoveryData(uint64 nPartStartPos, CFileDat
 	}
 	bool bResult;
 	uint8 nLevel = 0;
-	uint64 nPartSize = min(PARTSIZE, m_pOwner->GetFileSize() - nPartStartPos);
+	uint64 nPartSize = min(PARTSIZE, (uint64)(m_pOwner->GetFileSize() - nPartStartPos));
 	m_pHashTree.FindHash(nPartStartPos, nPartSize, &nLevel);
 	uint16 nHashesToWrite = (uint16)((nLevel - 1) + nPartSize / EMBLOCKSIZE + static_cast<unsigned>(nPartSize % EMBLOCKSIZE != 0));
 	const bool bUse32BitIdentifier = m_pOwner->IsLargeFile();
@@ -637,7 +637,7 @@ bool CAICHRecoveryHashSet::ReadRecoveryData(uint64 nPartStartPos, CSafeMemFile &
 	// all hash are then taken into the tree, depending on there hash identifier (except the masterhash)
 
 	uint8 nLevel = 0;
-	uint64 nPartSize = min(PARTSIZE, m_pOwner->GetFileSize() - nPartStartPos);
+	uint64 nPartSize = min(PARTSIZE, (uint64)(m_pOwner->GetFileSize() - nPartStartPos));
 	m_pHashTree.FindHash(nPartStartPos, nPartSize, &nLevel);
 	uint16 nHashsToRead = (uint16)((nLevel - 1) + nPartSize / EMBLOCKSIZE + static_cast<unsigned>(nPartSize % EMBLOCKSIZE != 0));
 
@@ -1064,7 +1064,7 @@ bool CAICHRecoveryHashSet::IsPartDataAvailable(uint64 nPartStartPos)
 		ASSERT(0);
 		return false;
 	}
-	uint64 nPartSize = min(PARTSIZE, m_pOwner->GetFileSize() - nPartStartPos);
+	uint64 nPartSize = min(PARTSIZE, (uint64)(m_pOwner->GetFileSize() - nPartStartPos));
 	for (uint64 nPartPos = 0; nPartPos < nPartSize; nPartPos += EMBLOCKSIZE) {
 		const CAICHHashTree *phtToCheck = m_pHashTree.FindExistingHash(nPartStartPos + nPartPos, min(EMBLOCKSIZE, nPartSize - nPartPos));
 		if (phtToCheck == NULL || !phtToCheck->m_bHashValid)

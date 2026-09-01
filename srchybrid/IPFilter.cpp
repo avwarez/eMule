@@ -203,7 +203,7 @@ INT_PTR CIPFilter::AddFromFile(LPCTSTR pszFilePath, bool bShowResponse)
 						AddIPRange(start, end, level, desc);
 						++iFoundRanges;
 					} else {
-						DEBUG_ONLY(sbuffer.IsEmpty() ? 0 : TRACE("IP filter: ignored line %u\n", iLine));
+						DEBUG_ONLY(sbuffer.IsEmpty() ? (void)0 : TRACE("IP filter: ignored line %u\n", iLine));
 						m_bModified = true;
 					}
 				}

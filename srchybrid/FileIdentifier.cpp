@@ -415,7 +415,7 @@ bool CFileIdentifier::VerifyAICHHashSet()
 		return true; // No AICH Part Hashes
 	for (uint32 nPart = 0; nPart < uPartCount; ++nPart) {
 		uint64 nPartStartPos = nPart * PARTSIZE;
-		uint64 nPartSize = min(PARTSIZE, GetFileSize() - nPartStartPos);
+		uint64 nPartSize = min(PARTSIZE, (uint64)(GetFileSize() - nPartStartPos));
 		CAICHHashTree *pPartHashTree = tmpAICHHashSet.m_pHashTree.FindHash(nPartStartPos, nPartSize);
 		if (pPartHashTree == NULL) {
 			ASSERT(0);

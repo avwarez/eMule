@@ -339,7 +339,7 @@ CPreviewApps::ECanPreviewRes CPreviewApps::CanPreview(const CPartFile *file)
 	if (file->GetCompletedSize() < rApp.ullMinCompletedSize)
 		return No;
 
-	if (rApp.ullMinStartOfFile &&!file->IsComplete(0, min(rApp.ullMinStartOfFile, file->GetFileSize()) - 1))
+	if (rApp.ullMinStartOfFile &&!file->IsComplete(0, min(rApp.ullMinStartOfFile, (uint64)file->GetFileSize()) - 1))
 		return No;
 
 	return Yes;
