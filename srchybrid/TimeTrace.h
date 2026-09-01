@@ -23,9 +23,11 @@
 // which synchronously feeds a rich edit control on the main thread - the very
 // latency being measured.
 //
-// Two preferences are needed to get the file at all: "Verbose" and
-// "Debug to disk". The file rotates at GetMaxLogFileSize(), so raise that
-// before capturing or the beginning of the trace is lost.
+// Two preferences are needed to get the file at all: Verbose=1 and
+// SaveDebugToDisk=1 in preferences.ini ("Verbose" and "Debug to disk" in the
+// options). The file rotates at MaxLogFileSize, 1 MB by default, and a trace
+// fills that in half a minute, so raise it before capturing or the beginning
+// of the trace is lost.
 //
 // Line format, one per measurement point, parsable by tools/tt_report.py:
 //   TT|<microseconds>|<thread id>|<EVENT>|<key>=<value>|...
