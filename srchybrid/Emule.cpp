@@ -655,11 +655,12 @@ BOOL CemuleApp::PumpMessage()
 	TT_TIME(ttStart);
 	const BOOL bResult = CWinApp::PumpMessage();
 	TT_ELAPSED(us, ttStart);
-	// m_msgCur is filled by the GetMessage() inside the base call, so it can
-	// only be read afterwards; a nested message loop entered by the dispatch
-	// (a modal dialog, a menu) overwrites it, and those lines report the last
-	// nested message instead of ours.
-	const UINT uMsg = m_msgCur.message;
+	// The message being pumped lives in the MFC thread state (m_msgCur), not in
+	// CWinThread, and it is filled by the GetMessage() inside the base call, so
+	// it can only be read afterwards; a nested message loop entered by the
+	// dispatch (a modal dialog, a menu) reuses it, and those lines report the
+	// last nested message instead of ours.
+	const UINT uMsg = AfxGetThreadState()->m_msgCur.message;
 	if (uMsg == WM_TIMER) {
 		TT_TIME(ttNow);
 		TT("STARVED|gap_ms=%I64u|posted=%I64u", s_uLastTimerUs ? (ttNow - s_uLastTimerUs) / 1000 : 0, s_uPostedSinceTimer);
