@@ -368,7 +368,7 @@ private:
 	static void		_MakeTransferList(CString &Out, CWebServer *pThis, const ThreadData &Data, void *FilesArray, void *UploadArray, bool bAdmin);
 	static void		_SetBoolean(bool &var, const CString &URL, LPCTSTR pFieldname);
 
-	static void		_SaveWIConfigArray(BOOL *array, int size, LPCTSTR key);
+	static void		_SaveWIConfigArray(const CString &sURL, BOOL *array, size_t size, LPCTSTR key);
 	static CString	_GetWebImageNameForFileType(const CString &filename);
 	static CString  _GetClientSummary(const CUpDownClient &client);
 	static CString	_GetMyInfo(const ThreadData &Data);

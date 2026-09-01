@@ -139,10 +139,14 @@ CWebServer::~CWebServer()
 		StopSockets();
 }
 
-void CWebServer::_SaveWIConfigArray(BOOL *array, int size, LPCTSTR key)
+void CWebServer::_SaveWIConfigArray(const CString &sURL, BOOL *array, size_t size, LPCTSTR key)
 {
-	CIni ini(thePrefs.GetConfigFile(), _T("WebServer"));
-	ini.SerGet(false, array, size, key);
+	unsigned iMenu = _tstoi(_ParseURL(sURL, _T("m")));
+	if (iMenu < size) {
+		array[iMenu] = (_ParseURL(sURL, _T("v")) == _T("1"));
+		CIni ini(thePrefs.GetConfigFile(), _T("WebServer"));
+		ini.SerGet(false, array, (int)size, key);
+	}
 }
 
 bool CWebServer::ReloadTemplates()
@@ -959,10 +963,7 @@ CString CWebServer::_GetServerList(const ThreadData &Data)
 			}
 		}
 	} else if (sCmd == _T("menu")) {
-		int iMenu = _tstol(_ParseURL(Data.sURL, _T("m")));
-		bool bValue = _ParseURL(Data.sURL, _T("v")) == _T("1");
-		WSserverColumnHidden[iMenu] = bValue;
-		_SaveWIConfigArray(WSserverColumnHidden, _countof(WSserverColumnHidden), _T("serverColumnHidden"));
+		_SaveWIConfigArray(Data.sURL, WSserverColumnHidden, _countof(WSserverColumnHidden), _T("serverColumnHidden"));
 	}
 
 	CString strTmp(_ParseURL(Data.sURL, _T("sortreverse")));
@@ -1402,20 +1403,11 @@ CString CWebServer::_GetTransferList(const ThreadData &Data)
 	HTTPTemp = _ParseURL(Data.sURL, _T("c"));
 
 	if (HTTPTemp == _T("menudown")) {
-		int iMenu = _tstol(_ParseURL(Data.sURL, _T("m")));
-		WSdownloadColumnHidden[iMenu] = (_tstol(_ParseURL(Data.sURL, _T("v"))) != 0);
-
-		CIni ini(thePrefs.GetConfigFile(), _T("WebServer"));
-
-		_SaveWIConfigArray(WSdownloadColumnHidden, _countof(WSdownloadColumnHidden), _T("downloadColumnHidden"));
+		_SaveWIConfigArray(Data.sURL, WSdownloadColumnHidden, _countof(WSdownloadColumnHidden), _T("downloadColumnHidden"));
 	} else if (HTTPTemp == _T("menuup")) {
-		int iMenu = _tstol(_ParseURL(Data.sURL, _T("m")));
-		WSuploadColumnHidden[iMenu] = (_tstol(_ParseURL(Data.sURL, _T("v"))) != 0);
-		_SaveWIConfigArray(WSuploadColumnHidden, _countof(WSuploadColumnHidden), _T("uploadColumnHidden"));
+		_SaveWIConfigArray(Data.sURL, WSuploadColumnHidden, _countof(WSuploadColumnHidden), _T("uploadColumnHidden"));
 	} else if (HTTPTemp == _T("menuqueue")) {
-		int iMenu = _tstol(_ParseURL(Data.sURL, _T("m")));
-		WSqueueColumnHidden[iMenu] = (_tstol(_ParseURL(Data.sURL, _T("v"))) != 0);
-		_SaveWIConfigArray(WSqueueColumnHidden, _countof(WSqueueColumnHidden), _T("queueColumnHidden"));
+		_SaveWIConfigArray(Data.sURL, WSqueueColumnHidden, _countof(WSqueueColumnHidden), _T("queueColumnHidden"));
 	} else if (HTTPTemp == _T("menuprio") && bAdmin) {
 		const CString &sPrio(_ParseURL(Data.sURL, _T("p")));
 		int prio;
@@ -2643,10 +2635,7 @@ CString CWebServer::_GetSharedFilesList(const ThreadData &Data)
 	}
 
 	if (_ParseURL(Data.sURL, _T("c")) == _T("menu")) {
-		int iMenu = _tstoi(_ParseURL(Data.sURL, _T("m")));
-		bool bValue = _tstoi(_ParseURL(Data.sURL, _T("v"))) != 0;
-		WSsharedColumnHidden[iMenu] = bValue;
-		_SaveWIConfigArray(WSsharedColumnHidden, _countof(WSsharedColumnHidden), _T("sharedColumnHidden"));
+		_SaveWIConfigArray(Data.sURL, WSsharedColumnHidden, _countof(WSsharedColumnHidden), _T("sharedColumnHidden"));
 	}
 	if (_ParseURL(Data.sURL, _T("reload")) == _T("true"))
 		SendMessage(theApp.emuledlg->m_hWnd, WEB_GUI_INTERACTION, WEBGUIIA_SHARED_FILES_RELOAD, 0);
@@ -3674,11 +3663,7 @@ CString CWebServer::_GetSearch(const ThreadData &Data)
 	}
 
 	if (_ParseURL(Data.sURL, _T("c")) == _T("menu")) {
-		int iMenu = _tstoi(_ParseURL(Data.sURL, _T("m")));
-		bool bValue = _tstoi(_ParseURL(Data.sURL, _T("v"))) != 0;
-		WSsearchColumnHidden[iMenu] = bValue;
-
-		_SaveWIConfigArray(WSsearchColumnHidden, _countof(WSsearchColumnHidden), _T("searchColumnHidden"));
+		_SaveWIConfigArray(Data.sURL, WSsearchColumnHidden, _countof(WSsearchColumnHidden), _T("searchColumnHidden"));
 	}
 
 	if (!_ParseURL(Data.sURL, _T("tosearch")).IsEmpty() && bSessionAdmin) {
@@ -3820,7 +3805,7 @@ CString CWebServer::_GetSearch(const ThreadData &Data)
 
 		CString s0, s1, s2, s3;
 		if (!WSsearchColumnHidden[0])
-			s0.Format(strFmt, (LPCTSTR)StringLimit(structFile.m_strFileName, 70));
+			s0.Format(strFmt, (LPCTSTR)_SpecialChars(StringLimit(structFile.m_strFileName, 70)));
 		if (!WSsearchColumnHidden[1])
 			s1.Format(strFmt, (LPCTSTR)CastItoXBytes(structFile.m_uFileSize));
 		if (!WSsearchColumnHidden[2])
