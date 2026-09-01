@@ -620,8 +620,10 @@ BOOL CemuleApp::InitInstance()
 
 	::CloseHandle(m_hMutexOneInstance);
 #ifdef _DEBUG
-	if (g_pfnPrevCrtAllocHook)
+	if (g_pfnPrevCrtAllocHook) {
+		#pragma warning(suppress: 5039)	// _CrtSetAllocHook is extern "C"; the CRT's previous hook is not ours to qualify
 		_CrtSetAllocHook(g_pfnPrevCrtAllocHook);
+	}
 
 	newMemState.Checkpoint();
 	if (diffMemState.Difference(oldMemState, newMemState)) {
@@ -672,10 +674,12 @@ int eMuleAllocHook(int mode, void *pUserData, size_t nSize, int nBlockUse, long 
 	if (!g_allocations.Lookup(pszFileName, count))
 		count = 0;
 	if (mode == _HOOK_ALLOC) {
+		#pragma warning(suppress: 5039)	// _CrtSetAllocHook is extern "C"; the CRT's previous hook is not ours to qualify
 		_CrtSetAllocHook(g_pfnPrevCrtAllocHook);
 		g_allocations[pszFileName] = count + 1;
 		_CrtSetAllocHook(&eMuleAllocHook);
 	} else if (mode == _HOOK_FREE) {
+		#pragma warning(suppress: 5039)	// _CrtSetAllocHook is extern "C"; the CRT's previous hook is not ours to qualify
 		_CrtSetAllocHook(g_pfnPrevCrtAllocHook);
 		g_allocations[pszFileName] = count - 1;
 		_CrtSetAllocHook(&eMuleAllocHook);

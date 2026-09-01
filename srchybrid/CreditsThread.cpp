@@ -85,7 +85,7 @@ void CCreditsThread::SingleStep()
 
 	// timer variables
 	LARGE_INTEGER nFrequency;
-	LARGE_INTEGER nStart;
+	LARGE_INTEGER nStart{};	// C4701: only read when bTimerValid, which the compiler cannot see
 
 	bool bTimerValid = QueryPerformanceFrequency(&nFrequency);
 	if (bTimerValid)

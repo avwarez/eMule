@@ -450,7 +450,7 @@ void CWebServer::_ProcessURL(const ThreadData &Data)
 			_RemoveSession(Data, lSession);
 
 		TCHAR *gzipOut = NULL;
-		uLongf gzipLen;
+		uLongf gzipLen = 0;	// C4701: only read when bUseGzip, which the compiler cannot see
 		CString Out;
 		if (_IsLoggedIn(Data, lSession)) {
 			bool bAdmin = _IsSessionAdmin(Data, sSession);
