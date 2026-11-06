@@ -20,6 +20,7 @@
 #include "FrameGrabThread.h"
 #include "OtherFunctions.h"
 #include "quantize.h"
+#include "Log.h"
 #ifndef HAVE_QEDIT_H
 // This is a separate feature, required in this module
 // Check emule_site_config.h to fix it
@@ -41,7 +42,7 @@
 #define MMNOMMSYSTEM	// mmsystem: General MMSYSTEM functions
 #include <dshow.h>
 
-#if TEST_FRAMEGRABBER
+#ifdef TEST_FRAMEGRABBER
 #include <atlimage.h>
 #endif
 
@@ -228,7 +229,7 @@ UINT CFrameGrabThread::GrabFrames()
 				::SelectObject(hdc, hBitmapOld);
 				// done
 				imgResults[nFramesGrabbed] = hFrame;
-#if TEST_FRAMEGRABBER //see also "case MP_OPEN" in CSharedFilesCtrl::OnContextMenu
+#ifdef TEST_FRAMEGRABBER //see also "case MP_OPEN" in CSharedFilesCtrl::OnContextMenu
 				CString TestName;
 				TestName.Format(_T("\\tmp\\testframe%i.bmp"), nFramesGrabbed);
 				CImage img;
@@ -240,6 +241,7 @@ UINT CFrameGrabThread::GrabFrames()
 			dStartTime += TIMEBETWEENFRAMES;
 		}
 	} catch (...) {
+		DebugLogCaughtException(__FUNCTION__);
 		ASSERT(0);
 	}
 	::DeleteDC(hdc);

@@ -109,9 +109,6 @@ void CSharedDirsTreeCtrl::Initialize(CSharedFilesCtrl *pSharedFilesCtrl)
 {
 	m_pSharedFilesCtrl = pSharedFilesCtrl;
 
-	// Win98: Explicitly set to Unicode to receive Unicode notifications.
-	SendMessage(CCM_SETUNICODEFORMAT, TRUE);
-
 	m_bUseIcons = true;
 	SetAllIcons();
 	Localize();
@@ -505,7 +502,7 @@ void CSharedDirsTreeCtrl::OnContextMenu(CWnd*, CPoint point)
 		// - even if it can be done in other ways if the user really wants to do it
 		bool bWideRangeSelection = (pSelectedDir->m_nCatFilter == -1 && pSelectedDir->m_eItemType != SDI_NO);
 
-		m_SharedFilesMenu.EnableMenuItem((UINT)m_PrioMenu.m_hMenu, iSelectedItems > 0 ? MF_ENABLED : MF_GRAYED);
+		m_SharedFilesMenu.EnableMenuItem(HandleToULong(m_PrioMenu.m_hMenu), iSelectedItems > 0 ? MF_ENABLED : MF_GRAYED);
 		m_PrioMenu.CheckMenuRadioItem(MP_PRIOVERYLOW, MP_PRIOAUTO, uPrioMenuItem, 0);
 
 		m_SharedFilesMenu.EnableMenuItem(MP_OPENFOLDER, !pSelectedDir->m_strFullPath.IsEmpty() || pSelectedDir->m_eItemType == SDI_INCOMING || pSelectedDir->m_eItemType == SDI_TEMP || pSelectedDir->m_eItemType == SDI_CATINCOMING ? MF_ENABLED : MF_GRAYED);
@@ -542,8 +539,6 @@ void CSharedDirsTreeCtrl::OnRButtonDown(UINT, CPoint point)
 	}
 }
 
-#pragma warning(push)
-#pragma warning(disable:4701) //local variable 'pri'
 BOOL CSharedDirsTreeCtrl::OnCommand(WPARAM wParam, LPARAM)
 {
 	CTypedPtrList<CPtrList, CShareableFile*> selectedList;
@@ -652,7 +647,7 @@ BOOL CSharedDirsTreeCtrl::OnCommand(WPARAM wParam, LPARAM)
 			for (POSITION pos = selectedList.GetHeadPosition(); pos != NULL;) {
 				CKnownFile *file = static_cast<CKnownFile*>(selectedList.GetNext(pos));
 				if (file->IsKindOf(RUNTIME_CLASS(CKnownFile))) {
-					uint8 pri;
+					uint8 pri = PR_NORMAL;
 					switch (wParam) {
 					case MP_PRIOVERYLOW:
 						pri = PR_VERYLOW;
@@ -668,6 +663,7 @@ BOOL CSharedDirsTreeCtrl::OnCommand(WPARAM wParam, LPARAM)
 						break;
 					case MP_PRIOVERYHIGH:
 						pri = PR_VERYHIGH;
+						[[fallthrough]];
 					case MP_PRIOAUTO:
 						break;
 					default:
@@ -682,13 +678,13 @@ BOOL CSharedDirsTreeCtrl::OnCommand(WPARAM wParam, LPARAM)
 					}
 				}
 			}
+			[[fallthrough]];
 		default:
 			break;
 		}
 	}
 	return TRUE;
 }
-#pragma warning(pop)
 
 void CSharedDirsTreeCtrl::ShowFileDialog(CTypedPtrList<CPtrList, CShareableFile*> &aFiles, UINT uInvokePage)
 {

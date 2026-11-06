@@ -44,6 +44,8 @@ static char THIS_FILE[] = __FILE__;
 
 IMPLEMENT_DYNAMIC(CChatWnd, CDialog)
 
+#pragma warning(push)
+#pragma warning(disable:4191) // MFC message maps cast every handler to AFX_PMSG; only a pragma inside the .cpp reaches this
 BEGIN_MESSAGE_MAP(CChatWnd, CResizableDialog)
 	ON_WM_KEYDOWN()
 	ON_WM_SHOWWINDOW()
@@ -58,6 +60,7 @@ BEGIN_MESSAGE_MAP(CChatWnd, CResizableDialog)
 	ON_BN_CLICKED(IDC_CSEND, OnBnClickedSend)
 	ON_BN_CLICKED(IDC_CCLOSE, OnBnClickedClose)
 END_MESSAGE_MAP()
+#pragma warning(pop)
 
 CChatWnd::CChatWnd(CWnd *pParent /*=NULL*/)
 	: CResizableDialog(CChatWnd::IDD, pParent)
@@ -185,7 +188,7 @@ BOOL CChatWnd::OnInitDialog()
 	m_wndSplitterHorz.CreateWnd(WS_CHILD | WS_VISIBLE, rcSpl, this, IDC_SPLITTER_FRIEND);
 
 	// Vista: Remove the TBSTYLE_TRANSPARENT to avoid flickering (can be done only after the toolbar was initially created with TBSTYLE_TRANSPARENT !?)
-	m_wndFormat.ModifyStyle((theApp.m_ullComCtrlVer >= MAKEDLLVERULL(6, 16, 0, 0)) ? TBSTYLE_TRANSPARENT : 0, TBSTYLE_TOOLTIPS);
+	m_wndFormat.ModifyStyle(TBSTYLE_TRANSPARENT, TBSTYLE_TOOLTIPS);
 	m_wndFormat.SetExtendedStyle(m_wndFormat.GetExtendedStyle() | TBSTYLE_EX_MIXEDBUTTONS);
 	TBBUTTON atb[1] = {};
 	//atb[0].iBitmap = 0;
@@ -456,7 +459,7 @@ void CChatWnd::ScrollHistory(bool down)
 	else
 		--ci->history_pos;
 
-	const CString &sTxt((ci->history_pos < last) ? ci->history[ci->history_pos] : _T(""));
+	const CString &sTxt((ci->history_pos < last) ? ci->history[ci->history_pos] : CString());
 	m_wndMessage.SetWindowText(sTxt);
 	int len = sTxt.GetLength();
 	m_wndMessage.SetSel(len, len);

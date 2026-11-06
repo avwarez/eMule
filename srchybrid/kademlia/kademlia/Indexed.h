@@ -27,6 +27,7 @@ their client on the eMule forum.
 */
 
 #pragma once
+#include <atomic>
 #include "kademlia/routing/Maps.h"
 
 struct SSearchTerm
@@ -101,8 +102,8 @@ namespace Kademlia
 		CSrcHashMap m_mapNotes;
 		CLoadMap	m_mapLoad;
 		CMutex		m_mutSync;
-		volatile bool	m_bAbortLoading; // signals the loading thread to abort
-		volatile bool	m_bDataLoaded;
+		std::atomic<bool>	m_bAbortLoading; // signals the loading thread to abort
+		std::atomic<bool>	m_bDataLoaded;
 		static CString	m_sSourceFileName;
 		static CString	m_sKeyFileName;
 		static CString	m_sLoadFileName;

@@ -229,6 +229,12 @@ public:
 	bool			IsDownloading() const							{ return (m_eUploadState == US_UPLOADING); }
 	UINT			GetUploadDatarate() const						{ return m_nUpDatarate; }
 	UINT			GetScore(bool sysvalue, bool isdownloading = false, bool onlybasevalue = false) const;
+	bool			IsPowerShareRequest() const;
+	// A PowerShare client keeps its slot for one more SESSIONMAXTRANS at a time while nobody who
+	// outranks the ordinary clients waits for it; this counts the stretches added to the session.
+	UINT			GetPowerShareStretches() const					{ return m_uPowerShareStretches; }
+	void			SetPowerShareStretches(UINT uStretches)			{ m_uPowerShareStretches = uStretches; }
+	bool			IsReadyForUploadSlot() const;
 	void			AddReqBlock(Requested_Block_Struct *reqblock, bool bSignalIOThread);
 	DWORD			GetUpStartTime() const							{ return m_dwUploadTime; }
 	DWORD			GetUpStartTimeDelay() const						{ return ::GetTickCount() - m_dwUploadTime; }
@@ -256,6 +262,7 @@ public:
 						m_nCurSessionUp = m_nTransferredUp;
 						m_addedPayloadQueueSession = 0;
 						m_nCurQueueSessionPayloadUp = 0;
+						m_uPowerShareStretches = 0;
 					}
 
 	uint64			GetSessionDown() const							{ return m_nTransferredDown - m_nCurSessionDown; }
@@ -308,6 +315,10 @@ public:
 	void			ClearPendingBlockRequest(const Pending_Block_Struct *pending);
 	void			ClearDownloadBlockRequests();
 	void			SendOutOfPartReqsAndAddToWaitingQueue();
+	// True from the moment we told this client to stand down until the connection which
+	// carried that packet ends. The flag was already kept for exactly that span and had
+	// no reader; see CUploadQueue::FindBestClientInQueue().
+	bool			HasSentOutOfPartReqs() const					{ return m_fSentOutOfPartReqs != 0; }
 	UINT			CalculateDownloadRate();
 	uint16			GetAvailablePartCount() const;
 	bool			SwapToAnotherFile(LPCTSTR reason, bool bIgnoreNoNeeded, bool ignoreSuspensions, bool bRemoveCompletely, CPartFile *toFile = NULL, bool allowSame = true, bool isAboutToAsk = false, bool debug = false); // ZZ:DownloadManager
@@ -537,6 +548,7 @@ protected:
 	uint64		m_nCurSessionDown;
 	uint64		m_nCurQueueSessionPayloadUp;
 	uint64		m_addedPayloadQueueSession;
+	UINT		m_uPowerShareStretches;
 	DWORD		m_dwUploadTime;
 	DWORD		m_dwLastUpRequest;
 	UINT		m_cAsked;

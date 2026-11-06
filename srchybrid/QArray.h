@@ -14,6 +14,7 @@
 *********************************************************************************************/
 
 #pragma once
+#include "Log.h"
 
 //////////////////////////////////////////////////////////////////////////
 // QuickSort functions
@@ -85,6 +86,7 @@ template <class T> BOOL QuickSort(T *pArr, int iSize, BOOL bAscending = TRUE)
 			QuickSortRecursive(pArr, low, high, bAscending);
 			return TRUE;
 		} catch (...) {
+			DebugLogCaughtException(__FUNCTION__);
 		}
 	}
 	::SetLastError(ERROR_INVALID_PARAMETER);
@@ -115,6 +117,6 @@ public:
 //
 template <class T, class TP> void CQArray<T, TP>::QuickSort(BOOL bAscending/* = TRUE*/)
 {
-	if (GetSize() > 1)
-		::QuickSort(GetData(), (int)GetSize(), bAscending);
+	if (this->GetSize() > 1)
+		::QuickSort(this->GetData(), (int)this->GetSize(), bAscending);
 }

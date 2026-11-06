@@ -132,26 +132,12 @@ LRESULT CToolbarWnd::OnInitDialog(WPARAM, LPARAM)
 	iml.Create(16, 16, nFlags, 1, 1);
 	for (unsigned i = 0; i < _countof(sIconNames); ++i)
 		iml.Add(CTempIconLoader(sIconNames[i]));
-
-	// older Windows versions image list cannot create monochrome (disabled) icons with alpha support
-	// so we have to take care of this ourselves
-	if (thePrefs.GetWindowsVersion() < _WINVER_VISTA_ && nFlags != ILC_COLOR4) {
-		CImageList iml2;
-		iml2.Create(16, 16, nFlags, 1, 1);
-		for (unsigned i = 0; i < _countof(sIconNames); ++i)
-			VERIFY(AddIconGreyedToImageList(iml2, CTempIconLoader(sIconNames[i])) >= 0);
-
-		CImageList *pImlOld = m_btnBar.SetDisabledImageList(&iml2);
-		iml2.Detach();
-		if (pImlOld)
-			pImlOld->DeleteImageList();
-	}
 	CImageList *pImlOld = m_btnBar.SetImageList(&iml);
 	iml.Detach();
 	if (pImlOld)
 		pImlOld->DeleteImageList();
 
-	m_btnBar.ModifyStyle((theApp.m_ullComCtrlVer >= MAKEDLLVERULL(6, 16, 0, 0)) ? TBSTYLE_TRANSPARENT : 0, 0);
+	m_btnBar.ModifyStyle(TBSTYLE_TRANSPARENT, 0);
 	m_btnBar.SetMaxTextRows(0);
 
 	Localize();

@@ -25,7 +25,7 @@ class CColourPicker;
 struct ColourTableEntry
 {
 	COLORREF crColour;
-	TCHAR	 *szName;
+	LPCTSTR	 szName;
 };
 
 

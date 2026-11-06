@@ -199,8 +199,6 @@ BEGIN_MESSAGE_MAP(CHttpDownloadDlg, CDialog)
 	ON_MESSAGE(WM_HTTPDOWNLOAD_THREAD_FINISHED, OnThreadFinished)
 END_MESSAGE_MAP()
 
-ULONGLONG CHttpDownloadDlg::sm_ullWinInetVer;
-
 CHttpDownloadDlg::CHttpDownloadDlg(CWnd *pParent /*=NULL*/)
 	: CDialog(CHttpDownloadDlg::IDD, pParent)
 	, m_hInternetSession()
@@ -214,8 +212,6 @@ CHttpDownloadDlg::CHttpDownloadDlg(CWnd *pParent /*=NULL*/)
 {
 	//{{AFX_DATA_INIT(CHttpDownloadDlg)
 	//}}AFX_DATA_INIT
-	if (sm_ullWinInetVer == 0)
-		sm_ullWinInetVer = GetModuleVersion(::GetModuleHandle(_T("wininet")));
 }
 
 void CHttpDownloadDlg::DoDataExchange(CDataExchange *pDX)
@@ -412,6 +408,7 @@ void CHttpDownloadDlg::HandleThreadErrorWithLastError(const CString &strIDError,
 	try {
 		m_FileToWrite.Close();
 	} catch (CFileException *ex) {
+		DebugLogCaughtException(__FUNCTION__, ex);
 		ex->Delete();
 	}
 	//Delete the file

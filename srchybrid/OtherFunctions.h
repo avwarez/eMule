@@ -180,12 +180,12 @@ bool ExpandEnvironmentStrings(CString &rstrStrings);
 int CompareLocaleString(LPCTSTR psz1, LPCTSTR psz2);
 int CompareLocaleStringNoCaseA(LPCSTR psz1, LPCSTR psz2);
 int CompareLocaleStringNoCaseW(LPCWSTR psz1, LPCWSTR psz2);
-int __cdecl CompareCStringPtrLocaleString(const void *p1, const void *p2);
-int __cdecl CompareCStringPtrLocaleStringNoCase(const void *p1, const void *p2);
-void Sort(CStringArray &astr, int(__cdecl *pfnCompare)(const void*, const void*) = CompareCStringPtrLocaleStringNoCase);
-int __cdecl CompareCStringPtrPtrLocaleString(const void *p1, const void *p2);
-int __cdecl CompareCStringPtrPtrLocaleStringNoCase(const void *p1, const void *p2);
-void		Sort(CSimpleArray<const CString*> &apstr, int(__cdecl *pfnCompare)(const void*, const void*) = CompareCStringPtrPtrLocaleStringNoCase);
+int __cdecl CompareCStringPtrLocaleString(const void *p1, const void *p2) noexcept;
+int __cdecl CompareCStringPtrLocaleStringNoCase(const void *p1, const void *p2) noexcept;
+void Sort(CStringArray &astr, int(__cdecl *pfnCompare)(const void*, const void*) noexcept = CompareCStringPtrLocaleStringNoCase);
+int __cdecl CompareCStringPtrPtrLocaleString(const void *p1, const void *p2) noexcept;
+int __cdecl CompareCStringPtrPtrLocaleStringNoCase(const void *p1, const void *p2) noexcept;
+void		Sort(CSimpleArray<const CString*> &apstr, int(__cdecl *pfnCompare)(const void*, const void*) noexcept = CompareCStringPtrPtrLocaleStringNoCase);
 void		HeapSort(CArray<uint16> &count, UINT first, UINT last);
 void		StripTrailingColon(CString &rstr);
 bool		IsUnicodeFile(LPCTSTR pszFilePath);
@@ -220,7 +220,7 @@ void ShellOpen(LPCTSTR lpName, LPCTSTR lpParameters);
 void ShellOpenFile(LPCTSTR lpName);
 void ShellDefaultVerb(LPCTSTR lpName);
 bool ShellDeleteFile(LPCTSTR pszFilePath);
-CString ShellGetFolderPath(int iCSIDL);
+CString ShellGetFolderPath(REFKNOWNFOLDERID rfid);
 bool SelectDir(HWND hWnd, LPTSTR pszPath, LPCTSTR pszTitle = NULL, LPCTSTR pszDlgTitle = NULL);
 BOOL DialogBrowseFile(CString &rstrPath, LPCTSTR pszFilters, LPCTSTR pszDefaultFileName = NULL, DWORD dwFlags = 0, bool openfilestyle = true);
 void AddBuddyButton(HWND hwndEdit, HWND hwndButton);
@@ -317,23 +317,6 @@ ULONGLONG GetModuleVersion(HMODULE hModule);
 
 UINT GetMaxWindowsTCPConnections();
 
-#define _WINVER_95_		0x0400	// 4.0
-#define _WINVER_NT4_	0x0401	// 4.1 (baked version)
-#define _WINVER_98_		0x040A	// 4.10
-#define _WINVER_ME_		0x045A	// 4.90
-#define _WINVER_2K_		0x0500	// 5.0
-#define _WINVER_XP_		0x0501	// 5.1
-#define _WINVER_2003_	0x0502	// 5.2
-#define _WINVER_VISTA_	0x0600	// 6.0
-#define _WINVER_7_		0x0601	// 6.1
-#define	_WINVER_S2008_	0x0601	// 6.1
-#define _WINVER_8_		0x0602	// 6.2
-#define _WINVER_8_1_	0x0603	// 6.3
-#define _WINVER_10_		0x0a00	// 10.0
-
-WORD		DetectWinVersion();
-bool		IsRunningXPSP2();
-bool		IsRunningXPSP2OrHigher();
 uint64		GetFreeDiskSpaceX(LPCTSTR pDirectory);
 ULONGLONG	GetDiskFileSize(LPCTSTR pszFilePath);
 int			GetAppImageListColorFlag();
@@ -352,8 +335,6 @@ struct BGR //order of colours in bitmap and palette
 int			bestclr(const RGBQUAD *const palette, const BGR c);
 byte*		bmp2mem(HBITMAP hbmp, size_t &size, REFGUID imgfmt);
 HBITMAP		mem2bmp(const byte *inbuf, const size_t size);
-int			AddIconGreyedToImageList(CImageList &rList, HICON hIcon);
-HICON		ReplaceIconGreyedInImageList(CImageList &rList, int nPos);
 
 ///////////////////////////////////////////////////////////////////////////////
 // MD4/MD5 helpers

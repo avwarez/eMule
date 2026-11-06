@@ -46,8 +46,7 @@
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Label="Configuration">
     <CharacterSet>Unicode</CharacterSet>
-    <PlatformToolset Condition="'$(Platform)'!='ARM64'">v141_xp</PlatformToolset>
-    <PlatformToolset Condition="'$(Platform)'=='ARM64'">v145</PlatformToolset>
+    <PlatformToolset>v145</PlatformToolset>
     <UseOfMfc>Static</UseOfMfc>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
@@ -79,13 +78,12 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <Optimization>Disabled</Optimization>
       <PrecompiledHeader>Use</PrecompiledHeader>
-      <PreprocessorDefinitions>ID3LIB_LINKOPTION=1;MINIUPNP_STATICLIB;SUPPORT_LARGE_FILES;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <PreprocessorDefinitions Condition="'$(Platform)'!='ARM64'">XP_BUILD;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>ID3LIB_LINKOPTION=1;PLUM_STATIC;SUPPORT_LARGE_FILES;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <WarningLevel>EnableAllWarnings</WarningLevel>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>ADSIId.lib;crypt32.lib;delayimp.lib;iphlpapi.lib;version.lib;winmm.lib;ws2_32.lib;..\cryptopp\$(Platform)\$(Configuration)\cryptlib.lib;..\id3lib\libprj\$(Platform)\$(Configuration)\id3lib.lib;..\mbedtls\visualc\vs2017\$(Platform)\$(Configuration)\mbedtls.lib;..\miniupnpc\msvc\$(Platform)\$(Configuration)\miniupnpc.lib;..\resizablelib\$(Platform)\$(Configuration)\resizablelib.lib;..\zlib\contrib\vstudio\vc\$(Platform)\$(Configuration)\zlib.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>crypt32.lib;delayimp.lib;iphlpapi.lib;version.lib;winmm.lib;ws2_32.lib;..\cryptopp\$(Platform)\$(Configuration)\cryptlib.lib;..\id3lib\libprj\$(Platform)\$(Configuration)\id3lib.lib;..\mbedtls\visualc\vs2017\$(Platform)\$(Configuration)\mbedtls.lib;..\resizablelib\$(Platform)\$(Configuration)\resizablelib.lib;..\zlib\contrib\vstudio\vc\$(Platform)\$(Configuration)\zlib.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalOptions Condition="'$(Platform)'=='Win32'">/safeseh</AdditionalOptions>
       <DelayLoadDLLs>gdiplus.dll;msimg32.dll;oleacc.dll;ws2_32.dll;%(DelayLoadDLLs)</DelayLoadDLLs>
       <IgnoreSpecificDefaultLibraries>mpr.lib;rasapi32.lib;secur32.lib;sensapi.lib;vfw32.lib;%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
@@ -109,12 +107,11 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <OmitFramePointers>true</OmitFramePointers>
       <PrecompiledHeader>Use</PrecompiledHeader>
-      <PreprocessorDefinitions>ID3LIB_LINKOPTION=1;MINIUPNP_STATICLIB;SUPPORT_LARGE_FILES;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <PreprocessorDefinitions Condition="'$(Platform)'!='ARM64'">XP_BUILD;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>ID3LIB_LINKOPTION=1;PLUM_STATIC;SUPPORT_LARGE_FILES;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <WarningLevel>EnableAllWarnings</WarningLevel>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>ADSIId.lib;crypt32.lib;delayimp.lib;iphlpapi.lib;version.lib;winmm.lib;ws2_32.lib;..\cryptopp\$(Platform)\$(Configuration)\cryptlib.lib;..\id3lib\libprj\$(Platform)\$(Configuration)\id3lib.lib;..\mbedtls\visualc\vs2017\$(Platform)\$(Configuration)\mbedtls.lib;..\miniupnpc\msvc\$(Platform)\$(Configuration)\miniupnpc.lib;..\resizablelib\$(Platform)\$(Configuration)\resizablelib.lib;..\zlib\contrib\vstudio\vc\$(Platform)\$(Configuration)\zlib.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>crypt32.lib;delayimp.lib;iphlpapi.lib;version.lib;winmm.lib;ws2_32.lib;..\cryptopp\$(Platform)\$(Configuration)\cryptlib.lib;..\id3lib\libprj\$(Platform)\$(Configuration)\id3lib.lib;..\mbedtls\visualc\vs2017\$(Platform)\$(Configuration)\mbedtls.lib;..\resizablelib\$(Platform)\$(Configuration)\resizablelib.lib;..\zlib\contrib\vstudio\vc\$(Platform)\$(Configuration)\zlib.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalOptions Condition="'$(Platform)'=='Win32'">/safeseh</AdditionalOptions>
       <DelayLoadDLLs>gdiplus.dll;msimg32.dll;oleacc.dll;ws2_32.dll;%(DelayLoadDLLs)</DelayLoadDLLs>
       <IgnoreSpecificDefaultLibraries>mpr.lib;rasapi32.lib;secur32.lib;sensapi.lib;vfw32.lib;%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
@@ -136,13 +133,12 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <Optimization>Disabled</Optimization>
       <PrecompiledHeader>Use</PrecompiledHeader>
-      <PreprocessorDefinitions>ID3LIB_LINKOPTION=1;MINIUPNP_STATICLIB;SUPPORT_LARGE_FILES;_BOOTSTRAPNODESDAT;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <PreprocessorDefinitions Condition="'$(Platform)'!='ARM64'">XP_BUILD;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>ID3LIB_LINKOPTION=1;PLUM_STATIC;SUPPORT_LARGE_FILES;_BOOTSTRAPNODESDAT;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <WarningLevel>EnableAllWarnings</WarningLevel>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>ADSIId.lib;crypt32.lib;delayimp.lib;iphlpapi.lib;version.lib;winmm.lib;ws2_32.lib;..\cryptopp\$(Platform)\Debug\cryptlib.lib;..\id3lib\libprj\$(Platform)\Debug\id3lib.lib;..\mbedtls\visualc\vs2017\$(Platform)\Debug\mbedtls.lib;..\miniupnpc\msvc\$(Platform)\Debug\miniupnpc.lib;..\resizablelib\$(Platform)\Debug\resizablelib.lib;..\zlib\contrib\vstudio\vc\$(Platform)\Debug\zlib.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>crypt32.lib;delayimp.lib;iphlpapi.lib;version.lib;winmm.lib;ws2_32.lib;..\cryptopp\$(Platform)\Debug\cryptlib.lib;..\id3lib\libprj\$(Platform)\Debug\id3lib.lib;..\mbedtls\visualc\vs2017\$(Platform)\Debug\mbedtls.lib;..\resizablelib\$(Platform)\Debug\resizablelib.lib;..\zlib\contrib\vstudio\vc\$(Platform)\Debug\zlib.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalOptions Condition="'$(Platform)'=='Win32'">/safeseh</AdditionalOptions>
       <DelayLoadDLLs>gdiplus.dll;msimg32.dll;oleacc.dll;ws2_32.dll;%(DelayLoadDLLs)</DelayLoadDLLs>
       <IgnoreSpecificDefaultLibraries>mpr.lib;rasapi32.lib;secur32.lib;sensapi.lib;vfw32.lib;%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
@@ -224,7 +220,8 @@
     <ClCompile Include="FileDetailDlgStatistics.cpp" />
     <ClCompile Include="FileIdentifier.cpp" />
     <ClCompile Include="FileInfoDialog.cpp" />
-    <ClCompile Include="FirewallOpener.cpp" />
+    <ClCompile Include="FirewallBar.cpp" />
+    <ClCompile Include="FirewallCheck.cpp" />
     <ClCompile Include="FrameGrabThread.cpp" />
     <ClCompile Include="Friend.cpp" />
     <ClCompile Include="FriendList.cpp" />
@@ -236,7 +233,6 @@
     <ClCompile Include="HttpDownloadDlg.cpp" />
     <ClCompile Include="I18n.cpp" />
     <ClCompile Include="IconStatic.cpp" />
-    <ClCompile Include="IESecurity.cpp" />
     <ClCompile Include="Ini2.cpp" />
     <ClCompile Include="InputBox.cpp" />
     <ClCompile Include="IPFilter.cpp" />
@@ -335,7 +331,7 @@
     <ClCompile Include="RichEditStream.cpp" />
     <ClCompile Include="SafeFile.cpp" />
     <ClCompile Include="Scanner.cpp">
-      <PreprocessorDefinitions Condition="'$(Platform)'=='Win32'">_CRT_SECURE_NO_DEPRECATE;_USE_32BIT_TIME_T;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(Platform)'=='Win32'">_CRT_SECURE_NO_DEPRECATE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PreprocessorDefinitions Condition="'$(Platform)'=='x64'">_CRT_SECURE_NO_DEPRECATE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PrecompiledHeader />
     </ClCompile>
@@ -346,7 +342,6 @@
     <ClCompile Include="SearchListCtrl.cpp" />
     <ClCompile Include="SearchParamsWnd.cpp" />
     <ClCompile Include="SearchResultsWnd.cpp" />
-    <ClCompile Include="SecRunAsUser.cpp" />
     <ClCompile Include="SelfTest.cpp" />
     <ClCompile Include="SendMail.cpp" />
     <ClCompile Include="Server.cpp" />
@@ -399,8 +394,7 @@
     <ClCompile Include="UploadListCtrl.cpp" />
     <ClCompile Include="UploadQueue.cpp" />
     <ClCompile Include="UPnPImpl.cpp" />
-    <ClCompile Include="UPnPImplMiniLib.cpp" />
-    <ClCompile Include="UPnPImplWinServ.cpp" />
+    <ClCompile Include="UPnPImplLibPlum.cpp" />
     <ClCompile Include="UPnPImplWrapper.cpp" />
     <ClCompile Include="URLClient.cpp" />
     <ClCompile Include="Version.cpp" />
@@ -499,7 +493,8 @@
     <ClInclude Include="FileDetailDlgStatistics.h" />
     <ClInclude Include="FileIdentifier.h" />
     <ClInclude Include="FileInfoDialog.h" />
-    <ClInclude Include="FirewallOpener.h" />
+    <ClInclude Include="FirewallBar.h" />
+    <ClInclude Include="FirewallCheck.h" />
     <ClInclude Include="FrameGrabThread.h" />
     <ClInclude Include="Friend.h" />
     <ClInclude Include="FriendList.h" />
@@ -512,7 +507,6 @@
     <ClInclude Include="HttpClientReqSocket.h" />
     <ClInclude Include="HttpDownloadDlg.h" />
     <ClInclude Include="IconStatic.h" />
-    <ClInclude Include="IESecurity.h" />
     <ClInclude Include="ImportParts.h" />
     <ClInclude Include="Ini2.h" />
     <ClInclude Include="InputBox.h" />
@@ -633,7 +627,6 @@
     <ClInclude Include="SearchParams.h" />
     <ClInclude Include="SearchParamsWnd.h" />
     <ClInclude Include="SearchResultsWnd.h" />
-    <ClInclude Include="SecRunAsUser.h" />
     <ClInclude Include="Server.h" />
     <ClInclude Include="ServerConnect.h" />
     <ClInclude Include="ServerList.h" />
@@ -684,13 +677,11 @@
     <ClInclude Include="UploadListCtrl.h" />
     <ClInclude Include="UploadQueue.h" />
     <ClInclude Include="UPnPImpl.h" />
-    <ClInclude Include="UPnPImplMiniLib.h" />
-    <ClInclude Include="UPnPImplWinServ.h" />
+    <ClInclude Include="UPnPImplLibPlum.h" />
     <ClInclude Include="UPnPImplWrapper.h" />
     <ClInclude Include="URLClient.h" />
     <ClInclude Include="UserMsgs.h" />
     <ClInclude Include="Version.h" />
-    <ClInclude Include="VistaDefines.h" />
     <ClInclude Include="WebServer.h" />
     <ClInclude Include="WebServices.h" />
     <ClInclude Include="WebSocket.h" />

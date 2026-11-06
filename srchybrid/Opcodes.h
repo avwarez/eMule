@@ -106,7 +106,6 @@
 
 #define CONFIGFOLDER			_T("config\\")
 #define MAXCONPER5SEC			20
-#define MAXCON5WIN9X			10
 #define	UPLOAD_CLIENT_MAXDATARATE	(25*1024) // max. target upload speed per client
 #define	MIN_UP_CLIENTS_ALLOWED	2			// min. clients allowed to download regardless of any other factors. Don't set this too high
 #define	MAX_UP_CLIENTS_ALLOWED	100			// max. clients allowed regardless of any other factors; cannot be below MIN_UP_CLIENTS_ALLOWED+3
@@ -484,6 +483,7 @@
 #define	FT_ED2K_MEDIA_LENGTH	"length"	// <string> !!!
 #define	FT_ED2K_MEDIA_BITRATE	"bitrate"	// <uint32>
 #define	FT_ED2K_MEDIA_CODEC		"codec"		// <string>
+#define	FT_POWERSHARE			"ZZUL_POWERSHARE"	// <uint32> PowerShare mode, written by MorphXT too
 #define TAG_NSENT				"# Sent"
 #define TAG_ONIP				"ip"
 #define TAG_ONPORT				"port"

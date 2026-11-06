@@ -53,9 +53,7 @@
 #include "CollectionViewDialog.h"
 #include "uploaddiskiothread.h"
 #include "PartFileWriteThread.h"
-#ifndef XP_BUILD
 #include <urlmon.h>
-#endif
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -259,6 +257,8 @@ void CPartFile::Init()
 	m_nLastBufferFlushTime = 0;
 	m_nNextMetFlushTime = 0;
 	m_nFileFlushTime = 0; //nothing to flush
+	m_uFlushJob = 0;
+	m_dwFinalFlushError = 0;
 	m_dwFileAttributes = 0;
 	m_random_update_wait = (DWORD)(rand() % SEC2MS(1));
 	memset(m_anStates, 0, sizeof m_anStates);
@@ -287,6 +287,7 @@ void CPartFile::Init()
 
 CPartFile::~CPartFile()
 {
+	CPartFileWriteThread::ForgetFlushes(this); // 97q
 	// Barry - Ensure all buffered data is written
 	if ((HANDLE)m_hpartfile != INVALID_HANDLE_VALUE) {
 		// commit file and directory entry
@@ -1114,6 +1115,7 @@ EPartFileLoadResult CPartFile::LoadPartFile(LPCTSTR in_directory, LPCTSTR in_fil
 			try {
 				b = m_hpartfile.GetStatus(filestatus);
 			} catch (CException *ex) {
+				DebugLogCaughtException(__FUNCTION__, ex);
 				ex->Delete();
 			}
 			time_t fdate;
@@ -1769,7 +1771,7 @@ bool CPartFile::GetNextEmptyBlockInPart(UINT partNumber, Requested_Block_Struct 
 	uint64 start = partStart;
 
 	// The end of the part must be within file size
-	uint64 partEnd = min(partStart + PARTSIZE, m_nFileSize) - 1;
+	uint64 partEnd = min(partStart + PARTSIZE, (uint64)m_nFileSize) - 1;
 	ASSERT(partStart <= partEnd);
 
 	// Loop until a suitable gap is found and return true, or no more gaps and return false
@@ -2187,9 +2189,22 @@ uint32 CPartFile::Process(uint32 factor, UINT icounter)
 	if (m_nTotalBufferData > thePrefs.GetFileBufferSize() || curTick >= m_nLastBufferFlushTime + thePrefs.GetFileBufferTimeLimit())
 		FlushBuffer();
 	//If data keeps arriving, flush to disk sometimes for extra safety
-	if (m_nFileFlushTime && curTick >= m_nFileFlushTime + SEC2MS(31) && m_hWrite != INVALID_HANDLE_VALUE) {
-		::FlushFileBuffers(m_hWrite);
+	// 97q: the flush runs on a pool thread (see CPartFileWriteThread::StartFlush()) and its result
+	// is taken here. A write the system took but could not put on the disk is reported by it only,
+	// and only once; that data is lost by then, so the download is paused like for a failed write.
+	if (m_uFlushJob) {
+		DWORD dwError;
+		if (CPartFileWriteThread::TakeFlushResult(m_uFlushJob, dwError)) {
+			m_uFlushJob = 0;
+			if (dwError) {
+				LogError(LOG_STATUSBAR, _T("Download disk I/O: flushing \"%s\" to disk failed, error %lu - data received since the last flush may be lost")
+					, (LPCTSTR)GetFileName(), dwError);
+				FlushBuffersExceptionHandler(new CFileException(CFileException::OsErrorToException((LONG)dwError), (LONG)dwError, m_hpartfile.GetFilePath()));
+			}
+		}
+	} else if (m_nFileFlushTime && curTick >= m_nFileFlushTime + SEC2MS(31) && m_hWrite != INVALID_HANDLE_VALUE) {
 		m_nFileFlushTime = 0;
+		m_uFlushJob = CPartFileWriteThread::StartFlush(this);
 	}
 
 	m_datarate = 0;
@@ -2245,6 +2260,7 @@ uint32 CPartFile::Process(uint32 factor, UINT icounter)
 			case DS_DOWNLOADING:
 				ASSERT(cur_src->socket);
 				UpdateDownloadLimit(cur_src, factor);
+				[[fallthrough]];
 			case DS_BANNED: // Do nothing with this client.
 				break;
 			case DS_LOWTOLOWIP: // Check if something has changed with our or their ID state.
@@ -2294,6 +2310,7 @@ uint32 CPartFile::Process(uint32 factor, UINT icounter)
 				if (theApp.IsConnected() && cur_src->GetTimeUntilReask() < MIN2MS(2) && cur_src->GetTimeUntilReask() > SEC2MS(1) && curTick >= cur_src->GetLastTriedToConnectTime() + MIN2MS(20)) // ZZ:DownloadManager (one re-ask timestamp for each file)
 					cur_src->UDPReaskForDownload();
 
+				[[fallthrough]];
 			case DS_CONNECTING:
 			case DS_TOOMANYCONNS:
 			case DS_TOOMANYCONNSKAD:
@@ -2632,6 +2649,7 @@ void CPartFile::CompleteFile(bool bIsHashingDone)
 	ASSERT(m_iWrites <= 0 && m_gaplist.IsEmpty() && m_BufferedData_list.IsEmpty());
 	CPartFileWriteThread::RemFile(this);
 	m_nFileFlushTime = 0;
+	m_uFlushJob = 0; // 97q: a flush still running is waited for by the thread hashing the file, see FlushBeforeFinalHash()
 
 	theApp.downloadqueue->RemoveLocalServerRequest(this);
 	if (GetKadFileSearchID())
@@ -2722,25 +2740,6 @@ static void UncompressFile(LPCTSTR pszFilePath, CPartFile *pPartFile)
 	::CloseHandle(hFile);
 }
 
-#ifdef XP_BUILD
-#ifndef __IZoneIdentifier_INTERFACE_DEFINED__
-MIDL_INTERFACE("cd45f185-1b21-48e2-967b-ead743a8914e")
-IZoneIdentifier : public IUnknown
-{
-public:
-	virtual HRESULT STDMETHODCALLTYPE GetId(DWORD *pdwZone) = 0;
-	virtual HRESULT STDMETHODCALLTYPE SetId(DWORD dwZone) = 0;
-	virtual HRESULT STDMETHODCALLTYPE Remove() = 0;
-};
-#endif //__IZoneIdentifier_INTERFACE_DEFINED__
-
-#ifdef CLSID_PersistentZoneIdentifier
-EXTERN_C const IID CLSID_PersistentZoneIdentifier;
-#elif _WIN32_WINNT<_WIN32_WINNT_VISTA
-const GUID CLSID_PersistentZoneIdentifier = {0x0968E258, 0x16C7, 0x4DBA, { 0xAA, 0x86, 0x46, 0x2D, 0xD6, 0x1E, 0x31, 0xA3 }};
-#endif
-#endif
-
 static void SetZoneIdentifier(LPCWSTR pszFilePath)
 {
 	if (!thePrefs.GetCheckFileOpen())
@@ -2787,12 +2786,15 @@ BOOL CPartFile::PerformFileComplete()
 	// If that function is invoked from within the file completion thread, it's OK if we wait (and block) the thread.
 	CSingleLock sLock(&m_FileCompleteMutex, TRUE);
 
-	TCHAR *newfilename = _tcsdup(GetFileName());
+	// The buffer is sized for the name after StripInvalidFilenameChars(), which can be
+	// longer than the name it was given: a reserved device name such as "CON" or "NUL"
+	// gets an underscore appended, and copying that back over a copy of the original
+	// name wrote past the end of it. The file name comes from the network.
+	TCHAR *newfilename = _tcsdup(StripInvalidFilenameChars(GetFileName()));
 	if (!newfilename)
 		return FALSE;
 
 	const CString &strPartfilename(RemoveFileExtension(m_fullname));
-	_tcscpy(newfilename, (LPCTSTR)StripInvalidFilenameChars(newfilename));
 
 	CString indir;
 	if (::PathFileExists(thePrefs.GetCategory(GetCategory())->strIncomingPath))
@@ -2942,8 +2944,16 @@ BOOL CPartFile::PerformFileComplete()
 
 // 'End' of file completion. To avoid multi-threading synchronization problems,
 // this is to be invoked in the main thread only!
+static bool IsVolumeWriteError(DWORD dwError);
+
 void CPartFile::PerformFileCompleteEnd(DWORD dwResult)
 {
+	if (m_dwFinalFlushError) { // 97q: see FlushBeforeFinalHash()
+		if (m_dwFinalFlushError == ERROR_DISK_FULL || m_dwFinalFlushError == ERROR_HANDLE_DISK_FULL || IsVolumeWriteError(m_dwFinalFlushError))
+			PauseDownloadsOnVolume();
+		m_dwFinalFlushError = 0;
+	}
+
 	if (dwResult & FILE_COMPLETION_THREAD_SUCCESS) {
 		if (!m_nCompleteSourcesCount)
 			m_nCompleteSourcesCountHi = m_nCompleteSourcesCountLo = m_nCompleteSourcesCount = 1;
@@ -3349,6 +3359,7 @@ void CPartFile::ResumeFile(bool resort)
 			ASSERT(0);
 	} else {
 		m_paused = m_stopped = false;
+		RetryFailedWrites();
 		SetActive(theApp.IsConnected());
 		m_LastSearchTime = 0;
 		if (resort) {
@@ -3367,6 +3378,7 @@ void CPartFile::ResumeFileInsufficient()
 	if (status != PS_COMPLETE && status != PS_COMPLETING && m_insufficient) {
 		AddLogLine(false, GetResString(IDS_DL_RESUMED), (LPCTSTR)GetFileName());
 		m_insufficient = false;
+		RetryFailedWrites();
 		SetActive(theApp.IsConnected());
 		m_LastSearchTime = 0;
 		UpdateDisplayedInfo(true);
@@ -4089,22 +4101,31 @@ void CPartFile::FlushBuffer(bool bForceICH, bool bNoAICH)
 		}
 
 		//process data from the writing thread
+		// 97q: every failed buffer is made ready for resend, and the first error is reported once
+		// after the loop; reporting from inside it left the other failed buffers to be reported,
+		// one at a time, by the flushes that follow
+		DWORD dwWriteError = 0;
 		for (POSITION pos = m_BufferedData_list.GetHeadPosition(); pos != NULL;) {
 			POSITION pos2 = pos;
 			PartFileBufferedData *item = m_BufferedData_list.GetNext(pos);
 			switch (item->flushed) {
 			case PB_READY:
 				ASSERT(!pThread || !pThread->IsRunning());
+				[[fallthrough]];
 			case PB_PENDING:
 				continue;
 			case PB_ERROR:
 				item->flushed = PB_READY; //prepare for resend
-				CFileException::ThrowOsError((LONG)item->dwError, m_hpartfile.GetFileName());
+				if (!dwWriteError)
+					dwWriteError = item->dwError ? item->dwError : (DWORD)ERROR_WRITE_FAULT;
+				continue;
 			//default:
 			case PB_WRITTEN: //success
 				DeleteWrittenItem(pos2);
 			}
 		}
+		if (dwWriteError)
+			CFileException::ThrowOsError((LONG)dwWriteError, m_hpartfile.GetFileName());
 
 		// Partfile should never be too large
 		if (m_hpartfile.GetLength() > m_nFileSize) {
@@ -4120,7 +4141,7 @@ void CPartFile::FlushBuffer(bool bForceICH, bool bNoAICH)
 			m_aChangedPart[uPartNumber] = false;
 
 			const uint64 uStart = PARTSIZE * uPartNumber;
-			const uint64 uEnd = min(uStart + PARTSIZE, m_nFileSize) - 1;
+			const uint64 uEnd = min(uStart + PARTSIZE, (uint64)m_nFileSize) - 1;
 			// Is this 9MB part complete
 			if (IsCompleteBD(uStart, uEnd)) {
 				// Is part corrupt
@@ -4248,6 +4269,104 @@ void CPartFile::FlushBuffer(bool bForceICH, bool bNoAICH)
 	}
 }
 
+// 97q: errors that say the disk itself, not one file on it, takes no more writes
+static bool IsVolumeWriteError(DWORD dwError)
+{
+	switch (dwError) {
+	case ERROR_WRITE_PROTECT:
+	case ERROR_NOT_READY:
+	case ERROR_CRC:
+	case ERROR_SECTOR_NOT_FOUND:
+	case ERROR_WRITE_FAULT:
+	case ERROR_GEN_FAILURE:
+	case ERROR_BAD_NETPATH:
+	case ERROR_DEV_NOT_EXIST:
+	case ERROR_UNEXP_NET_ERR:
+	case ERROR_NETNAME_DELETED:
+	case ERROR_NO_SUCH_DEVICE:
+	case ERROR_UNRECOGNIZED_VOLUME:
+	case ERROR_FILE_INVALID:
+	case ERROR_IO_DEVICE:
+	case ERROR_DISK_OPERATION_FAILED:
+	case ERROR_DEVICE_NOT_CONNECTED:
+	case ERROR_FILE_CORRUPT:
+	case ERROR_DISK_CORRUPT:
+	case ERROR_DEVICE_REMOVED:
+		return true;
+	}
+	return false;
+}
+
+// 97q: the root of the volume a folder is on - a drive, or the folder the volume is mounted on
+static CString GetVolumeOfFolder(const CString &strFolder)
+{
+	TCHAR szVolume[MAX_PATH];
+	return ::GetVolumePathName(strFolder, szVolume, _countof(szVolume)) ? CString(szVolume) : strFolder;
+}
+
+// 97q: like a file system that goes read-only on errors it cannot correct, every download on the
+// disk this one could not be written to is paused, and stays paused until resumed by hand
+void CPartFile::PauseDownloadsOnVolume()
+{
+	const CString strVolume(GetVolumeOfFolder(GetTmpPath()));
+	UINT uPaused = 0;
+	POSITION pos = NULL;
+	for (INT_PTR i = theApp.downloadqueue->GetFileCount(); --i >= 0;) {
+		CPartFile *pFile = theApp.downloadqueue->GetFileNext(pos);
+		if (pFile == NULL || pFile->m_paused || pFile->status == PS_ERROR || pFile->status == PS_COMPLETE || pFile->status == PS_COMPLETING)
+			continue;
+		if (pFile == this || GetVolumeOfFolder(pFile->GetTmpPath()).CompareNoCase(strVolume) == 0) {
+			pFile->PauseFile(false, false);
+			++uPaused;
+		}
+	}
+	LogError(LOG_STATUSBAR, _T("Download disk I/O: the disk of \"%s\" cannot be written to - %u downloads on it are paused, resume them by hand once the disk is checked")
+		, (LPCTSTR)strVolume, uPaused);
+}
+
+// 97q: called by the thread that hashes a download whole on completion, before it reads the file.
+// The hash reads what the system has taken, which is not yet on the disk; a write the disk did not
+// take is reported by a flush only, and only once. So the flushes still running are waited for and
+// one more is made, of the data received since the last one. On an error the completion stops like
+// on a failed move (see PerformFileComplete()): resumed by hand, it starts again from here.
+bool CPartFile::FlushBeforeFinalHash()
+{
+	DWORD dwError = CPartFileWriteThread::WaitForFlushes(this);
+	if (!dwError) {
+		const HANDLE hFile = ::CreateFile(RemoveFileExtension(m_fullname), GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, 0, NULL);
+		if (hFile == INVALID_HANDLE_VALUE || !::FlushFileBuffers(hFile)) {
+			dwError = ::GetLastError();
+			if (!dwError)
+				dwError = ERROR_WRITE_FAULT;
+		}
+		if (hFile != INVALID_HANDLE_VALUE)
+			VERIFY(::CloseHandle(hFile));
+	}
+	if (!dwError)
+		return true;
+
+	theApp.QueueLogLineEx(LOG_ERROR, _T("Download disk I/O: flushing \"%s\" to disk before its final hashing failed, error %lu - it is not completed, resume it by hand once the cause is removed")
+		, (LPCTSTR)GetFileName(), dwError);
+	m_dwFinalFlushError = dwError;
+	m_paused = m_stopped = true;
+	SetStatus(PS_ERROR);
+	m_bCompletionError = true;
+	SetFileOp(PFOP_NONE);
+	if (!theApp.IsClosing())
+		VERIFY(theApp.emuledlg->PostMessage(TM_FILECOMPLETED, FILE_COMPLETION_THREAD_FAILED, (LPARAM)this));
+	return false;
+}
+
+// 97q: the writes that failed before a pause are tried again on resume, not reported again
+void CPartFile::RetryFailedWrites()
+{
+	for (POSITION pos = m_BufferedData_list.GetHeadPosition(); pos != NULL;) {
+		PartFileBufferedData *item = m_BufferedData_list.GetNext(pos);
+		if (item->flushed == PB_ERROR)
+			item->flushed = PB_READY;
+	}
+}
+
 void CPartFile::FlushBuffersExceptionHandler(CFileException *ex)
 {
 	if (thePrefs.IsCheckDiskspaceEnabled() && ex->m_cause == CFileException::diskFull) {
@@ -4274,15 +4393,25 @@ void CPartFile::FlushBuffersExceptionHandler(CFileException *ex)
 			// may be called during shutdown!
 			if (thePrefs.GetNotifierOnImportantError() && !theApp.IsClosing())
 				theApp.emuledlg->ShowNotifier(msg, TBN_IMPORTANTEVENT);
-		} else {
+		} else
 			LogError(LOG_STATUSBAR, GetResString(IDS_ERR_WRITEERROR), (LPCTSTR)GetFileName(), (LPCTSTR)CExceptionStr(*ex));
-			SetStatus(PS_ERROR);
+
+		// 97q: a disk that is full or failing fails every download on it, so all of those are paused;
+		// an error of this one file pauses this one only. Either way the download is paused rather
+		// than set to error, which cannot be resumed, and it stays paused until resumed by hand.
+		if (theApp.IsClosing()) {
+			m_paused = true;
+			m_iLastPausePurge = time(NULL);
+			theApp.downloadqueue->RemoveLocalServerRequest(this);
+			m_datarate = 0;
+			m_anStates[DS_DOWNLOADING] = 0;
+		} else if (ex->m_cause == CFileException::diskFull || IsVolumeWriteError((DWORD)ex->m_lOsError))
+			PauseDownloadsOnVolume();
+		else {
+			if (!m_paused)
+				PauseFile(false, false);
+			LogError(LOG_STATUSBAR, _T("Download disk I/O: \"%s\" is paused - resume it by hand once the cause above is removed"), (LPCTSTR)GetFileName());
 		}
-		m_paused = true;
-		m_iLastPausePurge = time(NULL);
-		theApp.downloadqueue->RemoveLocalServerRequest(this);
-		m_datarate = 0;
-		m_anStates[DS_DOWNLOADING] = 0;
 	}
 
 	if (!theApp.IsClosing()) { // may be called during shutdown!
@@ -4648,7 +4777,7 @@ bool CPartFile::GetNextRequestedBlock(CUpDownClient *sender, Requested_Block_Str
 				// Offsets of chunk
 				UINT uCurChunkPart = cur_chunk.part; // help VC71...
 				const uint64 uStart = uCurChunkPart * PARTSIZE;
-				const uint64 uEnd = min(uStart + PARTSIZE, m_nFileSize) - 1;
+				const uint64 uEnd = min(uStart + PARTSIZE, (uint64)m_nFileSize) - 1;
 				ASSERT(uStart <= uEnd);
 
 				// Criterion 2. Parts used for preview
@@ -4852,8 +4981,8 @@ CString CPartFile::GetInfoSummary(bool bNoFormatCommands) const
 	if (!IsPartFile())
 		return CKnownFile::GetInfoSummary();
 
-	CString compl(GetResString(IDS_DL_TRANSFCOMPL));
-	compl.AppendFormat(_T(": %s/%s (%.1f%%)")
+	CString strCompl(GetResString(IDS_DL_TRANSFCOMPL));
+	strCompl.AppendFormat(_T(": %s/%s (%.1f%%)")
 		, (LPCTSTR)CastItoXBytes(GetCompletedSize())
 		, (LPCTSTR)CastItoXBytes(m_nFileSize)
 		, GetPercentCompleted());
@@ -4898,7 +5027,7 @@ CString CPartFile::GetInfoSummary(bool bNoFormatCommands) const
 		, bNoFormatCommands ? _T("") : _T("<br_head>")
 		, (LPCTSTR)GetResString(IDS_FD_MET), (LPCTSTR)GetPartMetFileName()
 		, (LPCTSTR)GetResString(IDS_STATUS), (LPCTSTR)sStatus
-		, (LPCTSTR)compl
+		, (LPCTSTR)strCompl
 		, (LPCTSTR)sourcesinfo, (LPCTSTR)avail
 		, (LPCTSTR)GetResString(IDS_LASTSEENCOMPL), (LPCTSTR)lsc
 		, (LPCTSTR)GetResString(IDS_FD_LASTCHANGE), (LPCTSTR)lastdwl
@@ -4940,8 +5069,10 @@ bool CPartFile::CopyPartFile(CArray<Gap_Struct> &raFilled, const CString &tempFi
 		m_bPreviewing = false;
 		return true;
 	} catch (CFileException *ex) {
+		DebugLogCaughtException(__FUNCTION__, ex);
 		ex->Delete();
 	} catch (...) {
+		DebugLogCaughtException(__FUNCTION__);
 		ASSERT(0);
 	}
 	m_bPreviewing = false;
@@ -5229,6 +5360,7 @@ void CPartFile::AICHRecoveryDataAvailable(UINT nPart)
 		m_hpartfile.Seek((LONGLONG)uStart, CFile::begin);
 		CreateHash(&m_hpartfile, length, NULL, &htOurHash);
 	} catch (...) {
+		DebugLogCaughtException(__FUNCTION__);
 		ASSERT(0);
 		return;
 	}

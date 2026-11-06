@@ -549,7 +549,6 @@ public:
 	static bool		m_bWebUseHttps;
 	static CString	m_sWebHttpsCertificate;
 	static CString	m_sWebHttpsKey;
-	static CString	m_strSecurityZone;
 	static CString	m_strMediaInfoDllPath;
 
 	static bool		showCatTabInfos;
@@ -607,13 +606,8 @@ public:
 
 	static int		m_iDbgHeap;
 	static UINT		m_nWebMirrorAlertLevel;
-	static bool		m_bRunAsUser;
-	static bool		m_bPreferRestrictedOverUser;
 
 	static bool		m_bUseOldTimeRemaining;
-
-	// Firewall settings
-	static bool		m_bOpenPortsOnStartUp;
 
 	//AICH Options
 	static bool		m_bTrustEveryHash;
@@ -634,12 +628,8 @@ public:
 	static uint32   m_dwKadUDPKey;
 
 	// UPnP
-	static bool		m_bSkipWANIPSetup;
-	static bool		m_bSkipWANPPPSetup;
 	static bool		m_bEnableUPnP;
 	static bool		m_bCloseUPnPOnExit;
-	static bool		m_bIsWinServImplDisabled;
-	static bool		m_bIsMinilibImplDisabled;
 	static int		m_nLastWorkingImpl;
 
 	// Spam
@@ -1062,7 +1052,6 @@ public:
 	static bool		GetMessageEnableSmileys()			{ return m_bMessageEnableSmileys; }
 	static bool		GetIRCEnableUTF8()					{ return m_bIRCEnableUTF8; }
 
-	static WORD		GetWindowsVersion();
 	static bool		IsRunningAeroGlassTheme();
 	static bool		GetStartMinimized()					{ return startMinimized; }
 	static void		SetStartMinimized( bool instartMinimized) { startMinimized = instartMinimized; }
@@ -1135,7 +1124,6 @@ public:
 	static COLORREF GetLogSuccessColor()				{ return m_crLogSuccess; }
 
 	static UINT		GetMaxConperFive()					{ return MaxConperFive; }
-	static UINT		GetDefaultMaxConperFive();
 
 	static bool		IsSafeServerConnectEnabled()		{ return m_bSafeServerConnect; }
 	static void		SetSafeServerConnectEnabled(bool in) { m_bSafeServerConnect = in; }
@@ -1325,8 +1313,6 @@ public:
 	static UINT		GetWebMirrorAlertLevel();
 	static bool		UseSimpleTimeRemainingComputation()	{ return m_bUseOldTimeRemaining; }
 
-	static bool		IsRunAsUserEnabled();
-	static bool		IsPreferingRestrictedOverUser()		{ return m_bPreferRestrictedOverUser; }
 
 	// Verbose log options
 	static bool		GetEnableVerboseOptions()			{ return m_bEnableVerboseOptions; }
@@ -1364,8 +1350,6 @@ public:
 	static int		GetDebugSearchResultDetailLevel()	{ return 0; }
 #endif
 
-	// Firewall settings
-	static bool		IsOpenPortsOnStartupEnabled()		{ return m_bOpenPortsOnStartUp; }
 	//AICH Hash
 	static bool		IsTrustingEveryHash()				{ return m_bTrustEveryHash; } // this is a debug option
 	// Files options
@@ -1374,7 +1358,6 @@ public:
 	static bool		DoPartiallyPurgeOldKnownFiles()		{ return m_bPartiallyPurgeOldKnownFiles; }
 	static void		SetRememberDownloadedFiles(bool nv)	{ m_bRememberDownloadedFiles = nv; }
 	static void		SetRememberCancelledFiles(bool nv)	{ m_bRememberCancelledFiles = nv; }
-	static const CString &GetInternetSecurityZone()		{ return m_strSecurityZone; }
 	static const CString &GetMediaInfoDllPath()			{ return m_strMediaInfoDllPath; }
 
 	// Notifier, mail
@@ -1397,14 +1380,8 @@ public:
 	static uint8	GetCryptTCPPaddingLength()			{ return m_byCryptTCPPaddingLength; }
 
 	// UPnP
-	static bool		GetSkipWANIPSetup()					{ return m_bSkipWANIPSetup; }
-	static bool		GetSkipWANPPPSetup()				{ return m_bSkipWANPPPSetup; }
 	static bool		IsUPnPEnabled()						{ return m_bEnableUPnP; }
-	static void		SetSkipWANIPSetup(bool nv)			{ m_bSkipWANIPSetup = nv; }
-	static void		SetSkipWANPPPSetup(bool nv)			{ m_bSkipWANPPPSetup = nv; }
 	static bool		CloseUPnPOnExit()					{ return m_bCloseUPnPOnExit; }
-	static bool		IsWinServUPnPImplDisabled()			{ return m_bIsWinServImplDisabled; }
-	static bool		IsMinilibUPnPImplDisabled()			{ return m_bIsMinilibImplDisabled; }
 	static int		GetLastWorkingUPnPImpl()			{ return m_nLastWorkingImpl; }
 	static void		SetLastWorkingUPnPImpl(int val)		{ m_nLastWorkingImpl = val; }
 
@@ -1424,7 +1401,6 @@ public:
 protected:
 	static CString	m_strFileCommentsFilePath;
 	static Preferences_Ext_Struct *prefsExt;
-	static WORD		m_wWinVer;
 	static CArray<Category_Struct*> catArr;
 	static CString	m_astrDefaultDirs[13];
 	static bool		m_abDefaultDirsCreated[13];

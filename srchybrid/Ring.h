@@ -95,10 +95,10 @@ void CRing<TYPE>::SetBuffer(UINT_PTR nSize)
 	TYPE *dst = new TYPE[nSize];
 	if (m_nCount)
 		if (m_pHead > m_pTail) {
-			memcpy(dst, m_pHead, (m_pEnd - m_pHead) * sizeof TYPE);
-			memcpy(&dst[m_pEnd - m_pHead], m_pData, (m_pTail - m_pData + 1) * sizeof TYPE);
+			memcpy(dst, m_pHead, (m_pEnd - m_pHead) * sizeof(TYPE));
+			memcpy(&dst[m_pEnd - m_pHead], m_pData, (m_pTail - m_pData + 1) * sizeof(TYPE));
 		} else
-			memcpy(dst, m_pHead, (m_pTail - m_pHead + 1) * sizeof TYPE);
+			memcpy(dst, m_pHead, (m_pTail - m_pHead + 1) * sizeof(TYPE));
 	delete[] m_pData;
 	m_nSize = nSize;
 	m_pHead = m_pData = dst;

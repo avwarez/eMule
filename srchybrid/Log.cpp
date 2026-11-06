@@ -222,6 +222,39 @@ void AddLogTextV(UINT uFlags, EDebugLogPriority dlpPriority, LPCTSTR pszLine, va
 }
 
 
+void DebugLogCaughtException(LPCSTR pszWhere) noexcept
+{
+	try {
+		DebugLogError(_T("Unknown exception in %hs"), pszWhere);
+	} catch (CException *exLog) {
+		exLog->Delete();
+	} catch (...) {
+		// nothing left to report it with
+	}
+}
+
+void DebugLogCaughtException(LPCSTR pszWhere, CException *ex) noexcept
+{
+	try {
+		DebugLogError(_T("Exception in %hs: %s"), pszWhere, (LPCTSTR)CExceptionStr(*ex));
+	} catch (CException *exLog) {
+		exLog->Delete();
+	} catch (...) {
+		// nothing left to report it with
+	}
+}
+
+void DebugLogCaughtException(LPCSTR pszWhere, const CString &strError) noexcept
+{
+	try {
+		DebugLogError(_T("Exception in %hs: %s"), pszWhere, (LPCTSTR)strError);
+	} catch (CException *exLog) {
+		exLog->Delete();
+	} catch (...) {
+		// nothing left to report it with
+	}
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // CLogFile
 

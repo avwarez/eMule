@@ -17,6 +17,8 @@
 #include "stdafx.h"
 #include <share.h>
 #include <iphlpapi.h>
+#include <dwmapi.h>
+#pragma comment(lib, "dwmapi.lib")
 #include "emule.h"
 #include "Preferences.h"
 #include "Opcodes.h"
@@ -36,7 +38,6 @@
 #include "StatisticsDlg.h"
 #include "Log.h"
 #include "MuleToolbarCtrl.h"
-#include "VistaDefines.h"
 #include "cryptopp/osrng.h"
 
 #ifdef _DEBUG
@@ -385,7 +386,6 @@ int		CPreferences::m_iWebFileUploadSizeLimitMB;
 bool	CPreferences::m_bAllowAdminHiLevFunc;
 CString	CPreferences::m_strTemplateFile;
 bool	CPreferences::m_bWebUseHttps;
-CString	CPreferences::m_strSecurityZone;
 CString	CPreferences::m_sWebHttpsCertificate;
 CString	CPreferences::m_sWebHttpsKey;
 CString	CPreferences::m_strMediaInfoDllPath;
@@ -442,12 +442,8 @@ CIni	*CPreferences::skinsIni;
 Preferences_Ext_Struct *CPreferences::prefsExt;
 CArray<Category_Struct*> CPreferences::catArr;
 UINT	CPreferences::m_nWebMirrorAlertLevel;
-WORD	CPreferences::m_wWinVer;
-bool	CPreferences::m_bRunAsUser;
-bool	CPreferences::m_bPreferRestrictedOverUser;
 bool	CPreferences::m_bUseOldTimeRemaining;
 
-bool	CPreferences::m_bOpenPortsOnStartUp;
 int		CPreferences::m_byLogLevel;
 bool	CPreferences::m_bTrustEveryHash;
 bool	CPreferences::m_bRememberCancelledFiles;
@@ -465,12 +461,8 @@ bool	CPreferences::m_bCryptLayerRequired;
 uint32	CPreferences::m_dwKadUDPKey;
 uint8	CPreferences::m_byCryptTCPPaddingLength;
 
-bool	CPreferences::m_bSkipWANIPSetup;
-bool	CPreferences::m_bSkipWANPPPSetup;
 bool	CPreferences::m_bEnableUPnP;
 bool	CPreferences::m_bCloseUPnPOnExit;
-bool	CPreferences::m_bIsWinServImplDisabled;
-bool	CPreferences::m_bIsMinilibImplDisabled;
 int		CPreferences::m_nLastWorkingImpl;
 
 bool	CPreferences::m_bEnableSearchResultFilter;
@@ -577,6 +569,7 @@ void CPreferences::Init()
 				}
 			}
 		} catch (CFileException *ex) {
+			DebugLogCaughtException(__FUNCTION__, ex);
 			ASSERT(0);
 			ex->Delete();
 		}
@@ -598,6 +591,7 @@ void CPreferences::Init()
 					addresses_list.AddTail(toadd);
 			}
 		} catch (CFileException *ex) {
+			DebugLogCaughtException(__FUNCTION__, ex);
 			ASSERT(0);
 			ex->Delete();
 		}
@@ -671,24 +665,15 @@ bool CPreferences::IsTempFile(const CString &rstrDirectory, const CString &rstrN
 	CString strNameLower(rstrName);
 	strNameLower.MakeLower();
 	strNameLower += _T("|"); // append an EOS character which we can query for
-	static LPCTSTR const _apszNotSharedExts[] = {
-		_T("%u.part") _T("%c"),
-		_T("%u.part.met") _T("%c"),
-		_T("%u.part.met") PARTMET_BAK_EXT _T("%c"),
-		_T("%u.part.met") PARTMET_TMP_EXT _T("%c")
-	};
-	for (unsigned i = 0; i < _countof(_apszNotSharedExts); ++i) {
-		UINT uNum;
-		TCHAR iChar;
-		// "misuse" the 'scanf' function for a very simple pattern scanning.
-#pragma warning(push)
-#pragma warning(disable:4774)
-		if (_stscanf(strNameLower, _apszNotSharedExts[i], &uNum, &iChar) == 2 && iChar == _T('|'))
-			return true;
-#pragma warning(pop)
-	}
-
-	return false;
+	UINT uNum;
+	TCHAR iChar;
+	// "misuse" the 'scanf' function for a very simple pattern scanning.
+	// Each pattern is spelled out as a literal so that the compiler checks it
+	// against the arguments.
+	return (_stscanf(strNameLower, _T("%u.part%c"), &uNum, &iChar) == 2 && iChar == _T('|'))
+		|| (_stscanf(strNameLower, _T("%u.part.met%c"), &uNum, &iChar) == 2 && iChar == _T('|'))
+		|| (_stscanf(strNameLower, _T("%u.part.met") PARTMET_BAK_EXT _T("%c"), &uNum, &iChar) == 2 && iChar == _T('|'))
+		|| (_stscanf(strNameLower, _T("%u.part.met") PARTMET_TMP_EXT _T("%c"), &uNum, &iChar) == 2 && iChar == _T('|'));
 }
 
 uint64 CPreferences::GetMaxDownloadInBytesPerSec(bool bDynamic)
@@ -1749,10 +1734,7 @@ void CPreferences::SavePreferences()
 	ini.WriteBool(_T("A4AFSaveCpu"), m_bA4AFSaveCpu); // ZZ:DownloadManager
 	ini.WriteBool(_T("HighresTimer"), m_bHighresTimer);
 	ini.WriteInt(_T("WebMirrorAlertLevel"), m_nWebMirrorAlertLevel);
-	ini.WriteBool(_T("RunAsUnprivilegedUser"), m_bRunAsUser);
-	ini.WriteBool(_T("OpenPortsOnStartUp"), m_bOpenPortsOnStartUp);
 	ini.WriteInt(_T("DebugLogLevel"), m_byLogLevel);
-	ini.WriteInt(_T("WinXPSP2OrHigher"), static_cast<int>(IsRunningXPSP2OrHigher()));
 	ini.WriteBool(_T("RememberCancelledFiles"), m_bRememberCancelledFiles);
 	ini.WriteBool(_T("RememberDownloadedFiles"), m_bRememberDownloadedFiles);
 
@@ -1827,8 +1809,6 @@ void CPreferences::SavePreferences()
 	// Section: "UPnP"
 	//
 	ini.WriteBool(_T("EnableUPnP"), m_bEnableUPnP, _T("UPnP"));
-	ini.WriteBool(_T("SkipWANIPSetup"), m_bSkipWANIPSetup);
-	ini.WriteBool(_T("SkipWANPPPSetup"), m_bSkipWANPPPSetup);
 	ini.WriteBool(_T("CloseUPnPOnExit"), m_bCloseUPnPOnExit);
 	ini.WriteInt(_T("LastWorkingImplementation"), m_nLastWorkingImpl);
 
@@ -1953,12 +1933,6 @@ void CPreferences::LoadPreferences()
 	maxhalfconnections = ini.GetInt(_T("MaxHalfConnections"), 9);
 	m_bConditionalTCPAccept = ini.GetBool(_T("ConditionalTCPAccept"), false);
 
-	// reset max half-open to a default if OS changed to/from XP SP2 or higher
-	int dwSP2OrHigher = ini.GetInt(_T("WinXPSP2OrHigher"), -1);
-	bool dwCurSP2OrHigher = IsRunningXPSP2OrHigher();
-	if (dwSP2OrHigher != static_cast<int>(dwCurSP2OrHigher))
-		maxhalfconnections = dwCurSP2OrHigher ? 9 : 50;
-
 	m_strBindAddrW = ini.GetString(_T("BindAddr")).Trim();
 	m_pszBindAddrW = m_strBindAddrW.IsEmpty() ? NULL : (LPCWSTR)m_strBindAddrW;
 	m_strBindAddrA = m_strBindAddrW;
@@ -2010,7 +1984,7 @@ void CPreferences::LoadPreferences()
 
 	statsMax = ini.GetInt(_T("VariousStatisticsMaxValue"), 100);
 	statsAverageMinutes = ini.GetInt(_T("StatsAverageMinutes"), 5);
-	MaxConperFive = ini.GetInt(_T("MaxConnectionsPerFiveSeconds"), GetDefaultMaxConperFive());
+	MaxConperFive = ini.GetInt(_T("MaxConnectionsPerFiveSeconds"), MAXCONPER5SEC);
 
 	reconnect = ini.GetBool(_T("Reconnect"), true);
 	m_bUseServerPriorities = ini.GetBool(_T("Scoresystem"), true);
@@ -2058,7 +2032,6 @@ void CPreferences::LoadPreferences()
 	m_bResolveSharedShellLinks = ini.GetBool(_T("ResolveSharedShellLinks"), false);
 	m_bKeepUnavailableFixedSharedDirs = ini.GetBool(_T("KeepUnavailableFixedSharedDirs"), false);
 	m_strYourHostname = ini.GetString(_T("YourHostname"), _T(""));
-	m_strSecurityZone = ini.GetString(_T("InternetSecurityZone"), _T("Untrusted"));
 	m_strMediaInfoDllPath = ini.GetString(_T("MediaInfo_MediaInfoDllPath"), _T("MEDIAINFO.DLL"));
 	m_bImportParts = false; //enable on demand for the current session only
 
@@ -2308,16 +2281,13 @@ void CPreferences::LoadPreferences()
 
 	m_bA4AFSaveCpu = ini.GetBool(_T("A4AFSaveCpu"), false); // ZZ:DownloadManager
 	m_bHighresTimer = ini.GetBool(_T("HighresTimer"), false);
-	m_bRunAsUser = ini.GetBool(_T("RunAsUnprivilegedUser"), false);
-	m_bPreferRestrictedOverUser = ini.GetBool(_T("PreferRestrictedOverUser"), false);
-	m_bOpenPortsOnStartUp = ini.GetBool(_T("OpenPortsOnStartUp"), false);
 	m_byLogLevel = ini.GetInt(_T("DebugLogLevel"), DLP_VERYLOW);
 	m_bTrustEveryHash = ini.GetBool(_T("AICHTrustEveryHash"), false);
 	m_bRememberCancelledFiles = ini.GetBool(_T("RememberCancelledFiles"), true);
 	m_bRememberDownloadedFiles = ini.GetBool(_T("RememberDownloadedFiles"), true);
 	m_bPartiallyPurgeOldKnownFiles = ini.GetBool(_T("PartiallyPurgeOldKnownFiles"), true);
 
-	m_email.bSendMail = IsRunningXPSP2OrHigher() && ini.GetBool(_T("NotifierSendMail"), false);
+	m_email.bSendMail = ini.GetBool(_T("NotifierSendMail"), false);
 	m_email.uAuth = static_cast<SMTPauth>(ini.GetInt(_T("NotifierMailAuth"), 0));
 	m_email.uTLS = static_cast<TLSmode>(ini.GetInt(_T("NotifierMailTLS"), 0));
 	m_email.sFrom = ini.GetString(_T("NotifierMailSender"), _T(""));
@@ -2407,38 +2377,11 @@ void CPreferences::LoadPreferences()
 	// Section: "UPnP"
 	//
 	m_bEnableUPnP = ini.GetBool(_T("EnableUPnP"), false, _T("UPnP"));
-	m_bSkipWANIPSetup = ini.GetBool(_T("SkipWANIPSetup"), false);
-	m_bSkipWANPPPSetup = ini.GetBool(_T("SkipWANPPPSetup"), false);
 	m_bCloseUPnPOnExit = ini.GetBool(_T("CloseUPnPOnExit"), true);
-	m_nLastWorkingImpl = ini.GetInt(_T("LastWorkingImplementation"), 1 /*MiniUPnPLib*/);
-	m_bIsMinilibImplDisabled = ini.GetBool(_T("DisableMiniUPNPLibImpl"), false);
-	m_bIsWinServImplDisabled = ini.GetBool(_T("DisableWinServImpl"), false);
+	m_nLastWorkingImpl = ini.GetInt(_T("LastWorkingImplementation"), 1 /*UPNP_IMPL_LIBPLUM*/);
 
 	LoadCats();
 	SetLanguage();
-}
-
-WORD CPreferences::GetWindowsVersion()
-{
-	static bool bWinVerAlreadyDetected = false;
-	if (!bWinVerAlreadyDetected) {
-		bWinVerAlreadyDetected = true;
-		m_wWinVer = DetectWinVersion();
-	}
-	return m_wWinVer;
-}
-
-UINT CPreferences::GetDefaultMaxConperFive()
-{
-	switch (GetWindowsVersion()) {
-	case _WINVER_98_:
-		return 5;
-	case _WINVER_95_:
-	case _WINVER_ME_:
-		return MAXCON5WIN9X;
-	default:
-		return MAXCONPER5SEC;
-	}
 }
 
 //////////////////////////////////////////////////////////
@@ -2713,20 +2656,9 @@ UINT CPreferences::GetWebMirrorAlertLevel()
 	return UpdateNotify() ? m_nWebMirrorAlertLevel : 0;
 }
 
-bool CPreferences::IsRunAsUserEnabled()
-{
-	switch (GetWindowsVersion()) {
-	case _WINVER_2K_:
-	case _WINVER_XP_:
-	case _WINVER_2003_:
-		return m_bRunAsUser && m_nCurrentUserDirMode == 2;
-	}
-	return false;
-}
-
 bool CPreferences::GetUseReBarToolbar()
 {
-	return GetReBarToolbar() && theApp.m_ullComCtrlVer >= MAKEDLLVERULL(5, 8, 0, 0);
+	return GetReBarToolbar();
 }
 
 uint32 CPreferences::GetMaxGraphUploadRate(bool bEstimateIfUnlimited)
@@ -2850,16 +2782,9 @@ uint16 CPreferences::GetRandomUDPPort()
 
 // General behavior:
 //
-// WinVer < Vista
-// Default: ApplicationDir if preference.ini exists there.
-//          If not: user specific dirs if preferences.ini exits there.
-//          If not: again ApplicationDir
-// Default overridden by Registry value (see below)
-// Fallback: ApplicationDir
-//
-// WinVer >= Vista:
 // Default: User specific Dir if preferences.ini exists there.
 //          If not: All users dir, if preferences.ini exists there.
+//          If not: ApplicationDir, if preferences.ini exists there.
 //          If not: User specific Dir again
 // Default overridden by Registry value (see below)
 // Fallback: ApplicationDir
@@ -2886,7 +2811,7 @@ CString CPreferences::GetDefaultDirectory(EDefaultDirectory eDirectory, bool bCr
 
 		// check if our registry setting is present which forces the single or multiuser directories
 		// and lets us ignore other defaults
-		// 0 = Multiuser, 1 = Publicuser, 2 = ExecutableDir. (on Winver < Vista 1 has the same effect as 2)
+		// 0 = Multiuser, 1 = Publicuser, 2 = ExecutableDir.
 		DWORD nRegistrySetting = _UI32_MAX;
 		CRegKey rkEMuleRegKey;
 		if (rkEMuleRegKey.Open(HKEY_CURRENT_USER, _T("Software\\eMule"), KEY_READ) == ERROR_SUCCESS) {
@@ -2897,101 +2822,66 @@ CString CPreferences::GetDefaultDirectory(EDefaultDirectory eDirectory, bool bCr
 			nRegistrySetting = _UI32_MAX;
 
 		// Do we need to get SystemFolders, or do we use our old Default anyway? (Executable Dir)
-		bool bVista = (GetWindowsVersion() >= _WINVER_VISTA_);
-		if (nRegistrySetting == 0
-			|| (nRegistrySetting == 1 && bVista)
-			|| (nRegistrySetting == _UI32_MAX && (!bConfigAvailableExecutable || bVista)))
-		{
-			if (bVista) {
-				// function unavailable before WinVista
-				HRESULT(WINAPI *pfnSHGetKnownFolderPath)(REFKNOWNFOLDERID, DWORD, HANDLE, PWSTR*);
-				HMODULE hShell32 = ::GetModuleHandle(_T("shell32.dll"));
-				(FARPROC&)pfnSHGetKnownFolderPath = hShell32 ? ::GetProcAddress(hShell32, "SHGetKnownFolderPath") : NULL;
-				if (pfnSHGetKnownFolderPath) {
-					PWSTR pszLocalAppData = NULL;
-					PWSTR pszPersonalDownloads = NULL;
-					PWSTR pszPublicDownloads = NULL;
-					PWSTR pszProgramData = NULL;
-					if (   (*pfnSHGetKnownFolderPath)(FOLDERID_LocalAppData, 0, NULL, &pszLocalAppData) == S_OK
-						&& (*pfnSHGetKnownFolderPath)(FOLDERID_Downloads, 0, NULL, &pszPersonalDownloads) == S_OK
-						&& (*pfnSHGetKnownFolderPath)(FOLDERID_PublicDownloads, 0, NULL, &pszPublicDownloads) == S_OK
-						&& (*pfnSHGetKnownFolderPath)(FOLDERID_ProgramData, 0, NULL, &pszProgramData) == S_OK)
-					{
-						if (   wcslen(pszLocalAppData) < MAX_PATH - 30
-							&& wcslen(pszPersonalDownloads) < MAX_PATH - 40
-							&& wcslen(pszProgramData) < MAX_PATH - 30
-							&& wcslen(pszPublicDownloads) < MAX_PATH - 40)
-						{
-							CString strLocalAppData(pszLocalAppData);
-							CString strPersonalDownloads(pszPersonalDownloads);
-							CString strPublicDownloads(pszPublicDownloads);
-							CString strProgramData(pszProgramData);
-							slosh(strLocalAppData);
-							slosh(strPersonalDownloads);
-							slosh(strPublicDownloads);
-							slosh(strProgramData);
+		if (nRegistrySetting != 2) {
+			PWSTR pszLocalAppData = NULL;
+			PWSTR pszPersonalDownloads = NULL;
+			PWSTR pszPublicDownloads = NULL;
+			PWSTR pszProgramData = NULL;
+			if (   ::SHGetKnownFolderPath(FOLDERID_LocalAppData, 0, NULL, &pszLocalAppData) == S_OK
+				&& ::SHGetKnownFolderPath(FOLDERID_Downloads, 0, NULL, &pszPersonalDownloads) == S_OK
+				&& ::SHGetKnownFolderPath(FOLDERID_PublicDownloads, 0, NULL, &pszPublicDownloads) == S_OK
+				&& ::SHGetKnownFolderPath(FOLDERID_ProgramData, 0, NULL, &pszProgramData) == S_OK)
+			{
+				if (   wcslen(pszLocalAppData) < MAX_PATH - 30
+					&& wcslen(pszPersonalDownloads) < MAX_PATH - 40
+					&& wcslen(pszProgramData) < MAX_PATH - 30
+					&& wcslen(pszPublicDownloads) < MAX_PATH - 40)
+				{
+					CString strLocalAppData(pszLocalAppData);
+					CString strPersonalDownloads(pszPersonalDownloads);
+					CString strPublicDownloads(pszPublicDownloads);
+					CString strProgramData(pszProgramData);
+					slosh(strLocalAppData);
+					slosh(strPersonalDownloads);
+					slosh(strPublicDownloads);
+					slosh(strProgramData);
 
-							if (nRegistrySetting == _UI32_MAX) {
-								// no registry default, check if we find a preferences.ini to use
-								if (::PathFileExists(strLocalAppData + _T("eMule\\") CONFIGFOLDER PREFINIFILE))
-									m_nCurrentUserDirMode = 0;
-								else if (::PathFileExists(strProgramData + _T("eMule\\") CONFIGFOLDER PREFINIFILE))
-									m_nCurrentUserDirMode = 1;
-								else if (bConfigAvailableExecutable)
-									m_nCurrentUserDirMode = 2;
-								else
-									m_nCurrentUserDirMode = 0; // no preferences.ini found, use the default
-							} else
-								m_nCurrentUserDirMode = nRegistrySetting;
-
-							switch (m_nCurrentUserDirMode) {
-							case 0: //multiuser
-								strSelectedDataBaseDirectory = strPersonalDownloads + _T("eMule\\");
-								strSelectedConfigBaseDirectory = strLocalAppData + _T("eMule\\");
-								strSelectedExpansionBaseDirectory = strProgramData + _T("eMule\\");
-								break;
-							case 1: //public user
-								strSelectedDataBaseDirectory = strPublicDownloads + _T("eMule\\");
-								strSelectedConfigBaseDirectory = strProgramData + _T("eMule\\");
-								strSelectedExpansionBaseDirectory = strProgramData + _T("eMule\\");
-							case 2: //program directory
-								break;
-							default:
-								ASSERT(0);
-							}
-						} else
-							ASSERT(0);
-					}
-					::CoTaskMemFree(pszLocalAppData);
-					::CoTaskMemFree(pszPersonalDownloads);
-					::CoTaskMemFree(pszPublicDownloads);
-					::CoTaskMemFree(pszProgramData);
-				} else {
-					DebugLogError(_T("Unable to retrieve system folders' location with shell32.dll; using fallbacks"));
-					ASSERT(0);
-				}
-			} else { //pre-Vista
-				const CString &strAppData(ShellGetFolderPath(CSIDL_APPDATA));
-				const CString &strPersonal(ShellGetFolderPath(CSIDL_PERSONAL));
-				if (!strAppData.IsEmpty() && !strPersonal.IsEmpty()) {
-					if (strAppData.GetLength() < MAX_PATH - 30 && strPersonal.GetLength() < MAX_PATH - 40) {
-						if (nRegistrySetting == 0	// registry setting overwrites, use these folders
-							|| (nRegistrySetting == _UI32_MAX
-								&& !bConfigAvailableExecutable
-								&& ::PathFileExists(strAppData + _T("eMule\\") CONFIGFOLDER PREFINIFILE)))
-						{
-							slosh(const_cast<CString&>(strAppData));
-							slosh(const_cast<CString&>(strPersonal));
-							strSelectedDataBaseDirectory = strPersonal + _T("eMule Downloads\\");
-							strSelectedConfigBaseDirectory = strAppData + _T("eMule\\");
-							// strSelectedExpansionBaseDirectory stays unchanged
+					if (nRegistrySetting == _UI32_MAX) {
+						// no registry default, check if we find a preferences.ini to use
+						if (::PathFileExists(strLocalAppData + _T("eMule\\") CONFIGFOLDER PREFINIFILE))
 							m_nCurrentUserDirMode = 0;
-						} else
-							ASSERT(0);
+						else if (::PathFileExists(strProgramData + _T("eMule\\") CONFIGFOLDER PREFINIFILE))
+							m_nCurrentUserDirMode = 1;
+						else if (bConfigAvailableExecutable)
+							m_nCurrentUserDirMode = 2;
+						else
+							m_nCurrentUserDirMode = 0; // no preferences.ini found, use the default
 					} else
+						m_nCurrentUserDirMode = nRegistrySetting;
+
+					switch (m_nCurrentUserDirMode) {
+					case 0: //multiuser
+						strSelectedDataBaseDirectory = strPersonalDownloads + _T("eMule\\");
+						strSelectedConfigBaseDirectory = strLocalAppData + _T("eMule\\");
+						strSelectedExpansionBaseDirectory = strProgramData + _T("eMule\\");
+						break;
+					case 1: //public user
+						strSelectedDataBaseDirectory = strPublicDownloads + _T("eMule\\");
+						strSelectedConfigBaseDirectory = strProgramData + _T("eMule\\");
+						strSelectedExpansionBaseDirectory = strProgramData + _T("eMule\\");
+						[[fallthrough]];
+					case 2: //program directory
+						break;
+					default:
 						ASSERT(0);
-				}
+					}
+				} else
+					ASSERT(0);
 			}
+			::CoTaskMemFree(pszLocalAppData);
+			::CoTaskMemFree(pszPersonalDownloads);
+			::CoTaskMemFree(pszPublicDownloads);
+			::CoTaskMemFree(pszProgramData);
 		}
 
 		// All the directories (categories also) should have a trailing backslash
@@ -3074,10 +2964,6 @@ void CPreferences::ChangeUserDirMode(int nNewMode)
 {
 	if (m_nCurrentUserDirMode == nNewMode)
 		return;
-	if (nNewMode == 1 && GetWindowsVersion() < _WINVER_VISTA_) {
-		ASSERT(0);
-		return;
-	}
 	// check if our registry setting is present which forces the single or multiuser directories
 	// and lets us ignore other defaults
 	// 0 = Multiuser, 1 = Public user, 2 = ExecutableDir.
@@ -3093,18 +2979,7 @@ void CPreferences::ChangeUserDirMode(int nNewMode)
 
 bool CPreferences::GetSparsePartFiles()
 {
-	// Vista's Sparse File implementation seems to be buggy as far as i can see
-	// If a sparse file exceeds a given limit of write I/O operations in a certain order
-	// (or i.e. end to beginning) in its lifetime, it will at some point throw out
-	// a FILE_SYSTEM_LIMITATION error and deny any writing to this file.
-	// It was suggested that Vista might limit the data runs, which would lead to such behaviour,
-	// but wouldn't make much sense for a sparse file implementation nevertheless.
-	// Due to the fact that eMule writes a lot of small blocks into sparse files and flushes them
-	// every 6 seconds, this problem pops up sooner or later for all big files.
-	// I don't see any way to walk around this for now
-	// Update: This problem seems to be fixed on Win7, possibly on earlier Vista ServicePacks too
-	//		   In any case, we allow sparse files for versions earlier and later than Vista
-	return m_bSparsePartFiles && (GetWindowsVersion() != _WINVER_VISTA_);
+	return m_bSparsePartFiles;
 }
 
 bool CPreferences::IsRunningAeroGlassTheme()
@@ -3117,16 +2992,7 @@ bool CPreferences::IsRunningAeroGlassTheme()
 	if (!bAeroAlreadyDetected) {
 		bAeroAlreadyDetected = true;
 		m_bIsRunningAeroGlass = FALSE;
-		if (GetWindowsVersion() >= _WINVER_VISTA_) {
-			HMODULE hDWMAPI = ::LoadLibrary(_T("dwmapi.dll"));
-			if (hDWMAPI) {
-				HRESULT(WINAPI *pfnDwmIsCompositionEnabled)(BOOL*);
-				(FARPROC&)pfnDwmIsCompositionEnabled = ::GetProcAddress(hDWMAPI, "DwmIsCompositionEnabled");
-				if (pfnDwmIsCompositionEnabled != NULL)
-					pfnDwmIsCompositionEnabled(&m_bIsRunningAeroGlass);
-				::FreeLibrary(hDWMAPI);
-			}
-		}
+		::DwmIsCompositionEnabled(&m_bIsRunningAeroGlass);
 	}
 	return m_bIsRunningAeroGlass != FALSE;
 }

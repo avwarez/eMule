@@ -145,17 +145,13 @@ static char THIS_FILE[] = __FILE__;
 
 extern CStringArray g_astrParserErrors;
 
+// bison tests YYLTYPE_IS_TRIVIAL with #if but only defines it when locations are
+// in use; this grammar has none, so give it the value it was read as anyway.
+#define YYLTYPE_IS_TRIVIAL 0
+
 void ParsedSearchExpression(const CSearchExpr &expr);
 int yyerror(LPCTSTR errstr);
 int yyerrorf(LPCTSTR errstr, ...);
-
-#pragma warning(push)
-#pragma warning(disable:4065) // switch statement contains 'default' but no 'case' labels
-#pragma warning(disable:4102) // 'yyerrlab1' : unreferenced label
-#pragma warning(disable:4127) // conditional expression is constant
-#pragma warning(disable:4242) // conversion from <type1> to <type1>, possible loss of data
-#pragma warning(disable:4244) // conversion from <type1> to <type2>, possible loss of data
-#pragma warning(disable:4702) // unreachable code
 
 
 
@@ -1188,11 +1184,9 @@ YYSTYPE *yyvaluep;
 		yymsg = "Deleting";
 	YY_SYMBOL_PRINT(yymsg, yytype, yyvaluep, yylocationp);
 
-	switch (yytype) {
-
-	default:
-		break;
-	}
+	// Parser.y declares no %destructor, so bison 2.3 emitted an empty
+	// "switch (yytype) { default: break; }" here (C4065)
+	YYUSE(yytype);
 }
 
 
@@ -1325,7 +1319,7 @@ yynewstate:
 	yyssp++;
 
 yysetstate:
-	*yyssp = yystate;
+	*yyssp = static_cast<yytype_int16>(yystate);	// C4242: every state number fits, bison sized the type for them
 
 	if (yyss + yystacksize - 1 <= yyssp) {
 		/* Get the current used size of the three stacks, in elements.  */
@@ -2006,24 +2000,9 @@ yyerrlab:
 	goto yyerrlab1;
 
 
-  /*---------------------------------------------------.
-  | yyerrorlab -- error raised explicitly by YYERROR.  |
-  `---------------------------------------------------*/
-yyerrorlab:
-
-  /* Pacify compilers like GCC when the user code never invokes
-	 YYERROR and the label yyerrorlab therefore never appears in user
-	 code.  */
-	if (/*CONSTCOND*/ 0)
-		goto yyerrorlab;
-
-	 /* Do not reclaim the symbols of the rule which action triggered
-		this YYERROR.  */
-	YYPOPSTACK(yylen);
-	yylen = 0;
-	YY_STACK_PRINT(yyss, yyssp);
-	yystate = *yyssp;
-	goto yyerrlab1;
+  /* yyerrorlab, the target of YYERROR, is left out: no action in Parser.y
+	 invokes YYERROR (nor YYBACKUP, which would), so the block was unreachable
+	 (C4702). Regenerating from Parser.y brings it back. */
 
 
   /*-------------------------------------------------------------.
@@ -2164,4 +2143,3 @@ int yyerrorf(LPCTSTR errstr, ...)
 	va_end(argp);
 	return EXIT_FAILURE;
 }
-#pragma warning(pop)

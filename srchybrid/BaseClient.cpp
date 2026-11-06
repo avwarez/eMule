@@ -187,6 +187,7 @@ void CUpDownClient::Init()
 	m_nCurSessionDown = 0;
 	m_nCurQueueSessionPayloadUp = 0; // PENDING: Is this necessary? ResetSessionUp()...
 	m_addedPayloadQueueSession = 0;
+	m_uPowerShareStretches = 0;
 	m_nUpPartCount = 0;
 	m_nUpCompleteSourcesCount = 0;
 	md4clr(requpfileid);

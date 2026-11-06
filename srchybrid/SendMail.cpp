@@ -56,7 +56,7 @@ void LogCertificate(PCCERT_CONTEXT pCertContext)
 		if (CertNameToStr(X509_ASN_ENCODING | PKCS_7_ASN_ENCODING, &pCertInfo->Issuer, CERT_X500_NAME_STR, szString, _countof(szString)))
 			DebugLog(LOG_DONTNOTIFY, _T("Email Encryption: Issuer: %s"), szString);
 	} else {
-		if (CertGetNameString(pCertContext, CERT_NAME_SIMPLE_DISPLAY_TYPE, CERT_NAME_DISABLE_IE4_UTF8_FLAG, szOID_COMMON_NAME, szString, _countof(szString)))
+		if (CertGetNameString(pCertContext, CERT_NAME_SIMPLE_DISPLAY_TYPE, CERT_NAME_DISABLE_IE4_UTF8_FLAG, const_cast<LPSTR>(szOID_COMMON_NAME), szString, _countof(szString)))
 			DebugLog(LOG_DONTNOTIFY, _T("Email Encryption: Name: %s"), szString);
 
 		BYTE md5[16];
@@ -97,7 +97,7 @@ bool Encrypt(const CStringA &rstrContentA, CByteArray &raEncrypted, LPCWSTR pwsz
 			//PCCERT_CONTEXT RecipientCertArray[1] = { pRecipientCert };
 
 			CRYPT_ALGORITHM_IDENTIFIER EncryptAlgorithm = {};
-			EncryptAlgorithm.pszObjId = szOID_RSA_DES_EDE3_CBC;
+			EncryptAlgorithm.pszObjId = const_cast<LPSTR>(szOID_RSA_DES_EDE3_CBC);
 
 			CRYPT_ENCRYPT_MESSAGE_PARA EncryptParams = {};
 			EncryptParams.cbSize = (DWORD)sizeof EncryptParams;
@@ -269,6 +269,7 @@ void CNotifierMailThread::sendmail()
 	mbedtls_ssl_ticket_context ticket_ctx;
 	LPCTSTR pmsg = NULL;
 	int ret;
+	bool bEncrypt;		// declared here (uninitialized) so the "goto failed"/"goto exit"s below do not jump over an initialization
 
 	mbedtls_threading_set_alt(threading_mutex_init_alt, threading_mutex_destroy_alt, threading_mutex_lock_alt, threading_mutex_unlock_alt
 							, cond_init_alt, cond_destroy_alt, cond_signal_alt, cond_broadcast_alt, cond_wait_alt);
@@ -454,7 +455,7 @@ void CNotifierMailThread::sendmail()
 			"Content-Transfer-Encoding: 8bit\r\n\r\n%s"
 			, (LPCSTR)(NeedUTF8String(m_strBody) ? wc2utf8(m_strBody) : (CStringA)m_strBody));
 
-	bool bEncrypt = !m_mail.sEncryptCertName.IsEmpty();
+	bEncrypt = !m_mail.sEncryptCertName.IsEmpty();
 	if (bEncrypt) {
 		CByteArray aEncrypted;
 		if (!Encrypt(sBodyA, aEncrypted, m_mail.sEncryptCertName))

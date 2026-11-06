@@ -149,6 +149,7 @@ bool CCollection::InitCollectionFromFile(const CString &sFilePath, const CString
 					CCollectionFile *pCollectionFile = new CCollectionFile(data);
 					AddFileToCollection(pCollectionFile, false);
 				} catch (...) {
+					DebugLogCaughtException(__FUNCTION__);
 					ASSERT(0);
 				}
 
@@ -189,9 +190,11 @@ bool CCollection::InitCollectionFromFile(const CString &sFilePath, const CString
 			m_sCollectionAuthorName.Empty();
 		data.Close();
 	} catch (CFileException *ex) {
+		DebugLogCaughtException(__FUNCTION__, ex);
 		ex->Delete();
 		return false;
 	} catch (...) {
+		DebugLogCaughtException(__FUNCTION__);
 		ASSERT(0);
 		return false;
 	}
@@ -212,6 +215,7 @@ bool CCollection::InitCollectionFromFile(const CString &sFilePath, const CString
 							else
 								delete pCollectionFile;
 						} catch (...) {
+							DebugLogCaughtException(__FUNCTION__);
 							ASSERT(0);
 							return false;
 						}
@@ -226,8 +230,10 @@ bool CCollection::InitCollectionFromFile(const CString &sFilePath, const CString
 				m_bTextFormat = true;
 				return true;
 			} catch (CFileException *ex) {
+				DebugLogCaughtException(__FUNCTION__, ex);
 				ex->Delete();
 			} catch (...) {
+				DebugLogCaughtException(__FUNCTION__);
 				ASSERT(0);
 			}
 		}
@@ -252,9 +258,11 @@ void CCollection::WriteToFileAddShared(CryptoPP::RSASSA_PKCS1v15_SHA_Signer *pSi
 
 				data.Close();
 			} catch (CFileException *ex) {
+				DebugLogCaughtException(__FUNCTION__, ex);
 				ex->Delete();
 				return;
 			} catch (...) {
+				DebugLogCaughtException(__FUNCTION__);
 				ASSERT(0);
 				return;
 			}
@@ -311,9 +319,11 @@ void CCollection::WriteToFileAddShared(CryptoPP::RSASSA_PKCS1v15_SHA_Signer *pSi
 				}
 				data.Close();
 			} catch (CFileException *ex) {
+				DebugLogCaughtException(__FUNCTION__, ex);
 				ex->Delete();
 				return;
 			} catch (...) {
+				DebugLogCaughtException(__FUNCTION__);
 				ASSERT(0);
 				return;
 			}

@@ -107,8 +107,6 @@ void CMuleSystrayDlg::OnMouseMove(UINT nFlags, CPoint point)
 	CDialog::OnMouseMove(nFlags, point);
 }
 
-#pragma warning(push)
-#pragma warning(disable:4701) //local variable 'lfStaticFont'
 BOOL CMuleSystrayDlg::OnInitDialog()
 {
 	CDialog::OnInitDialog();
@@ -119,7 +117,7 @@ BOOL CMuleSystrayDlg::OnInitDialog()
 	m_ctrlUpArrow.SetIcon(m_hUpArrow);
 	m_ctrlDownArrow.SetIcon(m_hDownArrow);
 
-	LOGFONT lfStaticFont;
+	LOGFONT lfStaticFont = {};
 
 	CWnd *p = GetDlgItem(IDC_SPEED);
 	bool bValidFont = (p != NULL);
@@ -277,9 +275,7 @@ BOOL CMuleSystrayDlg::OnInitDialog()
 	CFont Font;
 	Font.CreateFont(-16, 0, 900, 0, 700, 0, 0, 0, 0, 3, 2, 1, 34, _T("Tahoma"));
 
-	UINT winver = thePrefs.GetWindowsVersion();
-	int iClr = (winver == _WINVER_95_ || winver == _WINVER_NT4_ || g_bLowColorDesktop)
-		? COLOR_ACTIVECAPTION : COLOR_GRADIENTACTIVECAPTION;
+	int iClr = g_bLowColorDesktop ? COLOR_ACTIVECAPTION : COLOR_GRADIENTACTIVECAPTION;
 	m_ctrlSidebar.SetColors(::GetSysColor(COLOR_CAPTIONTEXT), ::GetSysColor(COLOR_ACTIVECAPTION), ::GetSysColor(iClr));
 
 	m_ctrlSidebar.SetHorizontal(false);
@@ -304,7 +300,6 @@ BOOL CMuleSystrayDlg::OnInitDialog()
 	return TRUE;  // return TRUE unless you set the focus to the control
 				  // EXCEPTION: OCX Property Pages should return FALSE
 }
-#pragma warning(pop)
 
 void CMuleSystrayDlg::OnChangeDowntxt()
 {

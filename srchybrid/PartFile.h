@@ -15,6 +15,7 @@
 //along with this program; if not, write to the Free Software
 //Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 #pragma once
+#include <atomic>
 #include "KnownFile.h"
 #include "DeadSourceList.h"
 #include "CorruptionBlackBox.h"
@@ -293,6 +294,9 @@ public:
 
 	void	FlushBuffersExceptionHandler(CFileException *ex);
 	void	FlushBuffersExceptionHandler();
+	void	PauseDownloadsOnVolume();
+	void	RetryFailedWrites();
+	bool	FlushBeforeFinalHash();
 
 	void	PerformFileCompleteEnd(DWORD dwResult);
 
@@ -340,8 +344,8 @@ public:
 	uint16	src_stats[4];
 	uint16	net_stats[3];
 	uint8	m_TotalSearchesKad;
-	volatile bool m_bPreviewing;
-	volatile bool m_bRecoveringArchive; // Is archive recovery in progress
+	std::atomic<bool> m_bPreviewing;
+	std::atomic<bool> m_bRecoveringArchive; // Is archive recovery in progress
 	bool	m_bLocalSrcReqQueued;
 	bool	srcarevisible;				// used for downloadlistctrl
 	bool	m_bMD4HashsetNeeded;
@@ -384,12 +388,14 @@ private:
 	time_t	m_nDlActiveTime;
 	time_t	m_tLastModified;	// last file modification time (NT's version of UTC), to be used for stats only!
 	time_t	m_tCreated;			// file creation time (NT's version of UTC), to be used for stats only!
-	volatile WPARAM m_uFileOpProgress;
+	std::atomic<WPARAM> m_uFileOpProgress;
 	DWORD	lastSwapForSourceExchangeTick; // ZZ:DownloadManaager
 	DWORD	m_lastRefreshedDLDisplay;
 	DWORD	m_nLastBufferFlushTime;
 	DWORD	m_nNextMetFlushTime; //update .part.met file
 	DWORD	m_nFileFlushTime; //if file is idle long enough, flush new data to disk
+	uint32	m_uFlushJob;	// 97q: the periodic flush running, see CPartFileWriteThread::StartFlush()
+	DWORD	m_dwFinalFlushError;	// 97q: see FlushBeforeFinalHash()
 	DWORD	m_dwFileAttributes;
 	DWORD	m_random_update_wait;
 	UINT	m_anStates[STATES_COUNT];
@@ -402,7 +408,7 @@ private:
 	uint32	m_datarate;
 	float	m_percentcompleted;
 	EPartFileStatus	status;
-	volatile EPartFileOp m_eFileOp;
+	std::atomic<EPartFileOp> m_eFileOp;
 	byte	m_refresh; //delay counter for display
 	uint8	m_iDownPriority;
 	bool	m_paused;

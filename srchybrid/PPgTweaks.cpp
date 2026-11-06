@@ -86,7 +86,6 @@ CPPgTweaks::CPPgTweaks()
 	, m_htiExtractMetaDataID3Lib()
 	, m_htiExtractMetaDataNever()
 	, m_htiFilterLANIPs()
-	, m_htiFirewallStartup()
 	, m_htiFullAlloc()
 	, m_htiImportParts()
 	, m_htiLog2Disk()
@@ -107,8 +106,6 @@ CPPgTweaks::CPPgTweaks()
 	, m_htiShareeMuleMultiUser()
 	, m_htiShareeMuleOldStyle()
 	, m_htiShareeMulePublicUser()
-	, m_htiSkipWANIPSetup()
-	, m_htiSkipWANPPPSetup()
 	, m_htiSparsePartFiles()
 	, m_htiTCPGroup()
 	, m_htiUPnP()
@@ -144,7 +141,6 @@ CPPgTweaks::CPPgTweaks()
 	, m_bDynUpEnabled()
 	, m_bExtControls()
 	, m_bFilterLANIPs()
-	, m_bFirewallStartup()
 	, m_bFullAlloc()
 	, m_bImportParts()
 	, m_bInitializedTreeOpts()
@@ -158,8 +154,6 @@ CPPgTweaks::CPPgTweaks()
 	, m_bLogUlDlEvents()
 	, m_bResolveShellLinks()
 	, m_bShowedWarning()
-	, m_bSkipWANIPSetup()
-	, m_bSkipWANPPPSetup()
 	, m_bSparsePartFiles()
 	, m_bVerbose()
 {
@@ -209,7 +203,6 @@ void CPPgTweaks::DoDataExchange(CDataExchange *pDX)
 		//
 		m_htiAutoTakeEd2kLinks = m_ctrlTreeOptions.InsertCheckBox(GetResString(IDS_AUTOTAKEED2KLINKS), TVI_ROOT, m_bAutoTakeEd2kLinks);
 		m_htiCreditSystem = m_ctrlTreeOptions.InsertCheckBox(GetResString(IDS_USECREDITSYSTEM), TVI_ROOT, m_bCreditSystem);
-		m_htiFirewallStartup = m_ctrlTreeOptions.InsertCheckBox(GetResString(IDS_FO_PREF_STARTUP), TVI_ROOT, m_bFirewallStartup);
 		m_htiFilterLANIPs = m_ctrlTreeOptions.InsertCheckBox(GetResString(IDS_PW_FILTER), TVI_ROOT, m_bFilterLANIPs);
 		m_htiExtControls = m_ctrlTreeOptions.InsertCheckBox(GetResString(IDS_SHOWEXTSETTINGS), TVI_ROOT, m_bExtControls);
 		m_htiA4AFSaveCpu = m_ctrlTreeOptions.InsertCheckBox(GetResString(IDS_A4AF_SAVE_CPU), TVI_ROOT, m_bA4AFSaveCpu); // ZZ:DownloadManager
@@ -281,8 +274,6 @@ void CPPgTweaks::DoDataExchange(CDataExchange *pDX)
 		//
 		m_htiUPnP = m_ctrlTreeOptions.InsertGroup(GetResString(IDS_UPNP), iImgUPnP, TVI_ROOT);
 		m_htiCloseUPnPPorts = m_ctrlTreeOptions.InsertCheckBox(GetResString(IDS_UPNPCLOSEONEXIT), m_htiUPnP, m_bCloseUPnPOnExit);
-		m_htiSkipWANIPSetup = m_ctrlTreeOptions.InsertCheckBox(GetResString(IDS_UPNPSKIPWANIP), m_htiUPnP, m_bSkipWANIPSetup);
-		m_htiSkipWANPPPSetup = m_ctrlTreeOptions.InsertCheckBox(GetResString(IDS_UPNPSKIPWANPPP), m_htiUPnP, m_bSkipWANPPPSetup);
 
 		/////////////////////////////////////////////////////////////////////////////
 		// eMule Shared Use
@@ -321,11 +312,8 @@ void CPPgTweaks::DoDataExchange(CDataExchange *pDX)
 	/////////////////////////////////////////////////////////////////////////////
 	// Miscellaneous group
 	//
-	WORD wv = thePrefs.GetWindowsVersion();
 	DDX_TreeCheck(pDX, IDC_EXT_OPTS, m_htiAutoTakeEd2kLinks, m_bAutoTakeEd2kLinks);
 	DDX_TreeCheck(pDX, IDC_EXT_OPTS, m_htiCreditSystem, m_bCreditSystem);
-	DDX_TreeCheck(pDX, IDC_EXT_OPTS, m_htiFirewallStartup, m_bFirewallStartup);
-	m_ctrlTreeOptions.SetCheckBoxEnable(m_htiFirewallStartup, wv == _WINVER_XP_ && !IsRunningXPSP2());
 	DDX_TreeCheck(pDX, IDC_EXT_OPTS, m_htiFilterLANIPs, m_bFilterLANIPs);
 	DDX_TreeCheck(pDX, IDC_EXT_OPTS, m_htiExtControls, m_bExtControls);
 	DDX_TreeCheck(pDX, IDC_EXT_OPTS, m_htiA4AFSaveCpu, m_bA4AFSaveCpu);
@@ -336,7 +324,6 @@ void CPPgTweaks::DoDataExchange(CDataExchange *pDX)
 	// File related group
 	//
 	DDX_TreeCheck(pDX, IDC_EXT_OPTS, m_htiSparsePartFiles, m_bSparsePartFiles);
-	m_ctrlTreeOptions.SetCheckBoxEnable(m_htiSparsePartFiles, wv != _WINVER_VISTA_ /*only disable on Vista, not later versions*/);
 	DDX_TreeCheck(pDX, IDC_EXT_OPTS, m_htiImportParts, m_bImportParts);
 	DDX_TreeCheck(pDX, IDC_EXT_OPTS, m_htiFullAlloc, m_bFullAlloc);
 	DDX_TreeCheck(pDX, IDC_EXT_OPTS, m_htiCheckDiskspace, m_bCheckDiskspace);
@@ -415,14 +402,11 @@ void CPPgTweaks::DoDataExchange(CDataExchange *pDX)
 	// UPnP group
 	//
 	DDX_TreeCheck(pDX, IDC_EXT_OPTS, m_htiCloseUPnPPorts, m_bCloseUPnPOnExit);
-	DDX_TreeCheck(pDX, IDC_EXT_OPTS, m_htiSkipWANIPSetup, m_bSkipWANIPSetup);
-	DDX_TreeCheck(pDX, IDC_EXT_OPTS, m_htiSkipWANPPPSetup, m_bSkipWANPPPSetup);
 
 	/////////////////////////////////////////////////////////////////////////////
 	// eMule Shared User
 	//
 	DDX_TreeRadio(pDX, IDC_EXT_OPTS, m_htiShareeMule, m_iShareeMule);
-	m_ctrlTreeOptions.SetRadioButtonEnable(m_htiShareeMulePublicUser, wv >= _WINVER_VISTA_);
 }
 
 BOOL CPPgTweaks::OnInitDialog()
@@ -458,7 +442,6 @@ BOOL CPPgTweaks::OnInitDialog()
 	m_bResolveShellLinks = thePrefs.GetResolveSharedShellLinks();
 	m_fMinFreeDiskSpaceMB = (float)(thePrefs.m_uMinFreeDiskSpace / (1024.0 * 1024.0));
 	m_sYourHostname = thePrefs.GetYourHostname();
-	m_bFirewallStartup = ((thePrefs.GetWindowsVersion() == _WINVER_XP_) ? thePrefs.m_bOpenPortsOnStartUp : 0);
 	m_bAutoArchDisable = !thePrefs.m_bAutomaticArcPreviewStart;
 
 	m_bDynUpEnabled = thePrefs.m_bDynUpEnabled;
@@ -471,8 +454,6 @@ BOOL CPPgTweaks::OnInitDialog()
 	m_iDynUpNumberOfPings = thePrefs.GetDynUpNumberOfPings();
 
 	m_bCloseUPnPOnExit = thePrefs.CloseUPnPOnExit();
-	m_bSkipWANIPSetup = thePrefs.GetSkipWANIPSetup();
-	m_bSkipWANPPPSetup = thePrefs.GetSkipWANPPPSetup();
 
 	m_iShareeMule = thePrefs.m_nCurrentUserDirMode;
 
@@ -589,7 +570,6 @@ BOOL CPPgTweaks::OnApply()
 		thePrefs.SetYourHostname(m_sYourHostname);
 		theApp.emuledlg->serverwnd->UpdateMyInfo();
 	}
-	thePrefs.m_bOpenPortsOnStartUp = m_bFirewallStartup;
 
 	thePrefs.m_bDynUpEnabled = m_bDynUpEnabled;
 	thePrefs.m_minupload = (uint32)m_iDynUpMinUpload;
@@ -602,8 +582,6 @@ BOOL CPPgTweaks::OnApply()
 	thePrefs.m_bAutomaticArcPreviewStart = !m_bAutoArchDisable;
 
 	thePrefs.m_bCloseUPnPOnExit = m_bCloseUPnPOnExit;
-	thePrefs.SetSkipWANIPSetup(m_bSkipWANIPSetup);
-	thePrefs.SetSkipWANPPPSetup(m_bSkipWANPPPSetup);
 
 	thePrefs.ChangeUserDirMode(m_iShareeMule);
 
@@ -688,7 +666,6 @@ void CPPgTweaks::Localize()
 		//LocalizeItemText(m_htiExtractMetaDataMediaDet, IDS_META_DATA_MEDIADET);
 		LocalizeItemText(m_htiExtractMetaDataNever, IDS_NEVER);
 		LocalizeItemText(m_htiFilterLANIPs, IDS_PW_FILTER);
-		LocalizeItemText(m_htiFirewallStartup, IDS_FO_PREF_STARTUP);
 		LocalizeItemText(m_htiFullAlloc, IDS_FULLALLOC);
 		LocalizeItemText(m_htiImportParts, IDS_ENABLEIMPORTPARTS);
 		LocalizeItemText(m_htiLog2Disk, IDS_LOG2DISK);
@@ -704,8 +681,6 @@ void CPPgTweaks::Localize()
 		LocalizeItemText(m_htiShareeMuleMultiUser, IDS_SHAREEMULEMULTI);
 		LocalizeItemText(m_htiShareeMuleOldStyle, IDS_SHAREEMULEOLD);
 		LocalizeItemText(m_htiShareeMulePublicUser, IDS_SHAREEMULEPUBLIC);
-		LocalizeItemText(m_htiSkipWANIPSetup, IDS_UPNPSKIPWANIP);
-		LocalizeItemText(m_htiSkipWANPPPSetup, IDS_UPNPSKIPWANPPP);
 		LocalizeItemText(m_htiSparsePartFiles, IDS_SPARSEPARTFILES);
 		LocalizeItemText(m_htiTCPGroup, IDS_TCPIP_CONNS);
 		LocalizeItemText(m_htiUPnP, IDS_UPNP);
@@ -757,7 +732,6 @@ void CPPgTweaks::OnDestroy()
 	m_htiCheckDiskspace = NULL;
 	m_htiMinFreeDiskSpace = NULL;
 	m_htiYourHostname = NULL;
-	m_htiFirewallStartup = NULL;
 	m_htiDynUp = NULL;
 	m_htiDynUpEnabled = NULL;
 	m_htiDynUpMinUpload = NULL;
@@ -776,8 +750,6 @@ void CPPgTweaks::OnDestroy()
 	m_htiAutoArch = NULL;
 	m_htiUPnP = NULL;
 	m_htiCloseUPnPPorts = NULL;
-	m_htiSkipWANIPSetup = NULL;
-	m_htiSkipWANPPPSetup = NULL;
 	m_htiShareeMule = NULL;
 	m_htiShareeMuleMultiUser = NULL;
 	m_htiShareeMulePublicUser = NULL;

@@ -15,6 +15,7 @@
 //along with this program; if not, write to the Free Software
 //Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 #pragma once
+#include <atomic>
 
 class CServer;
 class CUpDownClient;
@@ -62,7 +63,7 @@ public:
 	bool AcceptNewClient() const				{ return acceptNewClient || !m_enabled; }
 
 	bool SetPrefs(const CurrentParamStruct &cur);
-	void InitiateFastReactionPeriod()			{ ::InterlockedExchange8(&m_initiateFastReactionPeriod, 1); }
+	void InitiateFastReactionPeriod()			{ m_initiateFastReactionPeriod.exchange(1); }
 
 	uint32 GetUpload() const					{ return m_upload; }
 private:
@@ -107,8 +108,8 @@ private:
 	uint32 m_lowestPing;
 	UINT   m_uState;
 
-	volatile CHAR m_initiateFastReactionPeriod;
-	volatile bool m_bRun;
+	std::atomic<CHAR> m_initiateFastReactionPeriod;
+	std::atomic<bool> m_bRun;
 	bool m_enabled;
 	bool m_bUseMillisecondPingTolerance;
 	bool acceptNewClient;

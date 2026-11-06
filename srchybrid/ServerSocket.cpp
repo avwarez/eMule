@@ -622,6 +622,7 @@ void CServerSocket::ProcessPacketError(UINT size, UINT opcode, LPCTSTR pszError)
 			else
 				strServer = _T("Unknown");
 		} catch (...) {
+			DebugLogCaughtException(__FUNCTION__);
 		}
 		DebugLogWarning(LOG_DEFAULT, _T("Error: Failed to process server TCP packet from %s: opcode=0x%02x size=%u - %s"), (LPCTSTR)strServer, opcode, size, pszError);
 	}

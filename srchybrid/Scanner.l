@@ -29,12 +29,6 @@ int opt_strnicmp(const char *pszString, const char *pszMatch, size_t nMinMatch);
 static CStringA s_strInputBuff;
 static LPCSTR s_pszLexBuff;
 static bool s_bKeepQuotedStrings;
-
-#pragma warning(push)
-#pragma warning(disable:4127) // conditional expression is constant
-#pragma warning(disable:4242) // conversion from <type1> to <type1>, possible loss of data
-#pragma warning(disable:4244) // conversion from <type1> to <type2>, possible loss of data
-#pragma warning(disable:4505) // unreferenced local function has been removed
 %}
 
 /* flex 2.5.35: There is a bug in the 'noyywrap' option which creates a wrong 'yywrap' macro.
@@ -482,9 +476,6 @@ int yywrap()
 	return 1;
 }
 
-#pragma warning(default:4127) // conditional expression is constant
-#pragma warning(default:4244) // conversion from 'type1' to 'type2', possible loss of data
-
 static void ReadLexBuff(char *pcBuff, int &riResult, size_t uMaxSize)
 {
 	ASSERT( s_pszLexBuff != NULL );
@@ -539,4 +530,3 @@ int opt_strnicmp(const char *pszString, const char *pszMatch, size_t nMinMatch)
 		return 1;
 	return _strnicmp(pszString, pszMatch, nStringLen);
 }
-#pragma warning(pop)

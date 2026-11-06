@@ -69,7 +69,7 @@ CHTRichEditCtrl::CHTRichEditCtrl()
 	m_cfDefault.cbSize = (UINT)sizeof(CHARFORMAT2);
 }
 
-BOOL CHTRichEditCtrl::Create(DWORD dwStyle, const RECT &rect, CWnd *parent, UINT nID)
+BOOL CHTRichEditCtrl::CreateMsftEdit(DWORD dwStyle, const RECT &rect, CWnd *parent, UINT nID)
 {
 	return static_cast<CWnd*>(this)->Create(MSFTEDIT_CLASS, NULL, dwStyle, rect, parent, nID);
 }
@@ -553,7 +553,7 @@ BOOL CHTRichEditCtrl::OnCommand(WPARAM wParam, LPARAM)
 bool CHTRichEditCtrl::SaveLog(LPCTSTR pszDefName)
 {
 	bool bResult = false;
-	const CString &fname(pszDefName ? pszDefName : m_strTitle);
+	const CString &fname(pszDefName ? CString(pszDefName) : m_strTitle);
 	CFileDialog dlg(FALSE, _T("log"), (LPCTSTR)ValidFilename(fname), OFN_HIDEREADONLY | OFN_OVERWRITEPROMPT, _T("Log Files (*.log)|*.log||"), this, 0);
 	if (dlg.DoModal() == IDOK) {
 		FILE *fp = _tfsopen(dlg.GetPathName(), _T("wb"), _SH_DENYWR);
@@ -903,31 +903,36 @@ CBitmapDataObject::CBitmapDataObject(HBITMAP hBitmap)
 {
 }
 
-#pragma warning(push)
-#pragma warning(disable:4100) // unreferenced parameter
-#pragma warning(disable:4555) // expression has no effect; expected expression with side-effect (because of the 'METHOD_PROLOGUE' macro)
+// MFC's METHOD_PROLOGUE() ends in a bare "pThis;" statement, there so that an
+// unused pThis does not warn, and /Wall reports that statement as C4555 instead.
+// Same computation and the same module state, with the reference made explicit.
+#define METHOD_PROLOGUE_NOWARN(theClass, localClass) \
+	theClass *pThis = ((theClass*)((BYTE*)this - offsetof(theClass, m_x##localClass))); \
+	AFX_MANAGE_STATE(pThis->m_pModuleState) \
+	(void)pThis
+
 
 STDMETHODIMP CBitmapDataObject::XDataObject::QueryInterface(REFIID iid, LPVOID *ppvObj) NOEXCEPT
 {
-	METHOD_PROLOGUE(CBitmapDataObject, DataObject);
+	METHOD_PROLOGUE_NOWARN(CBitmapDataObject, DataObject);
 	return (HRESULT)pThis->ExternalQueryInterface(&iid, ppvObj);
 }
 
 STDMETHODIMP_(ULONG) CBitmapDataObject::XDataObject::AddRef() NOEXCEPT
 {
-	METHOD_PROLOGUE(CBitmapDataObject, DataObject);
+	METHOD_PROLOGUE_NOWARN(CBitmapDataObject, DataObject);
 	return pThis->ExternalAddRef();
 }
 
 STDMETHODIMP_(ULONG) CBitmapDataObject::XDataObject::Release() NOEXCEPT
 {
-	METHOD_PROLOGUE(CBitmapDataObject, DataObject);
+	METHOD_PROLOGUE_NOWARN(CBitmapDataObject, DataObject);
 	return pThis->ExternalRelease();
 }
 
-STDMETHODIMP CBitmapDataObject::XDataObject::GetData(FORMATETC *pformatetcIn, STGMEDIUM *pmedium) noexcept
+STDMETHODIMP CBitmapDataObject::XDataObject::GetData(FORMATETC * /*pformatetcIn*/, STGMEDIUM *pmedium) noexcept
 {
-	METHOD_PROLOGUE(CBitmapDataObject, DataObject);
+	METHOD_PROLOGUE_NOWARN(CBitmapDataObject, DataObject);
 #ifdef USE_METAFILE
 	pmedium->tymed = TYMED_ENHMF;
 	pmedium->hEnhMetaFile = (HENHMETAFILE)pThis->m_hBitmap;
@@ -939,55 +944,54 @@ STDMETHODIMP CBitmapDataObject::XDataObject::GetData(FORMATETC *pformatetcIn, ST
 	return S_OK;
 }
 
-STDMETHODIMP CBitmapDataObject::XDataObject::GetDataHere(FORMATETC *pformatetc, STGMEDIUM *pmedium) noexcept
+STDMETHODIMP CBitmapDataObject::XDataObject::GetDataHere(FORMATETC * /*pformatetc*/, STGMEDIUM * /*pmedium*/) noexcept
 {
-	METHOD_PROLOGUE(CBitmapDataObject, DataObject);
+	METHOD_PROLOGUE_NOWARN(CBitmapDataObject, DataObject);
 	return E_NOTIMPL;
 }
 
-STDMETHODIMP CBitmapDataObject::XDataObject::QueryGetData(FORMATETC *pformatetc) noexcept
+STDMETHODIMP CBitmapDataObject::XDataObject::QueryGetData(FORMATETC * /*pformatetc*/) noexcept
 {
-	METHOD_PROLOGUE(CBitmapDataObject, DataObject);
+	METHOD_PROLOGUE_NOWARN(CBitmapDataObject, DataObject);
 	return E_NOTIMPL;
 }
 
-STDMETHODIMP CBitmapDataObject::XDataObject::GetCanonicalFormatEtc(FORMATETC *pformatectIn, FORMATETC *pformatetcOut) noexcept
+STDMETHODIMP CBitmapDataObject::XDataObject::GetCanonicalFormatEtc(FORMATETC * /*pformatectIn*/, FORMATETC * /*pformatetcOut*/) noexcept
 {
-	METHOD_PROLOGUE(CBitmapDataObject, DataObject);
+	METHOD_PROLOGUE_NOWARN(CBitmapDataObject, DataObject);
 	return E_NOTIMPL;
 }
 
-STDMETHODIMP CBitmapDataObject::XDataObject::SetData(FORMATETC *pformatetc, STGMEDIUM *pmedium, BOOL fRelease) noexcept
+STDMETHODIMP CBitmapDataObject::XDataObject::SetData(FORMATETC * /*pformatetc*/, STGMEDIUM * /*pmedium*/, BOOL /*fRelease*/) noexcept
 {
-	METHOD_PROLOGUE(CBitmapDataObject, DataObject);
+	METHOD_PROLOGUE_NOWARN(CBitmapDataObject, DataObject);
 	return E_NOTIMPL;
 }
 
-STDMETHODIMP CBitmapDataObject::XDataObject::EnumFormatEtc(DWORD dwDirection, IEnumFORMATETC **ppenumFormatEtc) noexcept
+STDMETHODIMP CBitmapDataObject::XDataObject::EnumFormatEtc(DWORD /*dwDirection*/, IEnumFORMATETC ** /*ppenumFormatEtc*/) noexcept
 {
-	METHOD_PROLOGUE(CBitmapDataObject, DataObject);
+	METHOD_PROLOGUE_NOWARN(CBitmapDataObject, DataObject);
 	return E_NOTIMPL;
 }
 
-STDMETHODIMP CBitmapDataObject::XDataObject::DAdvise(FORMATETC *pformatetc, DWORD advf, IAdviseSink *pAdvSink, DWORD *pdwConnection) noexcept
+STDMETHODIMP CBitmapDataObject::XDataObject::DAdvise(FORMATETC * /*pformatetc*/, DWORD /*advf*/, IAdviseSink * /*pAdvSink*/, DWORD * /*pdwConnection*/) noexcept
 {
-	METHOD_PROLOGUE(CBitmapDataObject, DataObject);
+	METHOD_PROLOGUE_NOWARN(CBitmapDataObject, DataObject);
 	return E_NOTIMPL;
 }
 
-STDMETHODIMP CBitmapDataObject::XDataObject::DUnadvise(DWORD dwConnection) noexcept
+STDMETHODIMP CBitmapDataObject::XDataObject::DUnadvise(DWORD /*dwConnection*/) noexcept
 {
-	METHOD_PROLOGUE(CBitmapDataObject, DataObject);
+	METHOD_PROLOGUE_NOWARN(CBitmapDataObject, DataObject);
 	return E_NOTIMPL;
 }
 
-STDMETHODIMP CBitmapDataObject::XDataObject::EnumDAdvise(IEnumSTATDATA **ppenumAdvise) noexcept
+STDMETHODIMP CBitmapDataObject::XDataObject::EnumDAdvise(IEnumSTATDATA ** /*ppenumAdvise*/) noexcept
 {
-	METHOD_PROLOGUE(CBitmapDataObject, DataObject);
+	METHOD_PROLOGUE_NOWARN(CBitmapDataObject, DataObject);
 	return E_NOTIMPL;
 }
 
-#pragma warning(pop)
 
 static const struct
 {
@@ -1181,6 +1185,7 @@ static HBITMAP IconToBitmap(HICON hIcon, COLORREF crBackground, int cx = 16, int
 		}
 #endif
 	} catch (CException *ex) {
+		DebugLogCaughtException(__FUNCTION__, ex);
 		ASSERT(0);
 		ex->Delete();
 	}

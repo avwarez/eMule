@@ -7,6 +7,7 @@
 #include "emule.h"
 #include "CreditsDlg.h"
 #include "CreditsThread.h"
+#include "Log.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -78,6 +79,7 @@ void CCreditsDlg::StartThread()
 		m_pThread = new CCreditsThread(this, m_pDC->GetSafeHdc(), &m_rectScreen);
 		((CCreditsThread*)m_pThread)->SetRunning(true);
 	} catch (...) {
+		DebugLogCaughtException(__FUNCTION__);
 		m_pThread = NULL;
 		return;
 	}

@@ -11,6 +11,7 @@ All rights reserved.
 
 ////////////////////////////////// Macros ///////////////////////////
 #pragma once
+#include <atomic>
 #include <afxinet.h>
 
 
@@ -90,9 +91,8 @@ protected:
 	HINTERNET		m_hHttpConnection;
 	HINTERNET		m_hHttpFile;
 	CWinThread		*m_pThread;
-	static ULONGLONG sm_ullWinInetVer;
 	DWORD			m_dwServiceType;
 	INTERNET_PORT	m_nPort;
-	volatile bool	m_bAbort;
+	std::atomic<bool>	m_bAbort;
 	bool			m_bSafeToClose;
 };

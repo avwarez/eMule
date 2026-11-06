@@ -106,6 +106,7 @@ CSearch::~CSearch()
 	case FINDSOURCE: // maybe also exclude
 		if (m_uClosestDistantFound != 0)
 			CKademlia::StatsAddClosestDistance(m_uClosestDistantFound);
+		[[fallthrough]];
 	default: // NODE, NODESPECIAL, NODEFWCHECKUDP, FINDBUDDY
 		break;
 	}
@@ -1052,8 +1053,6 @@ void CSearch::ProcessResultNotes(const CUInt128 &uAnswer, TagList &rlistInfo)
 	}
 }
 
-#pragma warning(push)
-#pragma warning(disable:4312)
 void CSearch::ProcessResultKeyword(const CUInt128 &uAnswer, TagList &rlistInfo, uint32 uFromIP, uint16 uFromPort)
 {
 	// Find the contact who sent the answer - we need to know its protocol version
@@ -1225,12 +1224,11 @@ void CSearch::ProcessResultKeyword(const CUInt128 &uAnswer, TagList &rlistInfo, 
 		, TAGTYPE_STRING, TAG_MEDIA_ARTIST,		(LPCWSTR)sArtist
 		, TAGTYPE_STRING, TAG_MEDIA_ALBUM,		(LPCWSTR)sAlbum
 		, TAGTYPE_STRING, TAG_MEDIA_TITLE,		(LPCWSTR)sTitle
-		, TAGTYPE_UINT32, TAG_MEDIA_LENGTH,		(LPCTSTR)uLength		//uint32
-		, TAGTYPE_UINT32, TAG_MEDIA_BITRATE,	(LPCTSTR)uBitrate		//uint32
+		, TAGTYPE_UINT32, TAG_MEDIA_LENGTH,		(LPCTSTR)(UINT_PTR)uLength		//uint32
+		, TAGTYPE_UINT32, TAG_MEDIA_BITRATE,	(LPCTSTR)(UINT_PTR)uBitrate		//uint32
 		, TAGTYPE_STRING, TAG_MEDIA_CODEC,		(LPCWSTR)sCodec
-		, TAGTYPE_UINT32, TAG_SOURCES,			(LPCTSTR)uAvailability);//uint32
+		, TAGTYPE_UINT32, TAG_SOURCES,			(LPCTSTR)(UINT_PTR)uAvailability);//uint32
 }
-#pragma warning(pop)
 
 void CSearch::SendFindValue(CContact *pContact, bool bReAskMore)
 {

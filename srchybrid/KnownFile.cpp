@@ -86,6 +86,9 @@ CKnownFile::CKnownFile()
 	, m_bAutoUpPriority(thePrefs.GetNewAutoUp())
 	, m_PublishedED2K()
 	, m_bAICHRecoverHashSetAvailable()
+	, m_iPowerShareMode(-1)
+	, m_bPowerShareAuthorized(true)
+	, m_bPowerShareHeldByPriority()
 {
 	m_iUpPriority = m_bAutoUpPriority ? PR_HIGH : PR_NORMAL;
 	statistic.fileParent = this;
@@ -118,6 +121,9 @@ void CKnownFile::AssertValid() const
 	(void)m_iED2KPartCount;
 	ASSERT(m_iUpPriority == PR_VERYLOW || m_iUpPriority == PR_LOW || m_iUpPriority == PR_NORMAL || m_iUpPriority == PR_HIGH || m_iUpPriority == PR_VERYHIGH);
 	CHECK_BOOL(m_bAutoUpPriority);
+	ASSERT(m_iPowerShareMode >= -1 && m_iPowerShareMode <= 3);
+	CHECK_BOOL(m_bPowerShareAuthorized);
+	CHECK_BOOL(m_bPowerShareHeldByPriority);
 	(void)s_ShareStatusBar;
 	CHECK_BOOL(m_PublishedED2K);
 	(void)kadFileSearchID;
@@ -213,7 +219,8 @@ void CKnownFile::UpdatePartsInfo()
 		CUpDownClient *cur_src = m_ClientUploadList.GetNext(pos);
 		//This could be a partfile that just completed. Many of these clients will not have this information.
 		if (cur_src->m_abyUpPartStatus && cur_src->GetUpPartCount() == GetPartCount()) {
-			for (INT_PTR i = GetPartCount(); --i > 0;)
+			// down to part 0 included: the minimum taken below is the count of complete sources
+			for (INT_PTR i = GetPartCount(); --i >= 0;)
 				m_AvailPartFrequency[i] += static_cast<uint16>(cur_src->IsUpPartAvailable((UINT)i));
 
 			if (bRefresh)
@@ -285,6 +292,21 @@ void CKnownFile::UpdatePartsInfo()
 		}
 		m_tCompleteSourcesTime = tNow + MIN2S(1);
 	}
+
+	// PowerShare is refused on a file which many others have complete already (the MorphXT rule):
+	// it is allowed while some part is seen on at most one of the clients asking for the file, or
+	// while the high estimate of complete sources does not exceed the number of parts.
+	UINT nLeastAvailablePart = UINT_MAX;
+	for (INT_PTR i = GetPartCount(); --i >= 0;)
+		if (nLeastAvailablePart > m_AvailPartFrequency[i])
+			nLeastAvailablePart = m_AvailPartFrequency[i];
+	const bool bPowerShareAuthorized = (nLeastAvailablePart <= 1 || m_nCompleteSourcesCountHi <= GetPartCount());
+	if (bPowerShareAuthorized != m_bPowerShareAuthorized && IsPowerShareOn())
+		AddDebugLogLine(false, _T("PowerShare: %s for \"%s\" (least available part on %u requesting clients, complete sources %u-%u, %u parts)")
+			, bPowerShareAuthorized ? _T("allowed again") : _T("denied")
+			, (LPCTSTR)GetFileName(), nLeastAvailablePart, m_nCompleteSourcesCountLo, m_nCompleteSourcesCountHi, GetPartCount());
+	m_bPowerShareAuthorized = bPowerShareAuthorized;
+
 	if (theApp.emuledlg->sharedfileswnd->m_hWnd)
 		theApp.emuledlg->sharedfileswnd->sharedfilesctrl.UpdateFile(this);
 }
@@ -729,6 +751,10 @@ bool CKnownFile::LoadTagsFromFile(CFileDataIO &file)
 				ASSERT(0);
 			break;
 		default:
+			if (newtag->HasName() && newtag->IsInt() && CmpED2KTagName(newtag->GetName(), FT_POWERSHARE) == 0) {
+				m_iPowerShareMode = (newtag->GetInt() <= 3) ? (sint8)newtag->GetInt() : -1;
+				break;
+			}
 			ConvertED2KTag(newtag);
 			if (newtag) {
 				m_taglist.Add(newtag);
@@ -757,6 +783,8 @@ bool CKnownFile::LoadTagsFromFile(CFileDataIO &file)
 		m_uMetaDataVer = META_DATA_VER;
 	}
 
+	if (IsPowerShareOn())
+		AddDebugLogLine(false, _T("PowerShare: on for \"%s\" (known.met)"), (LPCTSTR)GetFileName());
 	return true;
 }
 
@@ -875,6 +903,12 @@ bool CKnownFile::WriteToFile(CFileDataIO &file)
 		priotag.WriteTagToFile(file);
 		++uTagCount;
 
+		if (m_iPowerShareMode >= 0) {
+			CTag powersharetag(FT_POWERSHARE, (uint64)m_iPowerShareMode);
+			powersharetag.WriteTagToFile(file);
+			++uTagCount;
+		}
+
 
 		if (m_lastPublishTimeKadSrc) {
 			CTag kadLastPubSrc(FT_KADLASTPUBLISHSRC, (uint32)m_lastPublishTimeKadSrc);
@@ -981,6 +1015,7 @@ bool CKnownFile::CreateHash(FILE *fp, uint64 uSize, uchar *pucHash, CAICHHashTre
 		CreateHash(&file, uSize, pucHash, pShaHashOut);
 		return true;
 	} catch (CFileException *ex) {
+		DebugLogCaughtException(__FUNCTION__, ex);
 		ex->Delete();
 	}
 	return false;
@@ -993,6 +1028,7 @@ bool CKnownFile::CreateHash(const uchar *pucData, uint32 uSize, uchar *pucHash, 
 		CreateHash(&file, uSize, pucHash, pShaHashOut);
 		return true;
 	} catch (CFileException *ex) {
+		DebugLogCaughtException(__FUNCTION__, ex);
 		ex->Delete();
 	}
 	return false;
@@ -1203,6 +1239,35 @@ void CKnownFile::SetUpPriority(uint8 iNewUpPriority, bool bSave)
 
 	if (IsPartFile() && bSave)
 		static_cast<CPartFile*>(this)->SavePartFile();
+
+	const bool bHeld = IsPowerShareOn() && !IsPartFile() && IsPowerShareHeldByPriority();
+	if (bHeld != m_bPowerShareHeldByPriority) {
+		m_bPowerShareHeldByPriority = bHeld;
+		AddLogLine(false, bHeld ? _T("PowerShare: \"%s\" is out of PowerShare while its upload priority is %s")
+			: _T("PowerShare: \"%s\" is in PowerShare again, its upload priority is %s")
+			, (LPCTSTR)GetFileName(), (LPCTSTR)GetUpPriorityDisplayString());
+	}
+}
+
+bool CKnownFile::IsPowerShareHeldByPriority() const
+{
+	return !IsAutoUpPriority() && (GetUpPriority() == PR_LOW || GetUpPriority() == PR_VERYLOW);
+}
+
+void CKnownFile::SetPowerShareOn(bool bOn)
+{
+	// A part file brings the mode MorphXT wrote in its part.met along in m_taglist; drop that
+	// copy, or known.met gets the tag twice.
+	for (INT_PTR i = m_taglist.GetCount(); --i >= 0;) {
+		const CTag *pTag = m_taglist[i];
+		if (pTag->HasName() && CmpED2KTagName(pTag->GetName(), FT_POWERSHARE) == 0) {
+			delete pTag;
+			m_taglist.RemoveAt(i);
+		}
+	}
+	m_iPowerShareMode = bOn ? 1 : 0;
+	AddDebugLogLine(false, _T("PowerShare: switched %s for \"%s\"%s"), bOn ? _T("on") : _T("off"), (LPCTSTR)GetFileName()
+		, (bOn && IsPartFile()) ? _T(", inactive until the file is complete") : (bOn && !m_bPowerShareAuthorized) ? _T(", currently denied") : _T(""));
 }
 
 void CKnownFile::RemoveMetaDataTags(UINT uTagType)

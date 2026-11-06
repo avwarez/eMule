@@ -37,6 +37,7 @@
 #include <share.h>
 #endif
 #include "CustomAutoComplete.h"
+#include "Log.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -263,6 +264,7 @@ STDMETHODIMP CCustomAutoComplete::Clone(IEnumString **ppenum) noexcept
 		pnew->AddRef();
 		*ppenum = pnew;
 	} catch (...) {
+		DebugLogCaughtException(__FUNCTION__);
 		return E_OUTOFMEMORY;
 	}
 	return S_OK;

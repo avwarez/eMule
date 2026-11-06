@@ -69,7 +69,7 @@ void CUpDownClient::DrawUpStatusBar(CDC &dc, const CRect &rect, bool onlygreyrec
 
 	// wistily: UpStatusFix
 	CKnownFile *currequpfile = theApp.sharedfiles->GetFileByID(requpfileid);
-	EMFileSize filesize = currequpfile ? currequpfile->GetFileSize() : PARTSIZE * m_nUpPartCount;
+	EMFileSize filesize = currequpfile ? (uint64)currequpfile->GetFileSize() : PARTSIZE * m_nUpPartCount;
 	// wistily: UpStatusFix
 
 	if (filesize > 0ull) {
@@ -226,7 +226,34 @@ uint32 CUpDownClient::GetScore(bool sysvalue, bool isdownloading, bool onlybasev
 
 	if ((IsEmuleClient() || GetClientSoft() < 10) && m_byEmuleVersion <= 0x19)
 		fBaseValue *= 0.5f;
-	return (uint32)fBaseValue;
+
+	// Ordinary scores are capped below 0x08000000 and a PowerShare request gets 0x08000000 on
+	// top of its own: every PowerShare request ranks above every ordinary one and below a friend
+	// slot, while waiting time, credits and file priority still order the PowerShare requests
+	// among themselves. The cap takes some 86 days of waiting to reach.
+	uint32 uScore = (fBaseValue < (float)0x07FFFFFEu) ? (uint32)fBaseValue : 0x07FFFFFEu;
+	if (!onlybasevalue && IsPowerShareRequest())
+		uScore += 0x08000000u;
+	return uScore;
+}
+
+// The requested file is PowerShared. A LowID client qualifies too: while it is not connected
+// FindBestClientInQueue passes it over and marks it to be taken on its next connection, the same
+// way it handles any other LowID client at the head of the queue.
+bool CUpDownClient::IsPowerShareRequest() const
+{
+	const CKnownFile *pReqFile = theApp.sharedfiles->GetFileByID(requpfileid);
+	return pReqFile != NULL && pReqFile->IsPowerShared();
+}
+
+// Whether a slot that frees up now could go to this waiting client. FindBestClientInQueue() passes
+// over a LowID client that is not connected, and a client told to stand down by OP_OUTOFPARTREQS
+// does not answer on the connection that carried it.
+bool CUpDownClient::IsReadyForUploadSlot() const
+{
+	if (m_fSentOutOfPartReqs)
+		return false;
+	return !HasLowID() || (socket != NULL && socket->IsConnected());
 }
 
 bool CUpDownClient::ProcessExtendedInfo(CSafeMemFile &data, CKnownFile *tempreqfile)
@@ -650,8 +677,14 @@ void CUpDownClient::Ban(LPCTSTR pszReason)
 	SetUploadState(US_BANNED);
 	theApp.emuledlg->transferwnd->ShowQueueCount(theApp.uploadqueue->GetWaitingUserCount());
 	theApp.emuledlg->transferwnd->GetQueueList().RefreshClient(this);
-	if (socket != NULL && socket->IsConnected())
+	if (socket != NULL && socket->IsConnected()) {
+		// No more READ notifications. Where the stack does not reset the connection when data
+		// arrives after the read shutdown (Wine), that data keeps the socket readable: every
+		// FD_READ fails with WSAESHUTDOWN but restarts the timeout this relies on, so the socket
+		// never times out and the GUI thread spins on the notifications.
+		socket->AsyncSelect(FD_CLOSE | FD_WRITE);
 		socket->ShutDown(CAsyncSocket::receives); // let the socket timeout, since we don't want to risk to delete the client right now. This isn't actually perfect, could be changed later
+	}
 }
 
 DWORD CUpDownClient::GetWaitStartTime() const

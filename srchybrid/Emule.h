@@ -46,8 +46,8 @@ class CIPFilter;
 class CWebServer;
 class CAbstractFile;
 class CUpDownClient;
-class CFirewallOpener;
 class CUPnPImplWrapper;
+class CFirewallCheck;
 class CUploadDiskIOThread;
 class CPartFileWriteThread;
 
@@ -90,8 +90,8 @@ public:
 	CIPFilter			*ipfilter;
 	CWebServer			*webserver;
 	CScheduler			*scheduler;
-	CFirewallOpener		*m_pFirewallOpener;
 	CUPnPImplWrapper	*m_pUPnPFinder;
+	CFirewallCheck		*m_pFirewallCheck;
 	CUploadDiskIOThread	*m_pUploadDiskIOThread;
 	CPartFileWriteThread *m_pPartFileWriteThread;
 
@@ -115,7 +115,6 @@ public:
 	CString		m_strCurVersionLongDbg;
 	UINT		m_uCurVersionShort;
 	UINT		m_uCurVersionCheck;
-	ULONGLONG	m_ullComCtrlVer;
 	CMutex		hashing_mut;
 	CString		m_strPendingLink;
 	COPYDATASTRUCT sendstruct;
@@ -172,7 +171,6 @@ public:
 	void		DisableRTLWindowsLayout();
 	void		UpdateDesktopColorDepth();
 	void		UpdateLargeIconSize();
-	bool		IsXPThemeActive() const;
 	bool		IsVistaThemeActive() const;
 
 	bool		GetLangHelpFilePath(CString &strResult);

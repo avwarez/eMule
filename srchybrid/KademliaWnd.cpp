@@ -55,6 +55,8 @@ static char THIS_FILE[] = __FILE__;
 
 IMPLEMENT_DYNAMIC(CKademliaWnd, CDialog)
 
+#pragma warning(push)
+#pragma warning(disable:4191) // MFC message maps cast every handler to AFX_PMSG; only a pragma inside the .cpp reaches this
 BEGIN_MESSAGE_MAP(CKademliaWnd, CResizableDialog)
 	ON_BN_CLICKED(IDC_BOOTSTRAPBUTTON, OnBnClickedBootstrapbutton)
 	ON_BN_CLICKED(IDC_FIREWALLCHECKBUTTON, OnBnClickedFirewallcheckbutton)
@@ -74,6 +76,7 @@ BEGIN_MESSAGE_MAP(CKademliaWnd, CResizableDialog)
 	ON_NOTIFY(NM_DBLCLK, IDC_KADSEARCHLIST, OnNMDblclkSearchlist)
 	ON_NOTIFY(LVN_ITEMCHANGED, IDC_KADSEARCHLIST, OnListModifiedSearchlist)
 END_MESSAGE_MAP()
+#pragma warning(pop)
 
 CKademliaWnd::CKademliaWnd(CWnd *pParent /*=NULL*/)
 	: CResizableDialog(CKademliaWnd::IDD, pParent)
@@ -132,7 +135,7 @@ BOOL CKademliaWnd::OnInitDialog()
 	SetAllIcons();
 
 	// Vista: Remove the TBSTYLE_TRANSPARENT to avoid flickering (can be done only after the toolbar was initially created with TBSTYLE_TRANSPARENT !?)
-	m_pbtnWnd->ModifyStyle((theApp.m_ullComCtrlVer >= MAKEDLLVERULL(6, 16, 0, 0)) ? TBSTYLE_TRANSPARENT : 0, TBSTYLE_TOOLTIPS);
+	m_pbtnWnd->ModifyStyle(TBSTYLE_TRANSPARENT, TBSTYLE_TOOLTIPS);
 	m_pbtnWnd->SetExtendedStyle(m_pbtnWnd->GetExtendedStyle() | TBSTYLE_EX_MIXEDBUTTONS);
 
 	TBBUTTON atb1[1 + WND1_NUM_BUTTONS] = {};
@@ -161,24 +164,14 @@ BOOL CKademliaWnd::OnInitDialog()
 	tbbi.cx = WND1_BUTTON_WIDTH;
 	m_pbtnWnd->SetButtonInfo(0, &tbbi);
 
-	// 'GetMaxSize' does not work properly under:
-	//	- Win98SE with COMCTL32 v5.80
-	//	- Win2000 with COMCTL32 v5.81
-	// The value returned by 'GetMaxSize' is just couple of pixels too small so that the
-	// last toolbar button is nearly not visible at all.
-	// So, to circumvent such problems, the toolbar control should be created right with
-	// the needed size so that we do not really need to call the 'GetMaxSize' function.
-	// Although it would be better to call it to adapt for system metrics basically.
-	if (theApp.m_ullComCtrlVer > MAKEDLLVERULL(5, 81, 0, 0)) {
-		SIZE size;
-		m_pbtnWnd->GetMaxSize(&size);
-		CRect rc;
-		m_pbtnWnd->GetWindowRect(rc);
-		ScreenToClient(rc);
-		// the with of the toolbar should already match the needed size (see comment above)
-		ASSERT(size.cx == rc.Width());
-		m_pbtnWnd->MoveWindow(rc.left, rc.top, size.cx, rc.Height());
-	}
+	SIZE size;
+	m_pbtnWnd->GetMaxSize(&size);
+	CRect rc;
+	m_pbtnWnd->GetWindowRect(rc);
+	ScreenToClient(rc);
+	// the with of the toolbar should already match the needed size (see comment above)
+	ASSERT(size.cx == rc.Width());
+	m_pbtnWnd->MoveWindow(rc.left, rc.top, size.cx, rc.Height());
 
 	Localize();
 

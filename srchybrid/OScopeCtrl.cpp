@@ -181,7 +181,7 @@ BOOL COScopeCtrl::CreateWnd(DWORD dwStyle, const CRect &rect, CWnd *pParentWnd, 
 							WS_EX_STATICEDGE	// lightweight border
 							, className, NULL, dwStyle
 							, rect.left, rect.top, rect.Width() + 1, rect.Height() + 1
-							, pParentWnd->GetSafeHwnd(), (HMENU)nID);
+							, pParentWnd->GetSafeHwnd(), (HMENU)(UINT_PTR)nID);
 	if (result != 0)
 		InvalidateCtrl();
 	InitWindowStyles(this);

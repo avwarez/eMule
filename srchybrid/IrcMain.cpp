@@ -500,7 +500,7 @@ void CIrcMain::ParseMessage(const CString &sRawMessage)
 					m_pIRCSocket->SendString(strCommand);
 				}
 				ParsePerform();
-				/* fall through */
+				[[fallthrough]];
 			case 2:
 			case 3:
 			case 4:
@@ -1498,7 +1498,7 @@ void CIrcMain::Connect()
 		m_sUser.Format(_T("USER %s 8 * :%s"), (LPCTSTR)sIdent, (LPCTSTR)m_sVersion);
 		m_pIRCSocket->Create();
 		m_pwndIRC->AddStatus(GetResString(IDS_CONNECTING));
-		m_pIRCSocket->Connect();
+		m_pIRCSocket->ConnectToServer();
 	} CATCH_DFLT_EXCEPTIONS(_T(__FUNCTION__))
 	CATCH_DFLT_ALL(_T(__FUNCTION__))
 }

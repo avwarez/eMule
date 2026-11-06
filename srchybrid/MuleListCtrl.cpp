@@ -113,8 +113,6 @@ void CMuleListCtrl::PreSubclassWindow()
 {
 	SetColors();
 	CListCtrl::PreSubclassWindow();
-	// Win98: Explicitly set to Unicode to receive Unicode notifications.
-	SendMessage(CCM_SETUNICODEFORMAT, TRUE);
 	SetExtendedStyle(LVS_EX_HEADERDRAGDROP);
 
 	// Vista: Reduce flickering in header control
@@ -406,7 +404,7 @@ void CMuleListCtrl::SetColors()
 
 	CIni *ini = thePrefs.GetSkinIni();
 	if (ini) {
-		const CString strKey(m_strSkinKey.IsEmpty() ? _T("DefLv") : m_strSkinKey);
+		const CString strKey(m_strSkinKey.IsEmpty() ? CString(_T("DefLv")) : m_strSkinKey);
 
 		if (theApp.LoadSkinColorAlt(strKey + _T("Bk"), _T("DefLvBk"), m_crWindow))
 			m_crWindowTextBk = m_crWindow;
@@ -488,12 +486,6 @@ void CMuleListCtrl::SetSortArrow(int iColumn, ArrowType atType)
 				if (imlSortStates.Create(14, 14, theApp.m_iDfltImageListColorFlags | ILC_MASK, 1, 0)) {
 					VERIFY(imlSortStates.Add(&bmSortStates, RGB(255, 0, 255)) >= 0);
 
-					// To avoid drawing problems (which occur only with an image list *with* a mask) while
-					// resizing list view columns which have the header control bitmap right aligned, set
-					// the background color of the image list.
-					if (theApp.m_ullComCtrlVer < MAKEDLLVERULL(6, 0, 0, 0))
-						imlSortStates.SetBkColor(::GetSysColor(COLOR_BTNFACE));
-
 					// When setting the image list for the header control for the first time we'll get
 					// the image list of the listview control!! So, better store the header control image list separate.
 					(void)pHeaderCtrl->SetImageList(&imlSortStates);
@@ -502,12 +494,10 @@ void CMuleListCtrl::SetSortArrow(int iColumn, ArrowType atType)
 
 					// Use smaller bitmap margins -- this saves some pixels which may be required for
 					// rather small column titles.
-					if (theApp.m_ullComCtrlVer >= MAKEDLLVERULL(5, 8, 0, 0)) {
-						int iBmpMargin = pHeaderCtrl->GetBitmapMargin();
-						int iNewBmpMargin = ::GetSystemMetrics(SM_CXEDGE) + ::GetSystemMetrics(SM_CXEDGE) / 2;
-						if (iNewBmpMargin < iBmpMargin)
-							pHeaderCtrl->SetBitmapMargin(iNewBmpMargin);
-					}
+					int iBmpMargin = pHeaderCtrl->GetBitmapMargin();
+					int iNewBmpMargin = ::GetSystemMetrics(SM_CXEDGE) + ::GetSystemMetrics(SM_CXEDGE) / 2;
+					if (iNewBmpMargin < iBmpMargin)
+						pHeaderCtrl->SetBitmapMargin(iNewBmpMargin);
 				}
 			}
 		}
@@ -1529,9 +1519,6 @@ void CMuleListCtrl::OnLvnGetInfoTip(LPNMHDR pNMHDR, LRESULT *pResult)
 			// Don't show the default label tip for the main item, if the mouse is not over
 			// the main item.
 			if ((pGetInfoTip->dwFlags & LVGIT_UNFOLDED) == 0 && pGetInfoTip->cchTextMax > 0 && pGetInfoTip->pszText[0] != _T('\0')) {
-				// For any reason this does not work with Win98 (COMCTL32 v5.8). Even when
-				// the info tip text is explicitly set to empty, the list view control may
-				// display the unfolded text for the 1st item. It works for WinXP though.
 				pGetInfoTip->pszText[0] = _T('\0');
 			}
 			return;

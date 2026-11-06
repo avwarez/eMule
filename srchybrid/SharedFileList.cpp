@@ -377,6 +377,7 @@ bool CAddFileThread::ImportParts()
 			if (!theApp.IsRunning() || partSize != PARTSIZE || m_partfile->GetFileOp() != PFOP_IMPORTPARTS)
 				break;
 		} catch (...) {
+			DebugLogCaughtException(__FUNCTION__);
 		}
 	}
 	f.Close();
@@ -391,6 +392,7 @@ bool CAddFileThread::ImportParts()
 			, partsuccess
 			, (LPCTSTR)m_strFilename);
 	} catch (...) {
+		DebugLogCaughtException(__FUNCTION__);
 		//This could happen if we deleted the part file instance
 	}
 	return true;
@@ -430,7 +432,8 @@ int CAddFileThread::Run()
 	else
 		Log(_T("%s \"%s\""), (LPCTSTR)GetResString(IDS_HASHINGFILE), strFilePath);
 
-	if (!theApp.IsClosing()) {
+	// 97q: a completed download is hashed only once its data is on the disk, see FlushBeforeFinalHash()
+	if (!theApp.IsClosing() && (!m_partfile || m_partfile->GetStatus() != PS_COMPLETING || m_partfile->FlushBeforeFinalHash())) {
 		CKnownFile *newKnown = new CKnownFile();
 		if (newKnown->CreateFromFile(m_strDirectory, m_strFilename, m_partfile)) { // SLUGFILLER: SafeHash - in case of shutdown while still hashing
 			newKnown->SetSharedDirectory(m_strSharedDir);
@@ -566,6 +569,7 @@ void CSharedFileList::FindSharedFiles()
 				_T("\nThanks for beta testing eMule :)"));
 			f.Close();
 		} catch (CFileException *ex) {
+			DebugLogCaughtException(__FUNCTION__, ex);
 			ASSERT(0);
 			ex->Delete();
 		}
@@ -1491,7 +1495,6 @@ void CSharedFileList::CheckAndAddSingleFile(const CFileFind &ff)
 				TRACE(_T("%hs: Did not share file \"%s\" - not supported file type\n"), __FUNCTION__, (LPCTSTR)strFoundFilePath);
 				return;
 			}
-			// Win98: Would need to implement a different code path which is using 'IShellLinkA' on Win9x.
 			CComPtr<IShellLink> pShellLink;
 			if (SUCCEEDED(pShellLink.CoCreateInstance(CLSID_ShellLink))) {
 				CComQIPtr<IPersistFile> pPersistFile(pShellLink);

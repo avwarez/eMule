@@ -26,6 +26,7 @@
 
 #include "id3/tag.h"
 #include "id3/misc_support.h"
+#include "Log.h"
 
 // MediaInfoDLL
 /** @brief Kinds of Stream */
@@ -111,7 +112,7 @@ public:
 				}
 			}
 			if (m_hLib == NULL) {
-				const CString &strProgramFiles(ShellGetFolderPath(CSIDL_PROGRAM_FILES));
+				const CString &strProgramFiles(ShellGetFolderPath(FOLDERID_ProgramFiles));
 				if (!strProgramFiles.IsEmpty()) {
 					LPTSTR pszResult = ::PathCombine(strPath.GetBuffer(MAX_PATH), strProgramFiles, _T("MediaInfo\\MEDIAINFO.DLL"));
 					strPath.ReleaseBuffer();
@@ -133,9 +134,7 @@ public:
 				// -----------------------------
 				// But then MediaInfo adopted YY.MM (year, month) versioning scheme...
 				ULONGLONG ullVersion = GetModuleVersion(m_hLib);
-				if (ullVersion >= MAKEDLLVERULL(0, 7, 13, 0)
-					&& (thePrefs.GetWindowsVersion() >= _WINVER_VISTA_ && ullVersion < MAKEDLLVERULL(26, 6, 0, 0)
-						|| ullVersion < MAKEDLLVERULL(21, 4, 0, 0))) //21.03 for Windows XP
+				if (ullVersion >= MAKEDLLVERULL(0, 7, 13, 0) && ullVersion < MAKEDLLVERULL(26, 6, 0, 0))
 				{
 					(FARPROC &)m_pfnMediaInfo_New = ::GetProcAddress(m_hLib, "MediaInfo_New");
 					(FARPROC &)m_pfnMediaInfo_Delete = ::GetProcAddress(m_hLib, "MediaInfo_Delete");
@@ -471,6 +470,7 @@ int CGetMediaInfoThread::Run()
 			paMediaInfo->Add(mi);
 		}
 	} catch (...) {
+		DebugLogCaughtException(__FUNCTION__);
 		ASSERT(0);
 		delete paMediaInfo;
 		paMediaInfo = NULL;
@@ -648,7 +648,7 @@ LRESULT CFileInfoDialog::OnMediaInfoResult(WPARAM, LPARAM lParam)
 		if (!bDiffVideoStreamCount && ami.iVideoStreams > 1)
 			SetDlgItemText(IDC_FD_XI3, GetResString(IDS_VIDEO) + _T(" #1"));
 
-		SetDlgItemText(IDC_VCODEC, bDiffVideoCompression ? _T("") : ami.strVideoFormat);
+		SetDlgItemText(IDC_VCODEC, bDiffVideoCompression ? _T("") : (LPCTSTR)ami.strVideoFormat);
 
 		if (!bDiffVideoBitRate && ami.video.dwBitRate) {
 			if (ami.video.dwBitRate == _UI32_MAX)
@@ -685,7 +685,7 @@ LRESULT CFileInfoDialog::OnMediaInfoResult(WPARAM, LPARAM lParam)
 		if (!bDiffAudioStreamCount && ami.iAudioStreams > 1)
 			SetDlgItemText(IDC_FD_XI4, GetResString(IDS_AUDIO) + _T(" #1"));
 
-		SetDlgItemText(IDC_ACODEC, bDiffAudioCompression ? _T("") : ami.strAudioFormat);
+		SetDlgItemText(IDC_ACODEC, bDiffAudioCompression ? _T("") : (LPCTSTR)ami.strAudioFormat);
 
 		LPCTSTR pChan;
 		if (!bDiffAudioChannels && ami.audio.nChannels) {
@@ -723,7 +723,7 @@ LRESULT CFileInfoDialog::OnMediaInfoResult(WPARAM, LPARAM lParam)
 		} else
 			SetDlgItemText(IDC_ABITRATE, _T(""));
 
-		SetDlgItemText(IDC_ALANGUAGE, bDiffAudioLanguage ? _T("") : ami.strAudioLanguage);
+		SetDlgItemText(IDC_ALANGUAGE, bDiffAudioLanguage ? _T("") : (LPCTSTR)ami.strAudioLanguage);
 	}
 
 	if (!m_bReducedDlg) {
@@ -830,6 +830,7 @@ bool CGetMediaInfoThread::GetMediaInfo(HWND hWndOwner, const CShareableFile *pFi
 				return true;
 			}
 		} catch (...) {
+			DebugLogCaughtException(__FUNCTION__);
 			ASSERT(0);
 		}
 	}
@@ -849,6 +850,7 @@ bool CGetMediaInfoThread::GetMediaInfo(HWND hWndOwner, const CShareableFile *pFi
 				return true;
 			}
 		} catch (...) {
+			DebugLogCaughtException(__FUNCTION__);
 			ASSERT(0);
 		}
 	}
@@ -876,6 +878,7 @@ bool CGetMediaInfoThread::GetMediaInfo(HWND hWndOwner, const CShareableFile *pFi
 				return true;
 			}
 		} catch (...) {
+			DebugLogCaughtException(__FUNCTION__);
 			ASSERT(0);
 		}
 	}
@@ -927,6 +930,7 @@ bool CGetMediaInfoThread::GetMediaInfo(HWND hWndOwner, const CShareableFile *pFi
 				case MPEGVERSION_1:
 					mi->strAudioFormat = _T("MPEG-1,");
 					mi->audio.wFormatTag = WAVE_FORMAT_MPEGLAYER3;
+					[[fallthrough]];
 				default:
 					break;
 				}
@@ -941,6 +945,7 @@ bool CGetMediaInfoThread::GetMediaInfo(HWND hWndOwner, const CShareableFile *pFi
 					break;
 				case MPEGLAYER_I:
 					mi->strAudioFormat += _T("Layer 1");
+					[[fallthrough]];
 				default:
 					break;
 				}
@@ -1302,6 +1307,7 @@ bool CGetMediaInfoThread::GetMediaInfo(HWND hWndOwner, const CShareableFile *pFi
 			}
 			delete iter;
 		} catch (...) {
+			DebugLogCaughtException(__FUNCTION__);
 			ASSERT(0);
 		}
 
@@ -1731,6 +1737,7 @@ bool CGetMediaInfoThread::GetMediaInfo(HWND hWndOwner, const CShareableFile *pFi
 					bGiveMediaInfoLibHint |= (FileType == ED2KFT_AUDIO || FileType == ED2KFT_VIDEO);
 				}
 			} catch (...) {
+				DebugLogCaughtException(__FUNCTION__);
 				ASSERT(0);
 			}
 		}
@@ -1785,7 +1792,7 @@ bool CGetMediaInfoThread::GetMediaInfo(HWND hWndOwner, const CShareableFile *pFi
 														bFoundHeader = true;
 													} else {
 														mi->strInfo << _T("   ") << GetResString(IDS_CODEC) << _T(":\t") << GetVideoFormatName(pVIH->bmiHeader.biCompression) << _T("\n");
-														mi->strInfo << _T("   ") << GetResString(IDS_WIDTH) << _T(" x ") << GetResString(IDS_HEIGHT) << _T(":\t") << abs(pVIH->bmiHeader.biWidth) << _T(" x ") << abs(pVIH->bmiHeader.biHeight) << _T("\n");
+														mi->strInfo << _T("   ") << GetResString(IDS_WIDTH) << _T(" x ") << GetResString(IDS_HEIGHT) << _T(":\t") << (int)abs(pVIH->bmiHeader.biWidth) << _T(" x ") << (int)abs(pVIH->bmiHeader.biHeight) << _T("\n");
 														// do not use that 'dwBitRate', whatever this number is, it's not
 														// the bit rate of the *encoded* video stream. Seems to be the bit rate
 														// of the *decoded* stream
@@ -1906,7 +1913,7 @@ bool CGetMediaInfoThread::GetMediaInfo(HWND hWndOwner, const CShareableFile *pFi
 												mi->strInfo << _T("\n");
 											mi->OutputFileName();
 											mi->strInfo.SetSelectionCharFormat(mi->strInfo.m_cfBold);
-											mi->strInfo << GetResString(IDS_UNKNOWN) << _T(" Stream #") << i + 1 << _T("\n");
+											mi->strInfo << GetResString(IDS_UNKNOWN) << _T(" Stream #") << (int)(i + 1) << _T("\n");
 
 											double fLength;
 											if (SUCCEEDED(pMediaDet->get_StreamLength(&fLength)) && fLength) {
@@ -1930,6 +1937,7 @@ bool CGetMediaInfoThread::GetMediaInfo(HWND hWndOwner, const CShareableFile *pFi
 						TRACE(_T("Failed to open \"%s\" - %s\n"), (LPCTSTR)pFile->GetFilePath(), (LPCTSTR)GetErrorMessage(hr, 1));
 				}
 			} catch (...) {
+				DebugLogCaughtException(__FUNCTION__);
 				ASSERT(0);
 			}
 		}

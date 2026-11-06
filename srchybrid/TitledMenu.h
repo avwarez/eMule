@@ -42,9 +42,6 @@ public:
 
 protected:
 	CString m_strTitle;
-	CImageList m_ImageList;
-	CMap<int, int, int, int> m_mapMenuIdToIconIdx;
-	CMapStringToPtr m_mapIconNameToIconIdx;
 	CMapStringToPtr m_mapIconNameToBitmap;
 
 	long m_clRight;

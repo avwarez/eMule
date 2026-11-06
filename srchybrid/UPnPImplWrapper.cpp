@@ -17,8 +17,7 @@
 #include "StdAfx.h"
 #include "UPnPImplWrapper.h"
 #include "UPnPImpl.h"
-#include "UPnPImplWinServ.h"
-#include "UPnPImplMiniLib.h"
+#include "UPnPImplLibPlum.h"
 #include "Preferences.h"
 
 #ifdef _DEBUG
@@ -29,10 +28,7 @@ static char THIS_FILE[] = __FILE__;
 
 CUPnPImplWrapper::CUPnPImplWrapper()
 {
-	if (!thePrefs.IsWinServUPnPImplDisabled())
-		m_liAvailable.AddTail(new CUPnPImplWinServ());
-	if (!thePrefs.IsMinilibUPnPImplDisabled())
-		m_liAvailable.AddTail(new CUPnPImplMiniLib());
+	m_liAvailable.AddTail(new CUPnPImplLibPlum());
 	if (m_liAvailable.IsEmpty())
 		m_liAvailable.AddTail(new CUPnPImplNone());
 	Init();

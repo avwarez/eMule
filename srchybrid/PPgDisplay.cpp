@@ -84,12 +84,7 @@ void CPPgDisplay::LoadSettings()
 	CheckDlgButton(IDC_SHOWTRANSTOOLBAR, static_cast<UINT>(thePrefs.IsTransToolbarEnabled()));
 	CheckDlgButton(IDC_DISABLEHIST, static_cast<UINT>(thePrefs.GetUseAutocompletion()));
 
-#ifdef HAVE_WIN7_SDK_H
-	if (thePrefs.GetWindowsVersion() >= _WINVER_7_)
-		CheckDlgButton(IDC_WIN7TASKBARGOODIES, static_cast<UINT>(thePrefs.IsWin7TaskbarGoodiesEnabled()));
-	else
-#endif
-		GetDlgItem(IDC_WIN7TASKBARGOODIES)->EnableWindow(FALSE);
+	CheckDlgButton(IDC_WIN7TASKBARGOODIES, static_cast<UINT>(thePrefs.IsWin7TaskbarGoodiesEnabled()));
 
 	SetDlgItemInt(IDC_TOOLTIPDELAY, thePrefs.m_iToolDelayTime, FALSE);
 }
@@ -128,10 +123,8 @@ BOOL CPPgDisplay::OnApply()
 	thePrefs.m_bUseAutocompl = IsDlgButtonChecked(IDC_DISABLEHIST) != 0;
 	thePrefs.m_bStoreSearches = IsDlgButtonChecked(IDC_STORESEARCHES) != 0;
 
-#ifdef HAVE_WIN7_SDK_H
 	thePrefs.m_bShowWin7TaskbarGoodies = IsDlgButtonChecked(IDC_WIN7TASKBARGOODIES) != 0;
 	theApp.emuledlg->EnableTaskbarGoodies(thePrefs.m_bShowWin7TaskbarGoodies);
-#endif
 
 	thePrefs.showRatesInTitle = IsDlgButtonChecked(IDC_SHOWRATEONTITLE) != 0;
 

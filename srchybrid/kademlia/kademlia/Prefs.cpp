@@ -109,9 +109,11 @@ void CPrefs::ReadFile()
 			m_uClientID.SetValueRandom();
 		file.Close();
 	} catch (CException *ex) {
+		DebugLogCaughtException(__FUNCTION__, ex);
 		ASSERT(0);
 		ex->Delete();
 	} catch (...) {
+		DebugLogCaughtException(__FUNCTION__);
 		TRACE("Exception in CPrefs::ReadFile\n");
 	}
 }
@@ -129,9 +131,11 @@ void CPrefs::WriteFile()
 			file.Close();
 		}
 	} catch (CException *ex) {
+		DebugLogCaughtException(__FUNCTION__, ex);
 		ASSERT(0);
 		ex->Delete();
 	} catch (...) {
+		DebugLogCaughtException(__FUNCTION__);
 		TRACE("Exception in CPrefs::WriteFile\n");
 	}
 }

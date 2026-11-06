@@ -26,14 +26,6 @@ static char THIS_FILE[] = __FILE__;
 #endif
 
 
-// _WIN32_WINNT >= 0x0501 (XP only)
-#define _WM_THEMECHANGED                0x031A
-#define _ON_WM_THEMECHANGED()													\
-	{	_WM_THEMECHANGED, 0, 0, 0, AfxSig_l,									\
-		(AFX_PMSG)(AFX_PMSGW)													\
-		(static_cast<LRESULT (AFX_MSG_CALL CWnd::*)(void)>(_OnThemeChanged))	\
-	},
-
 ///////////////////////////////////////////////////////////////////////////////
 // CButtonsTabCtrl
 
@@ -41,7 +33,7 @@ IMPLEMENT_DYNAMIC(CButtonsTabCtrl, CTabCtrl)
 
 BEGIN_MESSAGE_MAP(CButtonsTabCtrl, CTabCtrl)
 	ON_WM_CREATE()
-	_ON_WM_THEMECHANGED()
+	ON_WM_THEMECHANGED()
 END_MESSAGE_MAP()
 
 void CButtonsTabCtrl::DrawItem(LPDRAWITEMSTRUCT lpDIS)
@@ -175,7 +167,7 @@ void CButtonsTabCtrl::InternalInit()
 	}
 }
 
-LRESULT CButtonsTabCtrl::_OnThemeChanged()
+LRESULT CButtonsTabCtrl::OnThemeChanged()
 {
 	// Owner drawn tab control seems to have troubles with updating itself due to an XP theme change.
 	bool bIsOwnerDrawn = (GetStyle() & TCS_OWNERDRAWFIXED) != 0;

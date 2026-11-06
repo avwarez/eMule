@@ -68,6 +68,17 @@ public:
 	void	SetAutoUpPriority(bool NewAutoUpPriority)	{ m_bAutoUpPriority = NewAutoUpPriority; }
 	void	UpdateAutoUpPriority();
 
+	// PowerShare puts the requests for a complete file ahead of every ordinary upload request.
+	// The mode is kept the way MorphXT stores it (-1 not set, 0 off, 1 on, 2 auto, 3 limited):
+	// only 1 is acted upon, the other values are kept so that known.met does not lose them.
+	bool	IsPowerShareOn() const						{ return m_iPowerShareMode == 1; }
+	void	SetPowerShareOn(bool bOn);
+	bool	IsPowerShareAuthorized() const				{ return m_bPowerShareAuthorized; }
+	bool	IsPowerShared() const						{ return IsPowerShareOn() && m_bPowerShareAuthorized && !IsPartFile() && !IsPowerShareHeldByPriority(); }
+	// A low or very low upload priority chosen for the file (not one set by auto priority)
+	// does not go with PowerShare; the mode is kept and acts again once the priority is raised
+	bool	IsPowerShareHeldByPriority() const;
+
 	// This has lost its meaning here. This is the total clients we know that want this file.
 	// Right now this number is used for auto priorities.
 	// This may be replaced with total complete source known in the network.
@@ -172,4 +183,7 @@ private:
 	bool	m_bAutoUpPriority;
 	bool	m_PublishedED2K;
 	bool	m_bAICHRecoverHashSetAvailable;
+	sint8	m_iPowerShareMode;
+	bool	m_bPowerShareAuthorized;
+	bool	m_bPowerShareHeldByPriority; // as last logged by SetUpPriority()
 };

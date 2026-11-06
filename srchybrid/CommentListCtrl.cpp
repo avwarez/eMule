@@ -31,11 +31,14 @@ static char THIS_FILE[]=__FILE__;
 
 IMPLEMENT_DYNAMIC(CCommentListCtrl, CMuleListCtrl)
 
+#pragma warning(push)
+#pragma warning(disable:4191) // MFC message maps cast every handler to AFX_PMSG; only a pragma inside the .cpp reaches this
 BEGIN_MESSAGE_MAP(CCommentListCtrl, CMuleListCtrl)
 	ON_NOTIFY_REFLECT(LVN_COLUMNCLICK, OnLvnColumnClick)
 	ON_NOTIFY_REFLECT(LVN_DELETEITEM, OnLvnDeleteItem)
 	ON_WM_CONTEXTMENU()
 END_MESSAGE_MAP()
+#pragma warning(pop)
 
 void CCommentListCtrl::Init()
 {

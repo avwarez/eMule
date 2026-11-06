@@ -139,10 +139,14 @@ CWebServer::~CWebServer()
 		StopSockets();
 }
 
-void CWebServer::_SaveWIConfigArray(BOOL *array, int size, LPCTSTR key)
+void CWebServer::_SaveWIConfigArray(const CString &sURL, BOOL *array, size_t size, LPCTSTR key)
 {
-	CIni ini(thePrefs.GetConfigFile(), _T("WebServer"));
-	ini.SerGet(false, array, size, key);
+	unsigned iMenu = _tstoi(_ParseURL(sURL, _T("m")));
+	if (iMenu < size) {
+		array[iMenu] = (_ParseURL(sURL, _T("v")) == _T("1"));
+		CIni ini(thePrefs.GetConfigFile(), _T("WebServer"));
+		ini.SerGet(false, array, (int)size, key);
+	}
 }
 
 bool CWebServer::ReloadTemplates()
@@ -450,7 +454,7 @@ void CWebServer::_ProcessURL(const ThreadData &Data)
 			_RemoveSession(Data, lSession);
 
 		TCHAR *gzipOut = NULL;
-		uLongf gzipLen;
+		uLongf gzipLen = 0;	// C4701: only read when bUseGzip, which the compiler cannot see
 		CString Out;
 		if (_IsLoggedIn(Data, lSession)) {
 			bool bAdmin = _IsSessionAdmin(Data, sSession);
@@ -577,6 +581,7 @@ void CWebServer::_ProcessURL(const ThreadData &Data)
 						gzipOut = new TCHAR[gzipLen];
 						bUseGzip = (_GzipCompress((Bytef*)gzipOut, &gzipLen, (Bytef*)(LPCSTR)strA, strA.GetLength(), Z_DEFAULT_COMPRESSION) == Z_OK);
 					} catch (...) {
+						DebugLogCaughtException(__FUNCTION__);
 						ASSERT(0);
 					}
 					if (!bUseGzip) {
@@ -959,10 +964,7 @@ CString CWebServer::_GetServerList(const ThreadData &Data)
 			}
 		}
 	} else if (sCmd == _T("menu")) {
-		int iMenu = _tstol(_ParseURL(Data.sURL, _T("m")));
-		bool bValue = _ParseURL(Data.sURL, _T("v")) == _T("1");
-		WSserverColumnHidden[iMenu] = bValue;
-		_SaveWIConfigArray(WSserverColumnHidden, _countof(WSserverColumnHidden), _T("serverColumnHidden"));
+		_SaveWIConfigArray(Data.sURL, WSserverColumnHidden, _countof(WSserverColumnHidden), _T("serverColumnHidden"));
 	}
 
 	CString strTmp(_ParseURL(Data.sURL, _T("sortreverse")));
@@ -1402,20 +1404,11 @@ CString CWebServer::_GetTransferList(const ThreadData &Data)
 	HTTPTemp = _ParseURL(Data.sURL, _T("c"));
 
 	if (HTTPTemp == _T("menudown")) {
-		int iMenu = _tstol(_ParseURL(Data.sURL, _T("m")));
-		WSdownloadColumnHidden[iMenu] = (_tstol(_ParseURL(Data.sURL, _T("v"))) != 0);
-
-		CIni ini(thePrefs.GetConfigFile(), _T("WebServer"));
-
-		_SaveWIConfigArray(WSdownloadColumnHidden, _countof(WSdownloadColumnHidden), _T("downloadColumnHidden"));
+		_SaveWIConfigArray(Data.sURL, WSdownloadColumnHidden, _countof(WSdownloadColumnHidden), _T("downloadColumnHidden"));
 	} else if (HTTPTemp == _T("menuup")) {
-		int iMenu = _tstol(_ParseURL(Data.sURL, _T("m")));
-		WSuploadColumnHidden[iMenu] = (_tstol(_ParseURL(Data.sURL, _T("v"))) != 0);
-		_SaveWIConfigArray(WSuploadColumnHidden, _countof(WSuploadColumnHidden), _T("uploadColumnHidden"));
+		_SaveWIConfigArray(Data.sURL, WSuploadColumnHidden, _countof(WSuploadColumnHidden), _T("uploadColumnHidden"));
 	} else if (HTTPTemp == _T("menuqueue")) {
-		int iMenu = _tstol(_ParseURL(Data.sURL, _T("m")));
-		WSqueueColumnHidden[iMenu] = (_tstol(_ParseURL(Data.sURL, _T("v"))) != 0);
-		_SaveWIConfigArray(WSqueueColumnHidden, _countof(WSqueueColumnHidden), _T("queueColumnHidden"));
+		_SaveWIConfigArray(Data.sURL, WSqueueColumnHidden, _countof(WSqueueColumnHidden), _T("queueColumnHidden"));
 	} else if (HTTPTemp == _T("menuprio") && bAdmin) {
 		const CString &sPrio(_ParseURL(Data.sURL, _T("p")));
 		int prio;
@@ -2643,10 +2636,7 @@ CString CWebServer::_GetSharedFilesList(const ThreadData &Data)
 	}
 
 	if (_ParseURL(Data.sURL, _T("c")) == _T("menu")) {
-		int iMenu = _tstoi(_ParseURL(Data.sURL, _T("m")));
-		bool bValue = _tstoi(_ParseURL(Data.sURL, _T("v"))) != 0;
-		WSsharedColumnHidden[iMenu] = bValue;
-		_SaveWIConfigArray(WSsharedColumnHidden, _countof(WSsharedColumnHidden), _T("sharedColumnHidden"));
+		_SaveWIConfigArray(Data.sURL, WSsharedColumnHidden, _countof(WSsharedColumnHidden), _T("sharedColumnHidden"));
 	}
 	if (_ParseURL(Data.sURL, _T("reload")) == _T("true"))
 		SendMessage(theApp.emuledlg->m_hWnd, WEB_GUI_INTERACTION, WEBGUIIA_SHARED_FILES_RELOAD, 0);
@@ -3628,8 +3618,8 @@ CString CWebServer::_GetDownloadGraph(const ThreadData &Data, const CString &fil
 	} else {
 		const CStringA &s_ChunkBar(pPartFile->GetProgressString(pThis->m_Templates.iProgressbarWidth));
 		// now draw progress bars based on the character array
-		int compl = static_cast<int>((pThis->m_Templates.iProgressbarWidth / 100.0f) * pPartFile->GetPercentCompleted());
-		Out.Format(pThis->m_Templates.sProgressbarImgsPercent, barcolours[compl > 0 ? 10 : 11], (compl > 0 ? compl : 5));
+		int iCompl = static_cast<int>((pThis->m_Templates.iProgressbarWidth / 100.0f) * pPartFile->GetPercentCompleted());
+		Out.Format(pThis->m_Templates.sProgressbarImgsPercent, barcolours[iCompl > 0 ? 10 : 11], (iCompl > 0 ? iCompl : 5));
 		Out += _T("<br>");
 
 		BYTE lastcolor = 1;
@@ -3674,11 +3664,7 @@ CString CWebServer::_GetSearch(const ThreadData &Data)
 	}
 
 	if (_ParseURL(Data.sURL, _T("c")) == _T("menu")) {
-		int iMenu = _tstoi(_ParseURL(Data.sURL, _T("m")));
-		bool bValue = _tstoi(_ParseURL(Data.sURL, _T("v"))) != 0;
-		WSsearchColumnHidden[iMenu] = bValue;
-
-		_SaveWIConfigArray(WSsearchColumnHidden, _countof(WSsearchColumnHidden), _T("searchColumnHidden"));
+		_SaveWIConfigArray(Data.sURL, WSsearchColumnHidden, _countof(WSsearchColumnHidden), _T("searchColumnHidden"));
 	}
 
 	if (!_ParseURL(Data.sURL, _T("tosearch")).IsEmpty() && bSessionAdmin) {
@@ -3741,6 +3727,7 @@ CString CWebServer::_GetSearch(const ThreadData &Data)
 				strResponse = _GetPlainResString(IDS_ERR_NOTCONNECTEDKAD);
 			}
 		} catch (...) {
+			DebugLogCaughtException(__FUNCTION__);
 			strResponse = _GetPlainResString(IDS_ERROR);
 			ASSERT(0);
 			delete pParams;
@@ -3820,7 +3807,7 @@ CString CWebServer::_GetSearch(const ThreadData &Data)
 
 		CString s0, s1, s2, s3;
 		if (!WSsearchColumnHidden[0])
-			s0.Format(strFmt, (LPCTSTR)StringLimit(structFile.m_strFileName, 70));
+			s0.Format(strFmt, (LPCTSTR)_SpecialChars(StringLimit(structFile.m_strFileName, 70)));
 		if (!WSsearchColumnHidden[1])
 			s1.Format(strFmt, (LPCTSTR)CastItoXBytes(structFile.m_uFileSize));
 		if (!WSsearchColumnHidden[2])

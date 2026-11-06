@@ -37,7 +37,6 @@ CTitledMenu::CTitledMenu()
 	, m_bDrawEdge()
 	, m_bIconMenu()
 {
-	m_mapMenuIdToIconIdx.InitHashTable(29);
 }
 
 CTitledMenu::~CTitledMenu()
@@ -47,10 +46,6 @@ CTitledMenu::~CTitledMenu()
 
 void CTitledMenu::DeleteIcons()
 {
-	m_ImageList.DeleteImageList();
-	m_mapIconNameToIconIdx.RemoveAll();
-	m_mapMenuIdToIconIdx.RemoveAll();
-
 	CString strKey;
 	for (POSITION pos = m_mapIconNameToBitmap.GetStartPosition(); pos != NULL;) {
 		void *pvBmp;
@@ -62,9 +57,6 @@ void CTitledMenu::DeleteIcons()
 
 BOOL CTitledMenu::CreateMenu()
 {
-	ASSERT(m_mapIconNameToIconIdx.IsEmpty());
-	ASSERT(m_mapMenuIdToIconIdx.IsEmpty());
-	ASSERT(m_ImageList.m_hImageList == NULL || m_ImageList.GetImageCount() == 0);
 	ASSERT(m_mapIconNameToBitmap.IsEmpty());
 	return __super::CreateMenu();
 }
@@ -96,14 +88,7 @@ void CTitledMenu::AddMenuTitle(LPCTSTR lpszTitle, bool bIsIconMenu)
 
 void CTitledMenu::EnableIcons()
 {
-	switch (thePrefs.GetWindowsVersion()) {
-	case _WINVER_95_:
-	case _WINVER_NT4_:
-		return;
-	}
 	m_bIconMenu = true;
-	m_ImageList.DeleteImageList();
-	m_ImageList.Create(ICONSIZE, ICONSIZE, theApp.m_iDfltImageListColorFlags | ILC_MASK, 0, 1);
 
 	MENUINFO mi;
 	mi.cbSize = (DWORD)sizeof mi;
@@ -113,7 +98,7 @@ void CTitledMenu::EnableIcons()
 	SetMenuInfo(&mi);
 }
 
-// NOTE: This function is no longer used for Vista!
+// Only the title item is owner drawn, and only when no Vista theme is active
 void CTitledMenu::MeasureItem(LPMEASUREITEMSTRUCT lpMIS)
 {
 	if (lpMIS->itemID == MP_TITLE) {
@@ -128,16 +113,11 @@ void CTitledMenu::MeasureItem(LPMEASUREITEMSTRUCT lpMIS)
 		static const int nBorderSize = 2;
 		lpMIS->itemWidth = size.cx + nBorderSize;
 		lpMIS->itemHeight = size.cy + nBorderSize;
-	} else {
+	} else
 		CMenu::MeasureItem(lpMIS);
-		if (m_bIconMenu) {
-			lpMIS->itemHeight = max(lpMIS->itemHeight, 16);
-			lpMIS->itemWidth += 18;
-		}
-	}
 }
 
-// NOTE: This function is no longer used for Vista!
+// Only the title item is owner drawn, and only when no Vista theme is active
 void CTitledMenu::DrawItem(LPDRAWITEMSTRUCT lpDIS)
 {
 	if (lpDIS->itemID == MP_TITLE) {
@@ -176,19 +156,6 @@ void CTitledMenu::DrawItem(LPDRAWITEMSTRUCT lpDIS)
 		::SetTextColor(lpDIS->hDC, crOld);
 		::SetBkMode(lpDIS->hDC, iOldBkMode);
 		::SetBkColor(lpDIS->hDC, crOldBk);
-	} else {
-		int nIconPos;
-		if (m_mapMenuIdToIconIdx.Lookup(lpDIS->itemID, nIconPos)) {
-			int posY = lpDIS->rcItem.top + ((lpDIS->rcItem.bottom - lpDIS->rcItem.top) - ICONSIZE) / 2;
-			CDC *dc = CDC::FromHandle(lpDIS->hDC);
-			HICON hIcon = (lpDIS->itemState & ODS_GRAYED) ? ReplaceIconGreyedInImageList(m_ImageList, nIconPos) : 0;
-			// Draw the bitmap on the menu.
-			m_ImageList.Draw(dc, nIconPos, CPoint(lpDIS->rcItem.left, posY), ILD_TRANSPARENT);
-			if (hIcon) { //restore coloured icon
-				m_ImageList.Replace(nIconPos, hIcon);
-				::DestroyIcon(hIcon);
-			}
-		}
 	}
 }
 
@@ -273,7 +240,7 @@ static HBITMAP IconToBitmap32(HICON hIcon, int cx, int cy)
 
 void CTitledMenu::SetMenuBitmap(UINT nFlags, UINT nIDNewItem, LPCTSTR /*lpszNewItem*/, LPCTSTR lpszIconName)
 {
-	if (!m_bIconMenu || (nFlags & MF_SEPARATOR) != 0 || thePrefs.GetWindowsVersion() < _WINVER_2K_) {
+	if (!m_bIconMenu || (nFlags & MF_SEPARATOR) != 0) {
 		if (m_bIconMenu && lpszIconName != NULL)
 			ASSERT(0);
 		return;
@@ -292,56 +259,28 @@ void CTitledMenu::SetMenuBitmap(UINT nFlags, UINT nIDNewItem, LPCTSTR /*lpszNewI
 	CString strIconLower(lpszIconName);
 	if (strIconLower.MakeLower().IsEmpty())
 		return;
-	if (thePrefs.GetWindowsVersion() >= _WINVER_VISTA_) {
-		// Vista+: Use the Windows built-in feature for 32-bit menu item bitmaps.
-		// 'MeasureItem', 'DrawItem' will not get called any longer and Vista
-		// cares properly about grayed/selected menu item bitmaps.
-		HBITMAP hBmp;
-		void *pvBmp;
-		if (m_mapIconNameToBitmap.Lookup(strIconLower, pvBmp))
-			hBmp = (HBITMAP)pvBmp;
-		else {
-			HICON hIcon = theApp.LoadIcon(strIconLower);
-			if (hIcon) {
-				hBmp = IconToBitmap32(hIcon, ICONSIZE, ICONSIZE);
-				VERIFY(::DestroyIcon(hIcon));
-			} else
-				hBmp = NULL;
-		}
-
-		if (hBmp) {
-			MENUITEMINFO info = {};
-			info.cbSize = (UINT)sizeof info;
-			info.fMask = MIIM_BITMAP;
-			info.hbmpItem = hBmp;
-			VERIFY(SetMenuItemInfo(nIDNewItem, &info, FALSE));
-			m_mapIconNameToBitmap[strIconLower] = hBmp;
-		}
-	} else {
-		// pre-Vista: Use owner drawn menu items which are handled in 'MeasureItem' and 'DrawItem'
-		int nPos;
-		void *pvIndex;
-		if (m_mapIconNameToIconIdx.Lookup(strIconLower, pvIndex)) {
-			nPos = (int)pvIndex;
-			m_mapMenuIdToIconIdx[nIDNewItem] = nPos;
-		} else {
-			HICON hIcon = theApp.LoadIcon(strIconLower);
-			if (!hIcon)
-				return;
-			nPos = m_ImageList.Add(hIcon);
-			if (nPos >= 0) {
-				m_mapIconNameToIconIdx[strIconLower] = (void*)nPos;
-				m_mapMenuIdToIconIdx[nIDNewItem] = nPos;
-			}
+	// Use the Windows built-in feature for 32-bit menu item bitmaps, which
+	// cares properly about grayed/selected menu item bitmaps.
+	HBITMAP hBmp;
+	void *pvBmp;
+	if (m_mapIconNameToBitmap.Lookup(strIconLower, pvBmp))
+		hBmp = (HBITMAP)pvBmp;
+	else {
+		HICON hIcon = theApp.LoadIcon(strIconLower);
+		if (hIcon) {
+			hBmp = IconToBitmap32(hIcon, ICONSIZE, ICONSIZE);
 			VERIFY(::DestroyIcon(hIcon));
-		}
-		if (nPos != -1) {
-			MENUITEMINFO info = {};
-			info.cbSize = (UINT)sizeof info;
-			info.fMask = MIIM_BITMAP;
-			info.hbmpItem = HBMMENU_CALLBACK;
-			VERIFY(SetMenuItemInfo(nIDNewItem, &info, FALSE));
-		}
+		} else
+			hBmp = NULL;
+	}
+
+	if (hBmp) {
+		MENUITEMINFO info = {};
+		info.cbSize = (UINT)sizeof info;
+		info.fMask = MIIM_BITMAP;
+		info.hbmpItem = hBmp;
+		VERIFY(SetMenuItemInfo(nIDNewItem, &info, FALSE));
+		m_mapIconNameToBitmap[strIconLower] = hBmp;
 	}
 }
 

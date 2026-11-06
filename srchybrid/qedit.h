@@ -5,9 +5,6 @@
 //
 //--------------------------------------------------------------------------
 
-#pragma warning(push)
-#pragma warning( disable: 4049 )  /* more than 64k source lines */
-
 /* this ALWAYS GENERATED file contains the definitions for the interfaces */
 
 
@@ -9909,7 +9906,11 @@ DxtKey;
 /* [local] */
 
 
-enum __MIDL___MIDL_itf_qedit_0474_0001
+// C4865: 0x80040400 and up do not fit in int, so without an explicit
+// underlying type the enum is int under the default rules and unsigned int
+// under /Zc:enumTypes (the ARM64 build). Pinned to unsigned int, the type
+// the standard rules already pick; none of these values is used by eMule.
+enum __MIDL___MIDL_itf_qedit_0474_0001 : unsigned int
     {	E_NOTINTREE	= 0x80040400,
 	E_RENDER_ENGINE_IS_BROKEN	= 0x80040401,
 	E_MUST_INIT_RENDERER	= 0x80040402,
@@ -19879,4 +19880,3 @@ void                      __RPC_USER  VARIANT_UserFree(__RPC__in unsigned long *
 
 
 #endif    // DirectX 8.0 content
-#pragma warning(pop)

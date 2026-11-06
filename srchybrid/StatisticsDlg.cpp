@@ -42,7 +42,7 @@ static char THIS_FILE[] = __FILE__;
 #endif
 
 #ifdef _DEBUG
-extern _CRT_ALLOC_HOOK g_pfnPrevCrtAllocHook;
+extern int (__cdecl *g_pfnPrevCrtAllocHook)(int, void*, size_t, int, long, const unsigned char*, int) noexcept;
 #endif
 
 
@@ -50,6 +50,8 @@ extern _CRT_ALLOC_HOOK g_pfnPrevCrtAllocHook;
 
 IMPLEMENT_DYNAMIC(CStatisticsDlg, CDialog)
 
+#pragma warning(push)
+#pragma warning(disable:4191) // MFC message maps cast every handler to AFX_PMSG; only a pragma inside the .cpp reaches this
 BEGIN_MESSAGE_MAP(CStatisticsDlg, CResizableDialog)
 	ON_WM_SHOWWINDOW()
 	ON_WM_SIZE()
@@ -62,6 +64,7 @@ BEGIN_MESSAGE_MAP(CStatisticsDlg, CResizableDialog)
 	ON_MESSAGE(UM_OSCOPEPOSITION, OnOscopePositionMsg)
 	ON_WM_HELPINFO()
 END_MESSAGE_MAP()
+#pragma warning(pop)
 
 CStatisticsDlg::CStatisticsDlg(CWnd *pParent /*=NULL*/)
 	: CResizableDialog(CStatisticsDlg::IDD, pParent)
@@ -151,8 +154,6 @@ BOOL CStatisticsDlg::OnInitDialog()
 		SetDlgItemText(IDC_BNMENU, _T("6")); // show a down-arrow
 	}
 
-	// Win98: Explicitly set to Unicode to receive Unicode notifications.
-	m_stattree.SendMessage(CCM_SETUNICODEFORMAT, TRUE);
 	if (thePrefs.GetUseSystemFontForMainControls())
 		m_stattree.SendMessage(WM_SETFONT, NULL, FALSE);
 	CreateMyTree();

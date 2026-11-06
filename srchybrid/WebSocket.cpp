@@ -1,4 +1,6 @@
 #include <stdafx.h>
+#include <io.h>
+#include <share.h>
 #include "OtherFunctions.h"
 #include "WebSocket.h"
 #include "WebServer.h"
@@ -83,6 +85,7 @@ void CWebSocket::OnReceived(const void *pData, DWORD dwSize, const in_addr inad)
 			m_dwBufSize = dwSize + m_dwRecv + SIZE_PRESERVE;
 			pNewBuf = new char[m_dwBufSize];
 		} catch (...) {
+			DebugLogCaughtException(__FUNCTION__);
 			m_bValid = false; // internal problem
 			return;
 		}
@@ -198,6 +201,7 @@ void CWebSocket::SendData(const void *pData, DWORD dwDataSize)
 			try {
 				pChunk = new CChunk;
 			} catch (...) {
+				DebugLogCaughtException(__FUNCTION__);
 				return;
 			}
 			pChunk->m_pNext = NULL;
@@ -205,6 +209,7 @@ void CWebSocket::SendData(const void *pData, DWORD dwDataSize)
 			try {
 				pChunk->m_pData = new char[dwDataSize];
 			} catch (...) {
+				DebugLogCaughtException(__FUNCTION__);
 				delete pChunk; // oops, no memory (???)
 				return;
 			}
@@ -257,6 +262,7 @@ void CWebSocket::Disconnect()
 				// push an empty chunk as the tail
 				m_pTail->m_pNext = new CChunk();
 			} catch (...) {
+				DebugLogCaughtException(__FUNCTION__);
 			}
 		else if (shutdown(m_hSocket, SD_SEND))
 			m_bValid = false;
@@ -279,6 +285,14 @@ UINT AFX_CDECL WebSocketAcceptedFunc(LPVOID pD)
 
 	ASSERT(INVALID_SOCKET != hSocket);
 
+	// The TLS layer used to get &hSocket as its mbedtls_net_context, but that
+	// context holds an int fd while SOCKET is pointer-sized: on x64 and ARM64
+	// mbedTLS read and wrote only the low half of the handle. A real context,
+	// filled the way mbedtls_net_accept() fills its own, is what it expects.
+	mbedtls_net_context netCtx;
+	mbedtls_net_init(&netCtx);
+	netCtx.fd = (int)hSocket;
+
 	HANDLE hEvent = CreateEvent(NULL, FALSE, TRUE, NULL);
 	if (hEvent) {
 		if (!WSAEventSelect(hSocket, hEvent, FD_READ | FD_CLOSE | FD_WRITE)) {
@@ -297,20 +311,21 @@ UINT AFX_CDECL WebSocketAcceptedFunc(LPVOID pD)
 			stWebSocket.m_dwHttpHeaderLen = 0;
 			stWebSocket.m_dwHttpContentLen = 0;
 			stWebSocket.m_ssl = &ssl;
+			// declared before the "goto thread_exit"s below, which would otherwise jump over its initialization
+			HANDLE pWait[] = {hEvent, s_hTerminate};
 
 			if (thePrefs.GetWebUseHttps()) {
 				mbedtls_ssl_init(&ssl);
 				int ret = mbedtls_ssl_setup(&ssl, &conf);
 				if (ret)
 					goto thread_exit;
-				mbedtls_ssl_set_bio(&ssl, (void*)&hSocket, mbedtls_net_send, mbedtls_net_recv, NULL);
+				mbedtls_ssl_set_bio(&ssl, &netCtx, mbedtls_net_send, mbedtls_net_recv, NULL);
 				while ((ret = mbedtls_ssl_handshake(&ssl)) != 0)
 					if (ret != MBEDTLS_ERR_SSL_WANT_READ && ret != MBEDTLS_ERR_SSL_WANT_WRITE) {
 						DebugLogWarning(_T("Web Interface handshake failed: %s"), (LPCTSTR)SSLerror(ret));
 						goto thread_exit;
 					}
 			}
-			HANDLE pWait[] = {hEvent, s_hTerminate};
 
 			while (WAIT_OBJECT_0 == ::WaitForMultipleObjects(DWORD(_countof(pWait)), pWait, FALSE, INFINITE)) {
 				while (stWebSocket.m_bValid) {
@@ -413,7 +428,7 @@ thread_exit:
 		VERIFY(::CloseHandle(hEvent));
 	}
 	if (thePrefs.GetWebUseHttps())
-		mbedtls_net_free((mbedtls_net_context*)&hSocket);
+		mbedtls_net_free(&netCtx);
 	else
 		VERIFY(!closesocket(hSocket));
 	return 0;
@@ -434,57 +449,143 @@ UINT AFX_CDECL WebSocketListeningFunc(LPVOID pThis)
 		stAddr.sin_addr.s_addr = thePrefs.GetBindAddrA() ? inet_addr(thePrefs.GetBindAddrA()) : INADDR_ANY;
 
 		if (!bind(hSocket, (LPSOCKADDR)&stAddr, sizeof stAddr) && !listen(hSocket, SOMAXCONN)) {
-			HANDLE hEvent = CreateEvent(NULL, FALSE, TRUE, NULL);
-			if (hEvent) {
-				if (!WSAEventSelect(hSocket, hEvent, FD_ACCEPT)) {
-					HANDLE pWait[] = {hEvent, s_hTerminate};
-					while (WAIT_OBJECT_0 == ::WaitForMultipleObjects(2, pWait, FALSE, INFINITE)) {
-						for (;;) {
-							SOCKADDR_IN their_addr;
-							int sin_size = (int)sizeof(SOCKADDR_IN);
+			// The listening socket is watched with select() instead of being armed
+			// with WSAEventSelect(FD_ACCEPT) and waited on. Both report the same
+			// thing, but not in the same way. FD_ACCEPT is an edge: it is delivered
+			// once, delivery disables it, and only accept() enables it again. One
+			// missed delivery therefore parks this thread in a wait that nothing can
+			// end - not a timeout, because there was none, and not accept(), because
+			// it is never reached - and the web interface stops answering for the
+			// rest of the run while connections pile up in the backlog. Nothing
+			// creates this thread a second time, so that state is permanent.
+			// select() reports the socket's current state rather than a transition,
+			// so there is no edge to miss and nothing to re-arm.
+			//
+			// One connection is taken per report, not a drain loop: when more are
+			// queued select() says so again on the next pass. That also stops
+			// accept() from being called with nothing waiting, which the drain loop
+			// did on every single pass.
+			// The last accept error reported and when, so that a condition which
+			// lasts is written to the log once rather than four times a second.
+			int iLastAcceptError = 0;
+			DWORD dwLastAcceptErrorTick = 0;
+			u_long ulNonBlock = 1;
+			if (ioctlsocket(hSocket, FIONBIO, &ulNonBlock))
+				LogError(_T("Web Interface: Cannot listen for connections - %s"), (LPCTSTR)GetErrorMessage(::WSAGetLastError(), 1));
+			else
+				for (;;) {
+					if (::WaitForSingleObject(s_hTerminate, 0) != WAIT_TIMEOUT)
+						break;
 
-							SOCKET hAccepted = accept(hSocket, (LPSOCKADDR)&their_addr, &sin_size);
-							if (INVALID_SOCKET == hAccepted)
+					fd_set stReadable;
+					FD_ZERO(&stReadable);
+					FD_SET(hSocket, &stReadable);
+					// Bounded only so that termination is noticed without a second
+					// waitable object to watch alongside the socket. The value sets
+					// how quickly this thread reacts to shutdown, never whether an
+					// incoming connection is seen.
+					timeval stTimeout = {0, 250 * 1000};
+					const int iReady = select(0, &stReadable, NULL, NULL, &stTimeout);
+					if (iReady == SOCKET_ERROR) {
+						// nothing starts this thread again: say why the web interface stopped
+						LogError(_T("Web Interface: Stopped listening for connections - %s"), (LPCTSTR)GetErrorMessage(::WSAGetLastError(), 1));
+						break;
+					}
+					if (iReady == 0)
+						continue;
+
+					SOCKADDR_IN their_addr;
+					int sin_size = (int)sizeof(SOCKADDR_IN);
+
+					SOCKET hAccepted = accept(hSocket, (LPSOCKADDR)&their_addr, &sin_size);
+					if (INVALID_SOCKET == hAccepted) {
+						// select() reported the socket readable, so an accept that takes
+						// nothing is the ordinary race - another taker, or a peer that gave
+						// up in between - and the next pass waits in select() as usual. Any
+						// other error left the connection that made the socket readable where
+						// it was: select() reports it again at once, so returning straight to
+						// the top would spin this thread for as long as the condition lasts.
+						// Running out of descriptors is the case that matters, and waiting is
+						// the only useful answer to it - the same wait a pass with nothing to
+						// accept costs anyway.
+						const int iAcceptError = ::WSAGetLastError();
+						if (iAcceptError != WSAEWOULDBLOCK) {
+							const DWORD dwNow = ::GetTickCount();
+							if (iAcceptError != iLastAcceptError || dwNow - dwLastAcceptErrorTick >= 60000) {
+								iLastAcceptError = iAcceptError;
+								dwLastAcceptErrorTick = dwNow;
+								LogWarning(_T("Web Interface: Cannot accept a connection - %s"), (LPCTSTR)GetErrorMessage(iAcceptError, 1));
+							}
+							::Sleep(250);
+						}
+						continue;
+					}
+					// A connection was taken, so the next failure starts a new spell.
+					iLastAcceptError = 0;
+
+					bool bAllowedIP = thePrefs.GetAllowedRemoteAccessIPs().IsEmpty();
+					if (!bAllowedIP) {
+						for (INT_PTR i = thePrefs.GetAllowedRemoteAccessIPs().GetCount(); --i >= 0;)
+							if (their_addr.sin_addr.s_addr == thePrefs.GetAllowedRemoteAccessIPs()[i]) {
+								bAllowedIP = true;
 								break;
-
-							bool bAllowedIP = thePrefs.GetAllowedRemoteAccessIPs().IsEmpty();
-							if (!bAllowedIP) {
-								for (INT_PTR i = thePrefs.GetAllowedRemoteAccessIPs().GetCount(); --i >= 0;)
-									if (their_addr.sin_addr.s_addr == thePrefs.GetAllowedRemoteAccessIPs()[i]) {
-										bAllowedIP = true;
-										break;
-									}
-
-								if (!bAllowedIP) {
-									LogWarning(_T("Web Interface: Rejected connection attempt from %s"), (LPCTSTR)ipstr(their_addr.sin_addr.s_addr));
-									VERIFY(!closesocket(hAccepted));
-									break;
-								}
 							}
 
-							if (thePrefs.GetWSIsEnabled()) {
-								SocketData *pData = new SocketData;
-								pData->pThis = pThis;
-								pData->hSocket = hAccepted;
-								pData->incomingaddr = their_addr.sin_addr;
-								// - do NOT use Windows API 'CreateThread' to create a thread which uses MFC/CRT -> lot of mem leaks!
-								// - 'AfxBeginThread' is excessive for our needs.
-								CWinThread *pAcceptThread = new CWinThread(WebSocketAcceptedFunc, (LPVOID)pData);
-								if (!pAcceptThread->CreateThread()) {
-									delete pAcceptThread;
-									VERIFY(!closesocket(hAccepted));
-								}
-							} else
-								VERIFY(!closesocket(hAccepted));
+						if (!bAllowedIP) {
+							LogWarning(_T("Web Interface: Rejected connection attempt from %s"), (LPCTSTR)ipstr(their_addr.sin_addr.s_addr));
+							VERIFY(!closesocket(hAccepted));
+							continue;
 						}
 					}
+
+					if (thePrefs.GetWSIsEnabled()) {
+						SocketData *pData = new SocketData;
+						pData->pThis = pThis;
+						pData->hSocket = hAccepted;
+						pData->incomingaddr = their_addr.sin_addr;
+						// - do NOT use Windows API 'CreateThread' to create a thread which uses MFC/CRT -> lot of mem leaks!
+						// - 'AfxBeginThread' is excessive for our needs.
+						CWinThread *pAcceptThread = new CWinThread(WebSocketAcceptedFunc, (LPVOID)pData);
+						if (!pAcceptThread->CreateThread()) {
+							delete pAcceptThread;
+							VERIFY(!closesocket(hAccepted));
+						}
+					} else
+						VERIFY(!closesocket(hAccepted));
 				}
-				VERIFY(::CloseHandle(hEvent));
-			}
 		}
 		VERIFY(!closesocket(hSocket));
 	}
 	return 0;
+}
+
+// mbedtls_x509_crt_parse_file() and mbedtls_pk_parse_keyfile() open their path
+// with fopen(), which reads a narrow path in the ANSI code page: a certificate or
+// key in a folder whose name is outside that code page could not be opened, and
+// a UTF-8 path fails on any non-ASCII name. The file is read here through the wide
+// API instead and handed to mbedTLS in memory, prepared the way
+// mbedtls_pk_load_file() prepares it: a terminating null byte, which counts in
+// the length for PEM input only.
+static int LoadTLSFile(LPCTSTR pszPath, CByteArray &raData)
+{
+	FILE *fp = _tfsopen(pszPath, _T("rb"), _SH_DENYWR);
+	if (fp == NULL)
+		return MBEDTLS_ERR_PK_FILE_IO_ERROR;
+	// no stdio buffer, which could not be wiped, for the private key
+	setvbuf(fp, NULL, _IONBF, 0);
+	int ret = MBEDTLS_ERR_PK_FILE_IO_ERROR;
+	const __int64 nSize = _filelengthi64(_fileno(fp));
+	if (nSize >= 0 && nSize < INT_MAX) {
+		raData.SetSize((INT_PTR)nSize + 1);
+		if (fread(raData.GetData(), 1, (size_t)nSize, fp) == (size_t)nSize) {
+			raData[(INT_PTR)nSize] = 0;
+			if (strstr((const char*)raData.GetData(), "-----BEGIN ") == NULL)
+				raData.SetSize((INT_PTR)nSize);
+			ret = 0;
+		}
+	}
+	fclose(fp);
+	return ret;
 }
 
 int StartSSL()
@@ -500,9 +601,17 @@ int StartSSL()
 	mbedtls_ssl_ticket_init(&ticket_ctx);
 	int ret = (int)psa_crypto_init();
 	if (!ret) { // PSA_SUCCESS is 0
-		ret = mbedtls_x509_crt_parse_file(&srvcert, thePrefs.GetWebCertPath());
+		CByteArray aCert;
+		ret = LoadTLSFile(thePrefs.GetWebCertPath(), aCert);
+		if (!ret)
+			ret = mbedtls_x509_crt_parse(&srvcert, aCert.GetData(), (size_t)aCert.GetSize());
 		if (!ret) {
-			ret = mbedtls_pk_parse_keyfile(&pkey, thePrefs.GetWebKeyPath(), NULL);
+			CByteArray aKey;
+			ret = LoadTLSFile(thePrefs.GetWebKeyPath(), aKey);
+			if (!ret)
+				ret = mbedtls_pk_parse_key(&pkey, aKey.GetData(), (size_t)aKey.GetSize(), NULL, 0);
+			// the key is parsed, its file contents are not needed any more
+			::SecureZeroMemory(aKey.GetData(), (size_t)aKey.GetSize());
 			if (!ret) {
 				ret = mbedtls_ssl_config_defaults(&conf, MBEDTLS_SSL_IS_SERVER, MBEDTLS_SSL_TRANSPORT_STREAM, MBEDTLS_SSL_PRESET_DEFAULT);
 				if (!ret) {
@@ -522,8 +631,14 @@ int StartSSL()
 		DebugLogError(_T("Web Interface start failed: %s"), (LPCTSTR)SSLerror(ret));
 	else {
 		unsigned char fingerprint[PSA_HASH_LENGTH(PSA_ALG_SHA_1)];
-		mbedtls_sha1(srvcert.raw.p, srvcert.raw.len, fingerprint);
-		DebugLog(_T("Loaded certificate: %s"), (LPCTSTR)GetCertHash(fingerprint, (int)(sizeof fingerprint)));
+		size_t fingerprint_len;
+		// mbedtls_sha1() moved to a "private" (non-public) header in mbedTLS 4.0;
+		// psa_hash_compute() is the maintained replacement, consistent with the
+		// PSA calls already used above (psa_crypto_init, session tickets).
+		if (psa_hash_compute(PSA_ALG_SHA_1, srvcert.raw.p, srvcert.raw.len, fingerprint, sizeof fingerprint, &fingerprint_len) == PSA_SUCCESS)
+			DebugLog(_T("Loaded certificate: %s"), (LPCTSTR)GetCertHash(fingerprint, (int)(sizeof fingerprint)));
+		else
+			DebugLog(_T("Loaded certificate"));
 	}
 	return ret;
 }
@@ -571,10 +686,14 @@ void StopSockets()
 
 			DWORD dwWaitRes = ::WaitForSingleObject(s_pSocketThread->m_hThread, 1300);
 			if (dwWaitRes == WAIT_TIMEOUT) {
-				TRACE("*** Failed to wait for websocket thread termination - Timeout\n");
-				VERIFY(::TerminateThread(s_pSocketThread->m_hThread, _UI32_MAX));
-				VERIFY(::CloseHandle(s_pSocketThread->m_hThread));
-			} else if (dwWaitRes == WAIT_FAILED) {
+				// The listening thread looks at s_hTerminate at least four times a second, so
+				// it ends; it is never terminated, as a thread killed from outside can leave a
+				// lock taken for good - the CRT heap's among them. (Terminating it also closed
+				// m_hThread here, which the CWinThread destructor below then closed again.)
+				DebugLogWarning(_T("Web Interface: the listening thread is still busy, waiting for it to finish..."));
+				dwWaitRes = ::WaitForSingleObject(s_pSocketThread->m_hThread, INFINITE);
+			}
+			if (dwWaitRes == WAIT_FAILED) {
 				TRACE("*** Failed to wait for websocket thread termination - Error %d\n", CAsyncSocket::GetLastError());
 				ASSERT(0); // probably invalid thread handle
 			}

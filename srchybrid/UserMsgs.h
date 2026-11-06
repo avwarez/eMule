@@ -50,4 +50,7 @@ enum EUserWndMessages
 	// TreeOptionsCtrl
 	, WM_TOC_SETFOCUS_TO_CHILD //+29
 	, WM_TOC_REPOSITION_CHILD_CONTROL //+30
+
+	// Windows Firewall
+	, UM_FIREWALL_STATE //+31
 };

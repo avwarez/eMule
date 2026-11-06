@@ -315,6 +315,7 @@ UINT UploadBandwidthThrottler::RunInternal()
 	int nSlotsBusyLevel = 0;
 
 	lastTickReachedBandwidth = lastLoopTick = timeGetTime();
+	DWORD lastAbandonedSendsTick = lastLoopTick;
 	while (m_bRun) {
 		//m_eventPaused.Lock();
 
@@ -472,6 +473,12 @@ UINT UploadBandwidthThrottler::RunInternal()
 
 		const DWORD thisLoopTick = timeGetTime();
 		timeSinceLastLoop = thisLoopTick - lastLoopTick;
+
+		// 97o: free the sends that ended after their socket had let go of them
+		if (thisLoopTick - lastAbandonedSendsTick >= SEC2MS(1)) {
+			lastAbandonedSendsTick = thisLoopTick;
+			CEMSocket::FreeFinishedAbandonedSends();
+		}
 
 		// Calculate how many bytes we can spend
 		sint64 bytesToSpend;

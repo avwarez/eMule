@@ -47,6 +47,15 @@ void AddDebugLogLine(EDebugLogPriority Priority, bool bAddToStatusBar, LPCTSTR p
 
 void AddLogTextV(UINT uFlags, EDebugLogPriority dlpPriority, LPCTSTR pszLine, va_list argptr);
 
+// One line in the verbose log for an exception that a catch block handles without
+// reporting it anywhere else, so that no failure passes without a trace. pszWhere
+// is the catching function (__FUNCTION__). An exception object, when there is one,
+// is described but not deleted - the catch block still owns it. These never throw:
+// a failure while logging must not escape a catch block that used to absorb it.
+void DebugLogCaughtException(LPCSTR pszWhere) noexcept;
+void DebugLogCaughtException(LPCSTR pszWhere, CException *ex) noexcept;
+void DebugLogCaughtException(LPCSTR pszWhere, const CString &strError) noexcept;
+
 
 ///////////////////////////////////////////////////////////////////////////////
 // CLogFile

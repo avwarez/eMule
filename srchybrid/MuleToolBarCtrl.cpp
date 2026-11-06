@@ -104,9 +104,6 @@ void CMuleToolbarCtrl::Init()
 {
 	m_astrToolbarPaths.RemoveAll();
 
-	// Win98: Explicitly set to Unicode to receive Unicode notifications.
-	SendMessage(CCM_SETUNICODEFORMAT, TRUE);
-
 	ModifyStyle(0, TBSTYLE_FLAT | TBSTYLE_ALTDRAG | CCS_ADJUSTABLE | TBSTYLE_TRANSPARENT | TBSTYLE_TOOLTIPS | CCS_NODIVIDER);
 	if (thePrefs.GetUseReBarToolbar()) {
 		ModifyStyle(0, CCS_NORESIZE);
@@ -266,13 +263,7 @@ void CMuleToolbarCtrl::SetAllButtonsWidth()
 
 		SetButtonWidth(iCalcSize, iCalcSize);
 	} else {
-		int iSmallIconsButtonHeight;
-		if (theApp.m_ullComCtrlVer < MAKEDLLVERULL(6, 0, 0, 0)) {
-			// Win98,WinME,Win2000: Comtrl32 prior to 6.0 cannot make a toolbar smaller than 22 pixels
-			// in height and if it gets larger than 22 pixels the icons do not get centered vertically.
-			iSmallIconsButtonHeight = 22;
-		} else
-			iSmallIconsButtonHeight = ::GetSystemMetrics(SM_CYSCREEN) <= 600 ? 16 : 28;
+		int iSmallIconsButtonHeight = ::GetSystemMetrics(SM_CYSCREEN) <= 600 ? 16 : 28;
 
 		int iFixedButtonWidth;
 		int iFixedButtonHeight;
@@ -752,6 +743,7 @@ void CMuleToolbarCtrl::Refresh()
 
 		rcClient.top += rToolbarRect.Height();
 		rcClient.bottom -= rcStatusbar.Height();
+		theApp.emuledlg->PlaceFirewallBar(rcClient);
 
 		CWnd **wnds = theApp.emuledlg->toolbarWnds;
 		for (int i = (int)_countof(theApp.emuledlg->toolbarWnds); --i >= 0; ++wnds) {
@@ -858,11 +850,8 @@ void CMuleToolbarCtrl::OnSettingChange(UINT uFlags, LPCTSTR lpszSection)
 	// not use the value of that parameter to limit the invocation of our correction code.
 	//
 
-	if (theApp.m_ullComCtrlVer >= MAKEDLLVERULL(6, 16, 0, 0)
-		&& (m_eLabelType == NoLabels || (m_eLabelType == LabelsRight && m_sizBtnBmp.cx == 16)))
-	{
+	if (m_eLabelType == NoLabels || (m_eLabelType == LabelsRight && m_sizBtnBmp.cx == 16))
 		ChangeToolbarBitmap(thePrefs.GetToolbarBitmapSettings(), true);
-	}
 }
 
 void CMuleToolbarCtrl::PressMuleButton(int nID)
@@ -962,22 +951,6 @@ void CMuleToolbarCtrl::AutoSize()
 #ifdef _DEBUG
 	//DumpInfo();
 #endif
-}
-
-BOOL CMuleToolbarCtrl::GetMaxSize(LPSIZE pSize) const
-{
-	BOOL bResult = CToolBarCtrl::GetMaxSize(pSize);
-	if (theApp.m_ullComCtrlVer <= MAKEDLLVERULL(5, 81, 0, 0)) {
-		int iWidth = 0;
-		CRect rcButton;
-		for (int i = GetButtonCount(); --i >= 0;)
-			if (GetItemRect(i, &rcButton))
-				iWidth += rcButton.Width();
-
-		if (iWidth > pSize->cx)
-			pSize->cx = iWidth;
-	}
-	return bResult;
 }
 
 void CMuleToolbarCtrl::SaveCurHeight()

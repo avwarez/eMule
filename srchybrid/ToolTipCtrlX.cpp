@@ -37,7 +37,6 @@ BEGIN_MESSAGE_MAP(CToolTipCtrlX, CToolTipCtrl)
 	ON_WM_SETTINGCHANGE()
 	ON_NOTIFY_REFLECT(NM_CUSTOMDRAW, OnNmCustomDraw)
 	ON_NOTIFY_REFLECT(NM_THEMECHANGED, OnNmThemeChanged)
-	ON_NOTIFY_REFLECT_EX(TTN_SHOW, OnTTShow)
 END_MESSAGE_MAP()
 
 CToolTipCtrlX::CToolTipCtrlX()
@@ -56,16 +55,6 @@ void CToolTipCtrlX::SetCol1DrawTextFlags(DWORD dwFlags)
 void CToolTipCtrlX::SetCol2DrawTextFlags(DWORD dwFlags)
 {
 	m_dwCol2DrawTextFlags = DFLT_DRAWTEXT_FLAGS | dwFlags;
-}
-
-BOOL CToolTipCtrlX::SubclassWindow(HWND hWnd)
-{
-	BOOL bResult = __super::SubclassWindow(hWnd);
-	// Win98/Win2000: Preventive, turning off tooltip animations should help in getting around
-	// some glitches when using customized tooltip drawing. Though, doesn't seem to help a lot.
-	if (theApp.m_ullComCtrlVer <= MAKEDLLVERULL(5, 81, 0, 0))
-		ModifyStyle(0, TTS_NOANIMATE | TTS_NOFADE);
-	return bResult;
 }
 
 void CToolTipCtrlX::ResetSystemMetrics()
@@ -130,13 +119,6 @@ void CToolTipCtrlX::CustomPaint(LPNMTTCUSTOMDRAW pNMCD)
 	// single line (the title line), but it would though not give us a bold font.
 	// So, actually we can use the Vista 'TOOLTIP' theme only for getting the proper
 	// tooltip background.
-	//
-	// Windows XP
-	// ----------
-	// Can *not* use the 'TOOLTIP' theme at all because it would give us only a (non-bold)
-	// black font on a white tooltip window background. Seems that the 'TOOLTIP' theme under
-	// WinXP is just using the default Window values (black + white) and does not
-	// use any of the tooltip specific Window metrics...
 	//
 	bool bUseEmbeddedThemeFonts = false;
 	HTHEME hTheme = NULL;
@@ -323,7 +305,7 @@ void CToolTipCtrlX::CustomPaint(LPNMTTCUSTOMDRAW pNMCD)
 	if (bShowFileIcon && iCaptionEnd > 0)
 		iCaptionHeight = maxi(iCaptionHeight, (int)(theApp.GetBigSytemIconSize().cy + (2 * iIconMinYBorder)));
 	sizText.cy += iCaptionHeight;
-	if (hTheme && theApp.m_ullComCtrlVer >= MAKEDLLVERULL(6, 16, 0, 0))
+	if (hTheme)
 		sizText.cy += 2; // extra bottom margin for Vista Theme
 
 	iMaxCol1Width = min(m_iScreenWidth4, iMaxCol1Width);
@@ -351,18 +333,16 @@ void CToolTipCtrlX::CustomPaint(LPNMTTCUSTOMDRAW pNMCD)
 			::FillRect(*pdc, &rcWnd, ::GetSysColorBrush(COLOR_INFOBK));
 			iOldBkColor = pdc->SetBkColor(m_crTooltipBkColor);
 			// Vista: Need to draw the window border explicitly !?
-			if (theApp.m_ullComCtrlVer >= MAKEDLLVERULL(6, 16, 0, 0)) {
-				CPen pen;
-				pen.CreatePen(0, 1, m_crTooltipTextColor);
-				CPen *pOP = pdc->SelectObject(&pen);
-				pdc->MoveTo(rcWnd.left, rcWnd.top);
-				pdc->LineTo(rcWnd.right - 1, rcWnd.top);
-				pdc->LineTo(rcWnd.right - 1, rcWnd.bottom - 1);
-				pdc->LineTo(rcWnd.left, rcWnd.bottom - 1);
-				pdc->LineTo(rcWnd.left, rcWnd.top);
-				pdc->SelectObject(pOP);
-				pen.DeleteObject();
-			}
+			CPen pen;
+			pen.CreatePen(0, 1, m_crTooltipTextColor);
+			CPen *pOP = pdc->SelectObject(&pen);
+			pdc->MoveTo(rcWnd.left, rcWnd.top);
+			pdc->LineTo(rcWnd.right - 1, rcWnd.top);
+			pdc->LineTo(rcWnd.right - 1, rcWnd.bottom - 1);
+			pdc->LineTo(rcWnd.left, rcWnd.bottom - 1);
+			pdc->LineTo(rcWnd.left, rcWnd.top);
+			pdc->SelectObject(pOP);
+			pen.DeleteObject();
 		}
 
 		int iOldBkMode = 0;
@@ -466,68 +446,6 @@ void CToolTipCtrlX::CustomPaint(LPNMTTCUSTOMDRAW pNMCD)
 		::CloseThemeData(hTheme);
 }
 
-void EnsureWindowVisible(const RECT &rcScreen, RECT &rc)
-{
-	// 1st: Move the window towards the left side, in case it exceeds the desktop width.
-	// 2nd: Move the window towards the right side, in case it exceeds the desktop width.
-	//
-	// This order of actions ensures that in case the window is too large for the desktop,
-	// the user will though see the top-left part of the window.
-	if (rc.right > rcScreen.right) {
-		rc.left -= rc.right - rcScreen.right;
-		rc.right = rcScreen.right;
-	}
-	if (rc.left < rcScreen.left) {
-		rc.right += rcScreen.left - rc.left;
-		rc.left = rcScreen.left;
-	}
-
-	// Same logic for bottom/top
-	if (rc.bottom > rcScreen.bottom) {
-		rc.top -= rc.bottom - rcScreen.bottom;
-		rc.bottom = rcScreen.bottom;
-	}
-	if (rc.top < rcScreen.top) {
-		rc.bottom += rcScreen.top - rc.top;
-		rc.top = rcScreen.top;
-	}
-}
-
-BOOL CToolTipCtrlX::OnTTShow(LPNMHDR pNMHDR, LRESULT *pResult)
-{
-	//DebugLog(_T("OnTTShow: rcScreen: %d,%d-%d,%d: styles=%08x  exStyles=%08x"), m_rcScreen, GetStyle(), ::GetWindowLongPtr(m_hWnd, GWL_EXSTYLE));
-
-	// Win98/Win2000: The only chance to resize a tooltip window is to do it within the TTN_SHOW notification.
-	if (theApp.m_ullComCtrlVer <= MAKEDLLVERULL(5, 81, 0, 0)) {
-		NMTTCUSTOMDRAW nmttcd = {};
-		nmttcd.uDrawFlags = DT_NOPREFIX | DT_CALCRECT | DT_EXTERNALLEADING | DT_EXPANDTABS | DT_WORDBREAK;
-		nmttcd.nmcd.hdr = *pNMHDR;
-		nmttcd.nmcd.dwDrawStage = CDDS_PREPAINT;
-		nmttcd.nmcd.hdc = ::GetDC(pNMHDR->hwndFrom);
-		CustomPaint(&nmttcd);
-		::ReleaseDC(pNMHDR->hwndFrom, nmttcd.nmcd.hdc);
-
-		CRect rcWnd(nmttcd.nmcd.rc);
-		AdjustRect(&rcWnd);
-
-		// Win98/Win2000: We have to explicitly ensure that the tooltip window remains within the visible desktop window.
-		EnsureWindowVisible(m_rcScreen, rcWnd);
-
-		// Win98/Win2000: The only chance to resize a tooltip window is to do it within the TTN_SHOW notification.
-		// Win98/Win2000: Must *not* specify 'SWP_NOZORDER' - some of the tooltip windows may get drawn behind(!) the application window!
-		::SetWindowPos(pNMHDR->hwndFrom, NULL, rcWnd.left, rcWnd.top, rcWnd.Width(), rcWnd.Height(), SWP_NOACTIVATE /*| SWP_NOZORDER*/);
-
-		return (BOOL)(*pResult = 1); // Windows API: Suppress default positioning
-									 // MFC API:     Suppress further routing of this message
-	}
-
-	// If the TTN_SHOW notification is not sent to the subclassed tooltip control, we would lose the
-	// exact positioning of in-place tooltips which is performed by the tooltip control by default.
-	// Thus it is important that we tell MFC (not the Windows API in that case) to further route this message.
-	return (BOOL)(*pResult = 0);	// Windows API: Perform default positioning
-									// MFC API.     Perform further routing of this message (to the subclassed tooltip control)
-}
-
 void CToolTipCtrlX::OnNmCustomDraw(LPNMHDR pNMHDR, LRESULT *pResult)
 {
 	LPNMTTCUSTOMDRAW pNMCD = reinterpret_cast<LPNMTTCUSTOMDRAW>(pNMHDR);
@@ -548,33 +466,11 @@ void CToolTipCtrlX::OnNmCustomDraw(LPNMHDR pNMHDR, LRESULT *pResult)
 	//	DebugLog(_T(""));
 	//DebugLog(_T("OnNmCustomDraw: DrawFlags=%08x DrawStage=%08x ItemSpec=%08x ItemState=%08x ItemlParam=%08x rc=%4d,%4d,(%4dx%4d), styles=%08x  exStyles=%08x"), pNMCD->uDrawFlags, pNMCD->nmcd.dwDrawStage, pNMCD->nmcd.dwItemSpec, pNMCD->nmcd.uItemState, pNMCD->nmcd.lItemlParam, pNMCD->nmcd.rc.left, pNMCD->nmcd.rc.top, pNMCD->nmcd.rc.right - pNMCD->nmcd.rc.left, pNMCD->nmcd.rc.bottom - pNMCD->nmcd.rc.top, GetStyle(), ::GetWindowLongPtr(m_hWnd, GWL_EXSTYLE));
 
-	if (theApp.m_ullComCtrlVer <= MAKEDLLVERULL(5, 81, 0, 0)) {
-		// Win98/Win2000: Resize and position the tooltip window in TTN_SHOW.
-		// Win98/Win2000: Customize the tooltip window in CDDS_POSTPAINT.
-		if (pNMCD->nmcd.dwDrawStage == CDDS_PREPAINT) {
-			// PROBLEM: Windows will draw the default tooltip during the non-DT_CALCRECT cycle,
-			// and if the system is very slow (or when using remote desktop), the default tooltip
-			// may be visible for a second. However, we need to draw the customized tooltip after
-			// CDDS_POSTPAINT otherwise it won't be visible at all.
-
-			// Cheap solution: Let windows draw the text with the background color, so the glitch
-			// is not that much visible.
-			SetTextColor(pNMCD->nmcd.hdc, m_crTooltipBkColor);
-			*pResult = CDRF_NOTIFYPOSTPAINT;
-			return;
-		}
-		if (pNMCD->nmcd.dwDrawStage == CDDS_POSTPAINT) {
-			CustomPaint(pNMCD);
-			*pResult = CDRF_SKIPDEFAULT;
-			return;
-		}
-	} else {
-		// XP/Vista: Resize, position and customize the tooltip window all in 'CDDS_PREPAINT'.
-		if (pNMCD->nmcd.dwDrawStage == CDDS_PREPAINT) {
-			CustomPaint(pNMCD);
-			*pResult = CDRF_SKIPDEFAULT;
-			return;
-		}
+	// Resize, position and customize the tooltip window all in 'CDDS_PREPAINT'.
+	if (pNMCD->nmcd.dwDrawStage == CDDS_PREPAINT) {
+		CustomPaint(pNMCD);
+		*pResult = CDRF_SKIPDEFAULT;
+		return;
 	}
 	*pResult = CDRF_DODEFAULT;
 }

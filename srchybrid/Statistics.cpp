@@ -26,7 +26,7 @@ static char THIS_FILE[] = __FILE__;
 #endif
 
 #ifdef _DEBUG
-extern _CRT_ALLOC_HOOK g_pfnPrevCrtAllocHook;
+extern int (__cdecl *g_pfnPrevCrtAllocHook)(int, void*, size_t, int, long, const unsigned char*, int) noexcept;
 #endif
 
 #define MAXAVERAGETIME	SEC2MS(40)
@@ -424,9 +424,6 @@ int AFX_CDECL AfxNewHandler(size_t /* nSize */)
 	return 0;
 }
 
-#pragma warning(push)
-#pragma warning(disable:4273)
-
 _PNH _afxNewHandler = &AfxNewHandler;
 
 _PNH AFXAPI AfxGetNewHandler()
@@ -495,5 +492,4 @@ void __cdecl operator delete[](void *p)
 	::operator delete(p);
 }
 
-#pragma warning(pop)
 #endif

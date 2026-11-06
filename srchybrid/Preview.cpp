@@ -22,6 +22,7 @@
 #include "PartFile.h"
 #include "Preview.h"
 #include "MenuCmds.h"
+#include "Log.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -106,6 +107,7 @@ BOOL CPreviewThread::Run()
 		}
 		CFile::Remove(strPreviewName);
 	} catch (CFileException *ex) {
+		DebugLogCaughtException(__FUNCTION__, ex);
 		m_pPartfile->m_bPreviewing = false;
 		ex->Delete();
 	}
@@ -285,8 +287,10 @@ void ExecutePartFile(CPartFile *file, LPCTSTR pszCommand, LPCTSTR pszCommandArgs
 	TRACE(_T("  Command =%s\n"), (LPCTSTR)strCommand);
 	TRACE(_T("  Args    =%s\n"), (LPCTSTR)strArgs);
 	TRACE(_T("  Dir     =%s\n"), (LPCTSTR)strCommandDir);
-	DWORD dwError = (DWORD)::ShellExecute(NULL, pszVerb, strCommand, strArgs.IsEmpty() ? NULL : (LPCTSTR)strArgs, strCommandDir.IsEmpty() ? NULL : (LPCTSTR)strCommandDir, SW_SHOWNORMAL);
-	if (dwError <= 32) {
+	// C4311/C4302: ShellExecute returns an HINSTANCE-typed status code; on Win64 it
+	// must be taken at pointer width before being compared against the <=32 error range.
+	INT_PTR nExecResult = (INT_PTR)::ShellExecute(NULL, pszVerb, strCommand, strArgs.IsEmpty() ? NULL : (LPCTSTR)strArgs, strCommandDir.IsEmpty() ? NULL : (LPCTSTR)strCommandDir, SW_SHOWNORMAL);
+	if (nExecResult <= 32) {
 		//
 		// Unfortunately, Windows may already have shown an error dialog which tells
 		// the user about the failed 'ShellExecute' call. *BUT* that error dialog is not
@@ -306,7 +310,7 @@ void ExecutePartFile(CPartFile *file, LPCTSTR pszCommand, LPCTSTR pszCommandArgs
 		CString strMsg;
 		strMsg.Format(_T("Failed to execute: %s %s"), (LPCTSTR)strCommand, (LPCTSTR)strArgs);
 
-		LPCTSTR strSysErrMsg = GetShellExecuteErrMsg(dwError);
+		LPCTSTR strSysErrMsg = GetShellExecuteErrMsg((DWORD)nExecResult);
 		if (*strSysErrMsg)
 			strMsg.AppendFormat(_T("\r\n\r\n%s"), strSysErrMsg);
 
@@ -339,7 +343,7 @@ CPreviewApps::ECanPreviewRes CPreviewApps::CanPreview(const CPartFile *file)
 	if (file->GetCompletedSize() < rApp.ullMinCompletedSize)
 		return No;
 
-	if (rApp.ullMinStartOfFile &&!file->IsComplete(0, min(rApp.ullMinStartOfFile, file->GetFileSize()) - 1))
+	if (rApp.ullMinStartOfFile &&!file->IsComplete(0, min(rApp.ullMinStartOfFile, (uint64)file->GetFileSize()) - 1))
 		return No;
 
 	return Yes;

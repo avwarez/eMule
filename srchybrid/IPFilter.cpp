@@ -44,7 +44,8 @@ CIPFilter::~CIPFilter()
 	if (m_bModified) {
 		try {
 			SaveToDefaultFile();
-		} catch (const CString&) {
+		} catch (const CString &strError) {
+			DebugLogCaughtException(__FUNCTION__, strError);
 		}
 	}
 	RemoveAllIPFilters();
@@ -74,8 +75,6 @@ INT_PTR	CIPFilter::LoadFromDefaultFile(bool bShowResponse)
 	return AddFromFile(GetDefaultFilePath(), bShowResponse);
 }
 
-#pragma warning(push)
-#pragma warning(disable:4701) //local variables 'level' 'end' 'start'
 INT_PTR CIPFilter::AddFromFile(LPCTSTR pszFilePath, bool bShowResponse)
 {
 	const DWORD dwStart = ::GetTickCount();
@@ -187,7 +186,7 @@ INT_PTR CIPFilter::AddFromFile(LPCTSTR pszFilePath, bool bShowResponse)
 					}
 
 					bool bValid;
-					uint32 start, end, level;
+					uint32 start = 0, end = 0, level = 0;
 					CStringA desc;
 					if (eFileType == FilterDat)
 						bValid = ParseFilterLine1(sbuffer, start, end, level, desc);
@@ -203,7 +202,7 @@ INT_PTR CIPFilter::AddFromFile(LPCTSTR pszFilePath, bool bShowResponse)
 						AddIPRange(start, end, level, desc);
 						++iFoundRanges;
 					} else {
-						DEBUG_ONLY(sbuffer.IsEmpty() ? 0 : TRACE("IP filter: ignored line %u\n", iLine));
+						DEBUG_ONLY(sbuffer.IsEmpty() ? (void)0 : TRACE("IP filter: ignored line %u\n", iLine));
 						m_bModified = true;
 					}
 				}
@@ -264,7 +263,6 @@ INT_PTR CIPFilter::AddFromFile(LPCTSTR pszFilePath, bool bShowResponse)
 	}
 	return m_iplist.GetCount();
 }
-#pragma warning(pop)
 
 
 void CIPFilter::SaveToDefaultFile()
@@ -417,7 +415,7 @@ bool CIPFilter::IsFiltered(uint32 ip, uint32 level) /*const*/
 
 CString CIPFilter::GetLastHit() const
 {
-	return CString(m_pLastHit ? m_pLastHit->desc : "Not available");
+	return CString(m_pLastHit ? (LPCSTR)m_pLastHit->desc : "Not available");
 }
 
 bool CIPFilter::RemoveIPFilter(const SIPFilter *pFilter)

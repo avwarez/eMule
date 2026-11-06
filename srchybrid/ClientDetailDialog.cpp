@@ -40,9 +40,12 @@ static char THIS_FILE[] = __FILE__;
 
 IMPLEMENT_DYNAMIC(CClientDetailPage, CResizablePage)
 
+#pragma warning(push)
+#pragma warning(disable:4191) // MFC message maps cast every handler to AFX_PMSG; only a pragma inside the .cpp reaches this
 BEGIN_MESSAGE_MAP(CClientDetailPage, CResizablePage)
 	ON_MESSAGE(UM_DATA_CHANGED, OnDataChanged)
 END_MESSAGE_MAP()
+#pragma warning(pop)
 
 CClientDetailPage::CClientDetailPage()
 	: CResizablePage(CClientDetailPage::IDD)
@@ -221,9 +224,12 @@ void CClientDetailPage::Localize()
 
 IMPLEMENT_DYNAMIC(CClientDetailDialog, CListViewWalkerPropertySheet)
 
+#pragma warning(push)
+#pragma warning(disable:4191) // MFC message maps cast every handler to AFX_PMSG; only a pragma inside the .cpp reaches this
 BEGIN_MESSAGE_MAP(CClientDetailDialog, CListViewWalkerPropertySheet)
 	ON_WM_DESTROY()
 END_MESSAGE_MAP()
+#pragma warning(pop)
 
 void CClientDetailDialog::Localize()
 {

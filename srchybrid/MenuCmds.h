@@ -21,6 +21,9 @@
 #define MP_SHOWLIST				10106
 #define MP_FRIENDSLOT			10107
 
+#define MP_POWERSHARE_OFF		10150
+#define MP_POWERSHARE_ON		10151
+
 #define MP_CANCEL				10201
 #define MP_STOP					10202
 #define MP_PAUSE				10203

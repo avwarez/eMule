@@ -53,7 +53,6 @@ protected:
 	//HTREEITEM m_htiExtractMetaDataMediaDet;
 	HTREEITEM m_htiExtractMetaDataNever;
 	HTREEITEM m_htiFilterLANIPs;
-	HTREEITEM m_htiFirewallStartup;
 	HTREEITEM m_htiFullAlloc;
 	HTREEITEM m_htiImportParts;
 	HTREEITEM m_htiLog2Disk;
@@ -74,8 +73,6 @@ protected:
 	HTREEITEM m_htiShareeMuleMultiUser;
 	HTREEITEM m_htiShareeMuleOldStyle;
 	HTREEITEM m_htiShareeMulePublicUser;
-	HTREEITEM m_htiSkipWANIPSetup;
-	HTREEITEM m_htiSkipWANPPPSetup;
 	HTREEITEM m_htiSparsePartFiles;
 	HTREEITEM m_htiTCPGroup;
 	HTREEITEM m_htiUPnP;
@@ -113,7 +110,6 @@ protected:
 	bool m_bDynUpEnabled;
 	bool m_bExtControls;
 	bool m_bFilterLANIPs;
-	bool m_bFirewallStartup;
 	bool m_bFullAlloc;
 	bool m_bImportParts;
 	bool m_bInitializedTreeOpts;
@@ -127,8 +123,6 @@ protected:
 	bool m_bLogUlDlEvents;
 	bool m_bResolveShellLinks;
 	bool m_bShowedWarning;
-	bool m_bSkipWANIPSetup;
-	bool m_bSkipWANPPPSetup;
 	bool m_bSparsePartFiles;
 	bool m_bVerbose;
 

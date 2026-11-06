@@ -55,15 +55,14 @@
 #include "Server.h"
 #include "ED2KLink.h"
 #include "Preferences.h"
-#include "secrunasuser.h"
 #include "SafeFile.h"
 #include "emuleDlg.h"
 #include "enbitmap.h"
-#include "FirewallOpener.h"
 #include "StringConversion.h"
 #include "Log.h"
 #include "Collection.h"
 #include "UPnPImplWrapper.h"
+#include "FirewallCheck.h"
 #include "UploadDiskIOThread.h"
 #include "PartFileWriteThread.h"
 
@@ -100,7 +99,11 @@ bool g_bLowColorDesktop = false;
 #ifdef _DEBUG
 static CMemoryState oldMemState, newMemState, diffMemState;
 
-_CRT_ALLOC_HOOK g_pfnPrevCrtAllocHook = NULL;
+// The CRT calls an allocation hook from C code, so a hook must never throw. The
+// previous hook is kept in a noexcept type that says so: it goes back to the
+// extern "C" _CrtSetAllocHook, and C5039 asks for exactly that guarantee.
+typedef int (__cdecl *NoThrowCrtAllocHook)(int, void*, size_t, int, long, const unsigned char*, int) noexcept;
+NoThrowCrtAllocHook g_pfnPrevCrtAllocHook = NULL;
 CMap<const unsigned char*, const unsigned char*, UINT, UINT> g_allocations;
 int eMuleAllocHook(int mode, void *pUserData, size_t nSize, int nBlockUse, long lRequest, const unsigned char *pszFileName, int nLine) noexcept;
 
@@ -139,82 +142,66 @@ static void InitSafeSEH()
 ///////////////////////////////////////////////////////////////////////////////
 // DEP - Data Execution Prevention
 //
-// For Windows XP SP2 and later. Does *not* have any performance impact!
+// Does *not* have any performance impact! The linker's "/NXCOMPAT" option already
+// enables DEP; this makes the policy permanent where it could still be changed at
+// runtime (32-bit processes only, a 64-bit process always runs with DEP).
 //
-// VS2003:	DEP must be enabled dynamically because the linker does not support
-//			the "/NXCOMPAT" command line option.
-// VS2005:	DEP can get enabled at link time by using the "/NXCOMPAT" command
-//			line option.
-// VS2008:	DEP can get enabled at link time by using the "DEP" option within
-//			'Visual Studio Linker Advanced Options'.
-//
-#ifndef PROCESS_DEP_ENABLE
-#define	PROCESS_DEP_ENABLE						0x00000001
-#define	PROCESS_DEP_DISABLE_ATL_THUNK_EMULATION	0x00000002
-#endif//!PROCESS_DEP_ENABLE
-
 static void InitDEP()
 {
-	BOOL(WINAPI *pfnGetProcessDEPPolicy)(HANDLE hProcess, LPDWORD lpFlags, PBOOL lpPermanent);
-	BOOL(WINAPI *pfnSetProcessDEPPolicy)(DWORD dwFlags);
-	(FARPROC&)pfnGetProcessDEPPolicy = ::GetProcAddress(::GetModuleHandle(_T("kernel32")), "GetProcessDEPPolicy");
-	(FARPROC&)pfnSetProcessDEPPolicy = ::GetProcAddress(::GetModuleHandle(_T("kernel32")), "SetProcessDEPPolicy");
-	if (pfnGetProcessDEPPolicy && pfnSetProcessDEPPolicy) {
-		DWORD dwFlags;
-		BOOL bPermanent;
-		if ((*pfnGetProcessDEPPolicy)(::GetCurrentProcess(), &dwFlags, &bPermanent)) {
-			// Vista SP1
-			// ===============================================================
-			//
-			// BOOT.INI nx=OptIn,  VS2003/VS2005
-			// ---------------------------------
-			// DEP flags: 00000000
-			// Permanent: 0
-			//
-			// BOOT.INI nx=OptOut, VS2003/VS2005
-			// ---------------------------------
-			// DEP flags: 00000001 (PROCESS_DEP_ENABLE)
-			// Permanent: 0
-			//
-			// BOOT.INI nx=OptIn/OptOut, VS2003 + EditBinX/NXCOMPAT
-			// ----------------------------------------------------
-			// DEP flags: 00000003 (PROCESS_DEP_ENABLE | *PROCESS_DEP_DISABLE_ATL_THUNK_EMULATION*)
-			// Permanent: *1*
-			// ---
-			// There is no way to remove the PROCESS_DEP_DISABLE_ATL_THUNK_EMULATION flag at runtime,
-			// because the DEP policy is already permanent due to the NXCOMPAT flag.
-			//
-			// BOOT.INI nx=OptIn/OptOut, VS2005 + /NXCOMPAT
-			// --------------------------------------------
-			// DEP flags: 00000003 (PROCESS_DEP_ENABLE | PROCESS_DEP_DISABLE_ATL_THUNK_EMULATION)
-			// Permanent: *1*
-			//
-			// NOTE: It is ultimately important to explicitly enable the DEP policy even if the
-			// process' DEP policy is already enabled. If the DEP policy is already enabled due
-			// to an OptOut system policy, the DEP policy is though not yet permanent. As long as
-			// the DEP policy is not permanent it could get changed during runtime...
-			//
-			// So, if the DEP policy for the current process is already enabled but not permanent,
-			// it has to be explicitly enabled by calling 'SetProcessDEPPolicy' to make it permanent.
-			//
-			if (((dwFlags & PROCESS_DEP_ENABLE) == 0 || !bPermanent)
+	DWORD dwFlags;
+	BOOL bPermanent;
+	if (::GetProcessDEPPolicy(::GetCurrentProcess(), &dwFlags, &bPermanent)) {
+		// Vista SP1
+		// ===============================================================
+		//
+		// BOOT.INI nx=OptIn,  VS2003/VS2005
+		// ---------------------------------
+		// DEP flags: 00000000
+		// Permanent: 0
+		//
+		// BOOT.INI nx=OptOut, VS2003/VS2005
+		// ---------------------------------
+		// DEP flags: 00000001 (PROCESS_DEP_ENABLE)
+		// Permanent: 0
+		//
+		// BOOT.INI nx=OptIn/OptOut, VS2003 + EditBinX/NXCOMPAT
+		// ----------------------------------------------------
+		// DEP flags: 00000003 (PROCESS_DEP_ENABLE | *PROCESS_DEP_DISABLE_ATL_THUNK_EMULATION*)
+		// Permanent: *1*
+		// ---
+		// There is no way to remove the PROCESS_DEP_DISABLE_ATL_THUNK_EMULATION flag at runtime,
+		// because the DEP policy is already permanent due to the NXCOMPAT flag.
+		//
+		// BOOT.INI nx=OptIn/OptOut, VS2005 + /NXCOMPAT
+		// --------------------------------------------
+		// DEP flags: 00000003 (PROCESS_DEP_ENABLE | PROCESS_DEP_DISABLE_ATL_THUNK_EMULATION)
+		// Permanent: *1*
+		//
+		// NOTE: It is ultimately important to explicitly enable the DEP policy even if the
+		// process' DEP policy is already enabled. If the DEP policy is already enabled due
+		// to an OptOut system policy, the DEP policy is though not yet permanent. As long as
+		// the DEP policy is not permanent it could get changed during runtime...
+		//
+		// So, if the DEP policy for the current process is already enabled but not permanent,
+		// it has to be explicitly enabled by calling 'SetProcessDEPPolicy' to make it permanent.
+		//
+		if (((dwFlags & PROCESS_DEP_ENABLE) == 0 || !bPermanent)
 #if _ATL_VER>0x0710
-				|| (dwFlags & PROCESS_DEP_DISABLE_ATL_THUNK_EMULATION) == 0
+			|| (dwFlags & PROCESS_DEP_DISABLE_ATL_THUNK_EMULATION) == 0
 #endif
-				)
-			{
-				// VS2003:	Enable DEP (with ATL-thunk emulation) if not already set by system policy
-				//			or if the policy is not yet permanent.
-				//
-				// VS2005:	Enable DEP (without ATL-thunk emulation) if not already set by system policy
-				//			or linker "/NXCOMPAT" option or if the policy is not yet permanent. We should
-				//			not reach this code path at all because the "/NXCOMPAT" option is specified.
-				//			However, the code path is here for safety reasons.
-				dwFlags = PROCESS_DEP_ENABLE;
-				// VS2005: Disable ATL thunks.
-				dwFlags |= PROCESS_DEP_DISABLE_ATL_THUNK_EMULATION;
-				(*pfnSetProcessDEPPolicy)(dwFlags);
-			}
+			)
+		{
+			// VS2003:	Enable DEP (with ATL-thunk emulation) if not already set by system policy
+			//			or if the policy is not yet permanent.
+			//
+			// VS2005:	Enable DEP (without ATL-thunk emulation) if not already set by system policy
+			//			or linker "/NXCOMPAT" option or if the policy is not yet permanent. We should
+			//			not reach this code path at all because the "/NXCOMPAT" option is specified.
+			//			However, the code path is here for safety reasons.
+			dwFlags = PROCESS_DEP_ENABLE;
+			// VS2005: Disable ATL thunks.
+			dwFlags |= PROCESS_DEP_DISABLE_ATL_THUNK_EMULATION;
+			::SetProcessDEPPolicy(dwFlags);
 		}
 	}
 }
@@ -223,18 +210,11 @@ static void InitDEP()
 ///////////////////////////////////////////////////////////////////////////////
 // Heap Corruption Detection
 //
-// For Windows XP SP3 and later. Does *not* have any performance impact!
+// Does *not* have any performance impact!
 //
-#ifndef HeapEnableTerminationOnCorruption
-#define HeapEnableTerminationOnCorruption (HEAP_INFORMATION_CLASS)1
-#endif//!HeapEnableTerminationOnCorruption
-
 static void InitHeapCorruptionDetection()
 {
-	BOOL(WINAPI *pfnHeapSetInformation)(HANDLE HeapHandle, HEAP_INFORMATION_CLASS HeapInformationClass, PVOID HeapInformation, SIZE_T HeapInformationLength);
-	(FARPROC &)pfnHeapSetInformation = ::GetProcAddress(::GetModuleHandle(_T("kernel32")), "HeapSetInformation");
-	if (pfnHeapSetInformation)
-		(*pfnHeapSetInformation)(NULL, HeapEnableTerminationOnCorruption, NULL, 0);
+	::HeapSetInformation(NULL, HeapEnableTerminationOnCorruption, NULL, 0);
 }
 
 
@@ -278,7 +258,6 @@ END_MESSAGE_MAP()
 CemuleApp::CemuleApp(LPCTSTR lpszAppName)
 	: CWinApp(lpszAppName)
 	, emuledlg()
-	, m_ullComCtrlVer(MAKEDLLVERULL(4, 0, 0, 0))
 	, m_iDfltImageListColorFlags(ILC_COLOR)
 	, m_app_state(APP_STATE_STARTING)
 	, m_hSystemImageList()
@@ -415,7 +394,7 @@ BOOL CemuleApp::InitInstance()
 	oldMemState.Checkpoint();
 	// Installing that memory debug code works fine in Debug builds when running within VS Debugger,
 	// but some other test applications don't like that all....
-	//g_pfnPrevCrtAllocHook = _CrtSetAllocHook(&eMuleAllocHook);
+	//g_pfnPrevCrtAllocHook = (NoThrowCrtAllocHook)_CrtSetAllocHook(&eMuleAllocHook);
 #endif
 	//afxMemDF = allocMemDF | delayFreeMemDF;
 
@@ -444,25 +423,8 @@ BOOL CemuleApp::InitInstance()
 	///////////////////////////////////////////////////////////////////////////
 	// Common Controls initialization
 	//
-	//						Mjr Min
-	// ----------------------------
-	// W98 SE, IE5			5	8
-	// W2K SP4, IE6 SP1		5	81
-	// XP SP2				6   0
-	// XP SP3				6   0
-	// Vista SP1			6   16
-	::InitCommonControls();
-	switch (thePrefs.GetWindowsVersion()) {
-	case _WINVER_2K_:
-		m_ullComCtrlVer = MAKEDLLVERULL(5, 81, 0, 0);
-		break;
-	case _WINVER_XP_:
-	case _WINVER_2003_:
-		m_ullComCtrlVer = MAKEDLLVERULL(6, 0, 0, 0);
-		break;
-	default:  //Vista .. Win11
-		m_ullComCtrlVer = MAKEDLLVERULL(6, 16, 0, 0);
-	};
+	const INITCOMMONCONTROLSEX icc = {sizeof icc, ICC_WIN95_CLASSES};
+	::InitCommonControlsEx(&icc);
 
 	m_sizSmallSystemIcon.SetSize(::GetSystemMetrics(SM_CXSMICON), ::GetSystemMetrics(SM_CYSMICON));
 	UpdateLargeIconSize();
@@ -493,17 +455,6 @@ BOOL CemuleApp::InitInstance()
 	// create & initialize all the important stuff
 	thePrefs.Init();
 	theStats.Init();
-
-	// check if we have to restart eMule as Secure user
-	if (thePrefs.IsRunAsUserEnabled()) {
-		CSecRunAsUser rau;
-		eResult res = rau.RestartSecure();
-		if (res == RES_OK_NEED_RESTART)
-			return FALSE; // emule restart as secure user, kill this instance
-		if (res == RES_FAILED)
-			// something went wrong
-			theApp.QueueLogLine(false, GetResString(IDS_RAU_FAILED), (LPCWSTR)rau.GetCurrentUserW());
-	}
 
 	if (thePrefs.GetRTLWindowsLayout())
 		EnableRTLWindowsLayout();
@@ -537,32 +488,12 @@ BOOL CemuleApp::InitInstance()
 
 	SetAutoStart(thePrefs.GetAutoStart());
 
-	m_pFirewallOpener = new CFirewallOpener();
-	m_pFirewallOpener->Init(true); // we need to init it now (even if we may not use it yet) because of CoInitializeSecurity - which kinda ruins the sense of the class interface but ooohh well :P
-	// Open WinXP firewall ports if set in preferences and possible
-	if (thePrefs.IsOpenPortsOnStartupEnabled()) {
-		if (m_pFirewallOpener->DoesFWConnectionExist()) {
-			// delete old rules added by eMule
-			m_pFirewallOpener->RemoveRule(EMULE_DEFAULTRULENAME_UDP);
-			m_pFirewallOpener->RemoveRule(EMULE_DEFAULTRULENAME_TCP);
-			// open port for this session
-			if (m_pFirewallOpener->OpenPort(thePrefs.GetPort(), NAT_PROTOCOL_TCP, EMULE_DEFAULTRULENAME_TCP, true))
-				QueueLogLine(false, GetResString(IDS_FO_TEMPTCP_S), thePrefs.GetPort());
-			else
-				QueueLogLine(false, GetResString(IDS_FO_TEMPTCP_F), thePrefs.GetPort());
-
-			if (thePrefs.GetUDPPort()) {
-				// open port for this session
-				if (m_pFirewallOpener->OpenPort(thePrefs.GetUDPPort(), NAT_PROTOCOL_UDP, EMULE_DEFAULTRULENAME_UDP, true))
-					QueueLogLine(false, GetResString(IDS_FO_TEMPUDP_S), thePrefs.GetUDPPort());
-				else
-					QueueLogLine(false, GetResString(IDS_FO_TEMPUDP_F), thePrefs.GetUDPPort());
-			}
-		}
-	}
-
 	// UPnP Port forwarding
 	m_pUPnPFinder = new CUPnPImplWrapper();
+
+	// Whether Windows Firewall lets the peers reach our ports - logged, nothing changed
+	m_pFirewallCheck = new CFirewallCheck();
+	m_pFirewallCheck->Start();
 
 	// Highres scheduling gives better resolution for Sleep(...) and timeGetTime() calls
 	m_wTimerRes = 0;
@@ -982,7 +913,7 @@ int CemuleApp::GetFileTypeSystemImageIdx(LPCTSTR pszFilePath, int iLength /* = -
 			m_hBigSystemImageList = hResult;
 
 			// Store icon index in local cache
-			m_aBigExtToSysImgIdx[pszCacheExt] = (LPVOID)sfi.iIcon;
+			m_aBigExtToSysImgIdx[pszCacheExt] = IntToPtr(sfi.iIcon);
 			return sfi.iIcon;
 		}
 	} else if (!m_aExtToSysImgIdx.Lookup(pszCacheExt, vData)) {
@@ -996,12 +927,12 @@ int CemuleApp::GetFileTypeSystemImageIdx(LPCTSTR pszFilePath, int iLength /* = -
 		m_hSystemImageList = hResult;
 
 		// Store icon index in local cache
-		m_aExtToSysImgIdx[pszCacheExt] = (LPVOID)sfi.iIcon;
+		m_aExtToSysImgIdx[pszCacheExt] = IntToPtr(sfi.iIcon);
 		return sfi.iIcon;
 	}
 
 	// Return already cached value
-	return reinterpret_cast<int>(vData);
+	return PtrToInt(vData);
 }
 
 bool CemuleApp::IsConnected(bool bIgnoreEd2k, bool bIgnoreKad)
@@ -1524,17 +1455,6 @@ void CemuleApp::CreateAllFonts()
 
 const CString& CemuleApp::GetDefaultFontFaceName()
 {
-/* Support for old Windows was dropped
-	if (m_strDefaultFontFaceName.IsEmpty()) {
-		OSVERSIONINFO osvi;
-		osvi.dwOSVersionInfoSize = (DWORD)sizeof osvi;
-		if (GetVersionEx(&osvi)
-			&& osvi.dwPlatformId == VER_PLATFORM_WIN32_NT
-			&& osvi.dwMajorVersion >= 5) // Win2000/XP or higher
-			m_strDefaultFontFaceName = _T("MS Shell Dlg 2");
-		else
-			m_strDefaultFontFaceName = _T("MS Shell Dlg");
-	}*/
 	return m_strDefaultFontFaceName;
 }
 
@@ -1566,21 +1486,6 @@ void CemuleApp::UpdateDesktopColorDepth()
 	} else {
 		// Get current desktop color depth and derive the image list format from it
 		m_iDfltImageListColorFlags = GetAppImageListColorFlag();
-
-		// Don't use 32-bit image lists if not supported by COMCTL32.DLL
-		if (m_iDfltImageListColorFlags == ILC_COLOR32 && m_ullComCtrlVer < MAKEDLLVERULL(6, 0, 0, 0)) {
-			// We fall back to 16-bit image lists because we do not provide 24-bit
-			// versions of icons any longer (due to resource size restrictions for Win98). We
-			// could also fall back to 24-bit image lists here but the difference is minimal
-			// and considered not to be worth the additional memory consumption.
-			//
-			// Though, do not fall back to 8-bit image lists because this would let Windows
-			// reduce the color resolution to the standard 256 color window system palette.
-			// We need a 16-bit or 24-bit image list to hold all our 256 color icons (which
-			// are not pre-quantized to standard 256 color windows system palette) without
-			// losing any colors.
-			m_iDfltImageListColorFlags = ILC_COLOR16;
-		}
 	}
 
 	// Doesn't help.
@@ -1699,14 +1604,8 @@ void CemuleApp::ResetStandByIdleTimer()
 		m_bStandbyOff = false;
 }
 
-bool CemuleApp::IsXPThemeActive() const
-{
-	// TRUE: If an XP style (and only an XP style) is active
-	return theApp.m_ullComCtrlVer < MAKEDLLVERULL(6, 16, 0, 0) && ::IsThemeActive() && ::IsAppThemed();
-}
-
 bool CemuleApp::IsVistaThemeActive() const
 {
 	// Return true if Vista (or better) style is active
-	return theApp.m_ullComCtrlVer >= MAKEDLLVERULL(6, 16, 0, 0) && ::IsThemeActive() && ::IsAppThemed();
+	return ::IsThemeActive() && ::IsAppThemed();
 }

@@ -177,7 +177,7 @@ BOOL CIrcWnd::OnInitDialog()
 	AddAnchor(m_wndChanList, TOP_LEFT, BOTTOM_RIGHT);
 
 	// Vista: Remove the TBSTYLE_TRANSPARENT to avoid flickering (can be done only after the toolbar was initially created with TBSTYLE_TRANSPARENT !?)
-	m_wndFormat.ModifyStyle((theApp.m_ullComCtrlVer >= MAKEDLLVERULL(6, 16, 0, 0)) ? TBSTYLE_TRANSPARENT : 0, TBSTYLE_TOOLTIPS);
+	m_wndFormat.ModifyStyle(TBSTYLE_TRANSPARENT, TBSTYLE_TOOLTIPS);
 	m_wndFormat.SetExtendedStyle(m_wndFormat.GetExtendedStyle() | TBSTYLE_EX_MIXEDBUTTONS);
 
 	TBBUTTON atb[6] = {};
@@ -435,6 +435,7 @@ BOOL CIrcWnd::OnCommand(WPARAM wParam, LPARAM)
 		break;
 	case IDC_SMILEY:
 		OnBnClickedSmiley();
+		[[fallthrough]];
 	default:
 		return TRUE;
 	}
@@ -660,8 +661,6 @@ void CIrcWnd::AddInfoMessageF(const CString &sChannel, LPCTSTR sLine, ...)
 	}
 }
 
-#pragma warning(push)
-#pragma warning(disable:4125) // decimal digit terminates octal escape sequence
 void CIrcWnd::AddMessage(const CString &sChannel, const CString &sTargetName, const CString &sLine)
 {
 	if (sChannel.IsEmpty() || sTargetName.IsEmpty())
@@ -674,14 +673,15 @@ void CIrcWnd::AddMessage(const CString &sChannel, const CString &sTargetName, co
 			sOp = pNick->m_sSymbols;
 	} else
 		pChannel = m_wndChanSel.NewChannel(sChannel, (sChannel[0] == _T('#') ? Channel::ctNormal : Channel::ctPrivate));
-	LPCTSTR fmt = (m_pIrcMain->GetNick() == sTargetName) ? _T("%s<\00310%s%s\003> %s\r\n") : _T("%s<\002\00310%s%s\003\002> %s\r\n");
+	// \003 is the colour code and "10" its argument: the literal is split so that the
+	// escape cannot run into the digits
+	LPCTSTR fmt = (m_pIrcMain->GetNick() == sTargetName) ? _T("%s<\003") _T("10%s%s\003> %s\r\n") : _T("%s<\002\003") _T("10%s%s\003\002> %s\r\n");
 	CString cs;
 	cs.Format(fmt, (LPCTSTR)make_time_stamp(), (LPCTSTR)sOp, (LPCTSTR)sTargetName, (LPCTSTR)sLine);
 	AddColorLine(cs, pChannel->m_wndLog);
 	if (m_wndChanSel.m_pCurrentChannel != pChannel)
 		m_wndChanSel.SetActivity(pChannel, true);
 }
-#pragma warning(pop)
 
 void CIrcWnd::AddMessageF(const CString &sChannel, const CString &sTargetName, LPCTSTR sLine, ...)
 {

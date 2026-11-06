@@ -99,10 +99,13 @@ LPCTSTR CSharedFileDetailsSheet::m_pPshStartPage;
 
 IMPLEMENT_DYNAMIC(CSharedFileDetailsSheet, CListViewWalkerPropertySheet)
 
+#pragma warning(push)
+#pragma warning(disable:4191) // MFC message maps cast every handler to AFX_PMSG; only a pragma inside the .cpp reaches this
 BEGIN_MESSAGE_MAP(CSharedFileDetailsSheet, CListViewWalkerPropertySheet)
 	ON_WM_DESTROY()
 	ON_MESSAGE(UM_DATA_CHANGED, OnDataChanged)
 END_MESSAGE_MAP()
+#pragma warning(pop)
 
 void CSharedFileDetailsSheet::Localize()
 {
@@ -222,6 +225,8 @@ BOOL CSharedFileDetailsSheet::OnCommand(WPARAM wParam, LPARAM lParam)
 
 IMPLEMENT_DYNAMIC(CSharedFilesCtrl, CMuleListCtrl)
 
+#pragma warning(push)
+#pragma warning(disable:4191) // MFC message maps cast every handler to AFX_PMSG; only a pragma inside the .cpp reaches this
 BEGIN_MESSAGE_MAP(CSharedFilesCtrl, CMuleListCtrl)
 	ON_NOTIFY_REFLECT(LVN_COLUMNCLICK, OnLvnColumnClick)
 	ON_NOTIFY_REFLECT(LVN_GETDISPINFO, OnLvnGetDispInfo)
@@ -233,6 +238,7 @@ BEGIN_MESSAGE_MAP(CSharedFilesCtrl, CMuleListCtrl)
 	ON_WM_SYSCOLORCHANGE()
 	ON_WM_MOUSEMOVE()
 END_MESSAGE_MAP()
+#pragma warning(pop)
 
 CSharedFilesCtrl::CSharedFilesCtrl()
 	: CListCtrlItemWalk(this)
@@ -565,6 +571,7 @@ void CSharedFilesCtrl::DrawItem(LPDRAWITEMSTRUCT lpDrawItemStruct)
 					}
 					rcItem.left -= sm_iSubItemInset;
 				}
+				[[fallthrough]];
 			default: //any text column
 				rcItem.left += sm_iSubItemInset;
 				rcItem.right -= sm_iSubItemInset;
@@ -619,6 +626,14 @@ CString CSharedFilesCtrl::GetItemDisplayText(const CShareableFile *file, int iSu
 		switch (iSubItem) {
 		case 3:
 			sText = pKnownFile->GetUpPriorityDisplayString();
+			if (pKnownFile->IsPowerShareOn() && !pKnownFile->IsPartFile()) {
+				CString sPowerShare(_T("PS "));
+				if (!pKnownFile->IsPowerShareAuthorized())
+					sPowerShare.Format(_T("PS denied (~%u) "), (UINT)pKnownFile->m_nCompleteSourcesCountHi);
+				else if (pKnownFile->IsPowerShareHeldByPriority())
+					sPowerShare = _T("PS held by priority ");
+				sText.Insert(0, sPowerShare);
+			}
 			break;
 		case 4:
 			sText = md4str(pKnownFile->GetFileHash());
@@ -686,6 +701,7 @@ void CSharedFilesCtrl::OnContextMenu(CWnd*, CPoint point)
 	int iSelectedItems = GetSelectedCount();
 	int iCompleteFileSelected = -1;
 	UINT uPrioMenuItem = 0;
+	UINT uPowerShareMenuItem = 0;
 	const CShareableFile *pSingleSelFile = NULL;
 	for (POSITION pos = GetFirstSelectedItemPosition(); pos != NULL;) {
 		const CShareableFile *pFile = reinterpret_cast<CShareableFile*>(GetItemData(GetNextSelectedItem(pos)));
@@ -730,17 +746,26 @@ void CSharedFilesCtrl::OnContextMenu(CWnd*, CPoint point)
 				uPrioMenuItem = uCurPrioMenuItem;
 			else if (uPrioMenuItem != uCurPrioMenuItem)
 				uPrioMenuItem = 0;
+
+			UINT uCurPowerShareMenuItem = static_cast<const CKnownFile*>(pFile)->IsPowerShareOn() ? MP_POWERSHARE_ON : MP_POWERSHARE_OFF;
+			if (bFirstItem)
+				uPowerShareMenuItem = uCurPowerShareMenuItem;
+			else if (uPowerShareMenuItem != uCurPowerShareMenuItem)
+				uPowerShareMenuItem = 0;
 		} else
 			bContainsShareableFiles = true;
 
 		bFirstItem = false;
 	}
 
-	m_SharedFilesMenu.EnableMenuItem((UINT)m_PrioMenu.m_hMenu, (!bContainsShareableFiles && iSelectedItems > 0) ? MF_ENABLED : MF_GRAYED);
+	m_SharedFilesMenu.EnableMenuItem(HandleToULong(m_PrioMenu.m_hMenu), (!bContainsShareableFiles && iSelectedItems > 0) ? MF_ENABLED : MF_GRAYED);
 	m_PrioMenu.CheckMenuRadioItem(MP_PRIOVERYLOW, MP_PRIOAUTO, uPrioMenuItem, 0);
 
 	bool bSingleCompleteFileSelected = (iSelectedItems == 1 && (iCompleteFileSelected == 1 || bContainsOnlyShareableFile));
 	m_SharedFilesMenu.EnableMenuItem(MP_OPEN, bSingleCompleteFileSelected ? MF_ENABLED : MF_GRAYED);
+	// PowerShare is for complete files only
+	m_SharedFilesMenu.EnableMenuItem(HandleToULong(m_PowerShareMenu.m_hMenu), (!bContainsShareableFiles && iCompleteFileSelected == 1) ? MF_ENABLED : MF_GRAYED);
+	m_PowerShareMenu.CheckMenuRadioItem(MP_POWERSHARE_OFF, MP_POWERSHARE_ON, uPowerShareMenuItem, 0);
 	UINT uInsertedMenuItem = 0;
 	static const TCHAR _szSkinPkgSuffix1[] = _T(".") EMULSKIN_BASEEXT _T(".zip");
 	static const TCHAR _szSkinPkgSuffix2[] = _T(".") EMULSKIN_BASEEXT _T(".rar");
@@ -857,7 +882,7 @@ BOOL CSharedFilesCtrl::OnCommand(WPARAM wParam, LPARAM)
 #endif
 		// file operations
 		case MP_OPEN:
-#if TEST_FRAMEGRABBER //see also FrameGrabThread::GrabFrames
+#ifdef TEST_FRAMEGRABBER //see also FrameGrabThread::GrabFrames
 			if (file) {
 				CKnownFile *previewFile = theApp.sharedfiles->GetFileByID(file->GetFileHash());
 				if (previewFile != NULL)
@@ -1074,6 +1099,16 @@ BOOL CSharedFilesCtrl::OnCommand(WPARAM wParam, LPARAM)
 				}
 			}
 			break;
+		case MP_POWERSHARE_OFF:
+		case MP_POWERSHARE_ON:
+			for (POSITION pos = selectedList.GetHeadPosition(); pos != NULL;) {
+				CKnownFile *pfile = static_cast<CKnownFile*>(selectedList.GetNext(pos));
+				if (pfile->IsKindOf(RUNTIME_CLASS(CKnownFile)) && !pfile->IsPartFile()) {
+					pfile->SetPowerShareOn(wParam == MP_POWERSHARE_ON);
+					UpdateFile(pfile);
+				}
+			}
+			break;
 		default:
 			if (file && wParam >= MP_WEBURL && wParam <= MP_WEBURL + 256)
 				theWebServices.RunURL(file, (UINT)wParam);
@@ -1177,7 +1212,9 @@ int CALLBACK CSharedFilesCtrl::SortProc(LPARAM lParam1, LPARAM lParam2, LPARAM l
 
 			switch (LOWORD(lParamSort)) {
 			case 3: //prio
-				{
+				// PowerShare first, a PowerShare refused by the abuse check after the active ones
+				iResult = ((int)kitem1->IsPowerShareOn() + (int)kitem1->IsPowerShared()) - ((int)kitem2->IsPowerShareOn() + (int)kitem2->IsPowerShared());
+				if (iResult == 0) {
 					uint8 p1 = kitem1->GetUpPriority() + 1;
 					if (p1 == 5)
 						p1 = 0;
@@ -1284,6 +1321,8 @@ void CSharedFilesCtrl::CreateMenus()
 {
 	if (m_PrioMenu)
 		VERIFY(m_PrioMenu.DestroyMenu());
+	if (m_PowerShareMenu)
+		VERIFY(m_PowerShareMenu.DestroyMenu());
 	if (m_CollectionsMenu)
 		VERIFY(m_CollectionsMenu.DestroyMenu());
 	if (m_SharedFilesMenu)
@@ -1296,6 +1335,10 @@ void CSharedFilesCtrl::CreateMenus()
 	m_PrioMenu.AppendMenu(MF_STRING, MP_PRIOHIGH, GetResString(IDS_PRIOHIGH));
 	m_PrioMenu.AppendMenu(MF_STRING, MP_PRIOVERYHIGH, GetResString(IDS_PRIORELEASE));
 	m_PrioMenu.AppendMenu(MF_STRING, MP_PRIOAUTO, GetResString(IDS_PRIOAUTO));//UAP
+
+	m_PowerShareMenu.CreateMenu();
+	m_PowerShareMenu.AppendMenu(MF_STRING, MP_POWERSHARE_OFF, _T("Off"));
+	m_PowerShareMenu.AppendMenu(MF_STRING, MP_POWERSHARE_ON, _T("On"));
 
 	m_CollectionsMenu.CreateMenu();
 	m_CollectionsMenu.AddMenuTitle(NULL, true);
@@ -1319,6 +1362,7 @@ void CSharedFilesCtrl::CreateMenus()
 	CString sPrio(GetResString(IDS_PRIORITY));
 	sPrio.AppendFormat(_T(" (%s)"), (LPCTSTR)GetResString(IDS_PW_CON_UPLBL));
 	m_SharedFilesMenu.AppendMenu(MF_STRING | MF_POPUP, (UINT_PTR)m_PrioMenu.m_hMenu, sPrio, _T("FILEPRIORITY"));
+	m_SharedFilesMenu.AppendMenu(MF_STRING | MF_POPUP, (UINT_PTR)m_PowerShareMenu.m_hMenu, _T("PowerShare"));
 	m_SharedFilesMenu.AppendMenu(MF_STRING | MF_SEPARATOR);
 
 	m_SharedFilesMenu.AppendMenu(MF_STRING | MF_POPUP, (UINT_PTR)m_CollectionsMenu.m_hMenu, GetResString(IDS_META_COLLECTION), _T("AABCollectionFileType"));
@@ -1761,7 +1805,7 @@ BOOL CSharedFilesCtrl::CShareDropTarget::OnDrop(CWnd*, COleDataObject *pDataObje
 					VERIFY(theApp.emuledlg->sharedfileswnd->m_ctlSharedDirTree.ShowFileSystemDirectory(strSingleDirectory));
 				} else if (!liToAddDirs.IsEmpty() && !bHaveFiles) {
 					// only directories added, if only one select the specific shared dir, otherwise the Shared Directories section
-					const CString &sShow(liToAddDirs.GetCount() == 1 ? liToAddDirs.GetHead() : _T(""));
+					const CString &sShow(liToAddDirs.GetCount() == 1 ? liToAddDirs.GetHead() : CString());
 					theApp.emuledlg->sharedfileswnd->m_ctlSharedDirTree.ShowSharedDirectory(sShow);
 				} else {
 					// otherwise select the All Shared Files category

@@ -21,17 +21,9 @@
 #include "resource.h"
 #include "MediaInfo.h"
 #include "SafeFile.h"
+#include "Log.h"
 #ifdef HAVE_WMSDK_H
 #include <wmsdk.h>
-#if !defined(HAVE_VISTA_SDK)
-static const WCHAR g_wszWMPeakBitrate[] = L"WM/PeakBitrate";
-static const WCHAR g_wszWMStreamTypeInfo[] = L"WM/StreamTypeInfo";
-struct WM_STREAM_TYPE_INFO
-{
-	GUID	guidMajorType;
-	DWORD	cbFormat;
-};
-#endif
 #endif//HAVE_WMSDK_H
 
 #ifdef _DEBUG
@@ -302,8 +294,6 @@ bool IsEqualFOURCC(FOURCC fccA, FOURCC fccB)
 	return true;
 }
 
-#pragma warning(push)
-#pragma warning(disable:4701) //local variable 'fcc'
 static CString GetVideoFormatDisplayName(DWORD biCompression)
 {
 	CString sName;
@@ -330,9 +320,9 @@ static CString GetVideoFormatDisplayName(DWORD biCompression)
 	default:
 		{
 			sName = CStringA((LPCSTR)&biCompression, 4);
-			DWORD fcc;
+			DWORD fcc = 0;
 			for (unsigned i = 0; i < sizeof(DWORD); ++i)
-				((byte*)&fcc)[i] = (byte)toupper(((unsigned char*)&biCompression)[i]);
+				fcc |= (DWORD)(byte)toupper((int)((biCompression >> (8 * i)) & 0xFF)) << (8 * i);
 
 			switch (fcc) {
 			case MAKEFOURCC('D', 'I', 'V', '3'):
@@ -426,7 +416,6 @@ static CString GetVideoFormatDisplayName(DWORD biCompression)
 		sName += pFormat;
 	return sName;
 }
-#pragma warning(pop)
 
 CString GetVideoFormatName(DWORD biCompression)
 {
@@ -585,6 +574,7 @@ static bool ParseStreamHeader(int hAviFile, DWORD dwLengthLeft, STREAMHEADER *pS
 				pStrmHdr->dwFormatLen = dwLength;
 				pStrmHdr->fmt.dat = new BYTE[dwLength];
 			} catch (...) {
+				DebugLogCaughtException(__FUNCTION__);
 				errno = ENOMEM;
 				return false;
 			}
@@ -600,6 +590,7 @@ static bool ParseStreamHeader(int hAviFile, DWORD dwLengthLeft, STREAMHEADER *pS
 			try {
 				pStrmHdr->nam = new char[dwLength + 1];
 			} catch (...) {
+				DebugLogCaughtException(__FUNCTION__);
 				errno = ENOMEM;
 				return false;
 			}
@@ -632,6 +623,7 @@ bool GetRIFFHeaders(LPCTSTR pszFileName, SMediaInfo *mi, bool &rbIsAVI, bool bFu
 	FOURCC fccType;
 	DWORD dwLength;
 	DWORD dwMovieChunkSize = 0;
+	bool bHaveReadAllStreams;		// declared here (uninitialized) so the "goto cleanup"s below do not jump over an initialization
 	DWORD uVideoFrames = 0;
 	DWORD dwAllNonVideoAvgBytesPerSec = 0;
 	int	iNonAVStreams = 0;
@@ -663,7 +655,7 @@ bool GetRIFFHeaders(LPCTSTR pszFileName, SMediaInfo *mi, bool &rbIsAVI, bool bFu
 		goto cleanup;
 
 	// We need to read almost all streams (regardless of 'bFullInfo' mode) because we need to get the 'dwMovieChunkSize'
-	bool bHaveReadAllStreams = false;
+	bHaveReadAllStreams = false;
 	while (!bHaveReadAllStreams && dwLengthLeft >= sizeof(DWORD) * 2) {
 		if (!ReadChunkHeader(hAviFile, &fccType, &dwLength))
 			goto inv_format_errno;
@@ -797,7 +789,7 @@ bool GetRIFFHeaders(LPCTSTR pszFileName, SMediaInfo *mi, bool &rbIsAVI, bool bFu
 									if (strmhdr.fmt.bmi && strmhdr.dwFormatLen >= sizeof *strmhdr.fmt.bmi) {
 										mi->strInfo << _T("   ") << GetResString(IDS_CODEC) << _T(":\t") << GetVideoFormatName(strmhdr.fmt.bmi->biCompression) << _T("\n");
 										if (strmhdr.fmt.bmi->biWidth && strmhdr.fmt.bmi->biHeight) {
-											mi->strInfo << _T("   ") << GetResString(IDS_WIDTH) << _T(" x ") << GetResString(IDS_HEIGHT) << _T(":\t") << abs(strmhdr.fmt.bmi->biWidth) << _T(" x ") << abs(strmhdr.fmt.bmi->biHeight) << _T("\n");
+											mi->strInfo << _T("   ") << GetResString(IDS_WIDTH) << _T(" x ") << GetResString(IDS_HEIGHT) << _T(":\t") << (int)abs(strmhdr.fmt.bmi->biWidth) << _T(" x ") << (int)abs(strmhdr.fmt.bmi->biHeight) << _T("\n");
 											float fAspectRatio = fabsf((float)strmhdr.fmt.bmi->biWidth / (float)strmhdr.fmt.bmi->biHeight);
 											mi->strInfo << _T("   ") << GetResString(IDS_ASPECTRATIO) << _T(":\t") << fAspectRatio << _T("  (") << GetKnownAspectRatioDisplayString(fAspectRatio) << _T(")\n");
 										}
@@ -905,6 +897,7 @@ bool GetRIFFHeaders(LPCTSTR pszFileName, SMediaInfo *mi, bool &rbIsAVI, bool bFu
 										ck.Seek(1, CFile::current);
 								}
 							} catch (CException *ex) {
+								DebugLogCaughtException(__FUNCTION__, ex);
 								ex->Delete();
 								bError = true;
 							}
@@ -948,6 +941,7 @@ bool GetRIFFHeaders(LPCTSTR pszFileName, SMediaInfo *mi, bool &rbIsAVI, bool bFu
 					strmhdr.dwFormatLen = dwLength;
 					strmhdr.fmt.dat = new BYTE[dwLength];
 				} catch (...) {
+					DebugLogCaughtException(__FUNCTION__);
 					errno = ENOMEM;
 					goto inv_format_errno;
 				}
@@ -1265,6 +1259,7 @@ bool GetRMHeaders(LPCTSTR pszFileName, SMediaInfo *mi, bool &rbIsRM, bool bFullI
 										bReadMDPR_Video = true;
 									}
 								} catch (CException *ex) {
+									DebugLogCaughtException(__FUNCTION__, ex);
 									ex->Delete();
 									delete[] pucTypeData;
 									break;
@@ -1317,6 +1312,7 @@ bool GetRMHeaders(LPCTSTR pszFileName, SMediaInfo *mi, bool &rbIsRM, bool bFullI
 										}
 									}
 								} catch (CException *ex) {
+									DebugLogCaughtException(__FUNCTION__, ex);
 									ex->Delete();
 									delete[] pucTypeData;
 									break;
@@ -1452,6 +1448,7 @@ bool GetRMHeaders(LPCTSTR pszFileName, SMediaInfo *mi, bool &rbIsRM, bool bFullI
 			}
 		}
 	} catch (CException *ex) {
+		DebugLogCaughtException(__FUNCTION__, ex);
 		ex->Delete();
 	}
 
@@ -2251,7 +2248,7 @@ bool GetWMHeaders(LPCTSTR pszFileName, SMediaInfo *mi, bool &rbIsWM, bool bFullI
 											mi->strInfo << _T("   ") << GetResString(IDS_CODEC) << _T(":\t") << GetVideoFormatName(pVideoInfo->bmiHeader.biCompression) << _T("\n");
 											if (pVideoInfo->dwBitRate)
 												mi->strInfo << _T("   ") << GetResString(IDS_BITRATE) << _T(":\t") << (UINT)((pVideoInfo->dwBitRate + 500) / 1000) << _T(" kbit/s\n");
-											mi->strInfo << _T("   ") << GetResString(IDS_WIDTH) << _T(" x ") << GetResString(IDS_HEIGHT) << _T(":\t") << abs(pVideoInfo->bmiHeader.biWidth) << _T(" x ") << abs(pVideoInfo->bmiHeader.biHeight) << _T("\n");
+											mi->strInfo << _T("   ") << GetResString(IDS_WIDTH) << _T(" x ") << GetResString(IDS_HEIGHT) << _T(":\t") << (int)abs(pVideoInfo->bmiHeader.biWidth) << _T(" x ") << (int)abs(pVideoInfo->bmiHeader.biHeight) << _T("\n");
 											float fAspectRatio = fabsf((float)pVideoInfo->bmiHeader.biWidth / (float)pVideoInfo->bmiHeader.biHeight);
 											mi->strInfo << _T("   ") << GetResString(IDS_ASPECTRATIO) << _T(":\t") << fAspectRatio << _T("  (") << GetKnownAspectRatioDisplayString(fAspectRatio) << _T(")\n");
 
@@ -2712,6 +2709,7 @@ bool GetWMHeaders(LPCTSTR pszFileName, SMediaInfo *mi, bool &rbIsWM, bool bFullI
 			}
 		}
 	} catch (CException *ex) {
+		DebugLogCaughtException(__FUNCTION__, ex);
 		ASSERT(ex->IsKindOf(RUNTIME_CLASS(CNotSupportedException)));
 		ex->Delete();
 	}

@@ -96,7 +96,7 @@ BOOL CSmileySelector::CreateWnd(CWnd *pWndParent, LPCRECT pRect, CEdit *pwndEdit
 	COLORREF crBackground = (::IsAppThemed() && ::IsThemeActive()) ? COLOR_WINDOW : COLOR_BTNFACE;
 	static const CString &strClassName(AfxRegisterWndClass(
 		CS_CLASSDC | CS_SAVEBITS | CS_HREDRAW | CS_VREDRAW
-		, AfxGetApp()->LoadStandardCursor(IDC_ARROW), (HBRUSH)(crBackground + 1)
+		, AfxGetApp()->LoadStandardCursor(IDC_ARROW), (HBRUSH)(UINT_PTR)(crBackground + 1)
 		, 0));
 	if (!CWnd::CreateEx(0
 				, strClassName
@@ -122,8 +122,6 @@ BOOL CSmileySelector::CreateWnd(CWnd *pWndParent, LPCRECT pRect, CEdit *pwndEdit
 	{
 		return FALSE;
 	}
-	// Win98: Explicitly set to Unicode to receive Unicode notifications.
-	m_tb.SendMessage(CCM_SETUNICODEFORMAT, TRUE);
 
 	//////////////////////////////////////////////////////////////////////////
 	// Create toolbar image list with smileys

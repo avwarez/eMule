@@ -82,6 +82,8 @@ enum ESearchResultImage
 
 IMPLEMENT_DYNCREATE(CSearchResultsWnd, CResizableFormView)
 
+#pragma warning(push)
+#pragma warning(disable:4191) // MFC message maps cast every handler to AFX_PMSG; only a pragma inside the .cpp reaches this
 BEGIN_MESSAGE_MAP(CSearchResultsWnd, CResizableFormView)
 	ON_WM_TIMER()
 	ON_BN_CLICKED(IDC_SDOWNLOAD, OnBnClickedDownloadSelected)
@@ -102,6 +104,7 @@ BEGIN_MESSAGE_MAP(CSearchResultsWnd, CResizableFormView)
 	ON_MESSAGE(UM_DELAYED_EVALUATE, OnChangeFilter)
 	ON_NOTIFY(TBN_DROPDOWN, IDC_SEARCHLST_ICO, OnSearchListMenuBtnDropDown)
 END_MESSAGE_MAP()
+#pragma warning(pop)
 
 CSearchResultsWnd::CSearchResultsWnd(CWnd* /*pParent*/)
 	: CResizableFormView(CSearchResultsWnd::IDD)
@@ -147,7 +150,7 @@ void CSearchResultsWnd::OnInitialUpdate()
 	m_btnSearchListMenu.MoveWindow(&rc);
 	m_btnSearchListMenu.AddBtnStyle(IDC_SEARCHLST_ICO, TBSTYLE_AUTOSIZE);
 	// Vista: Remove the TBSTYLE_TRANSPARENT to avoid flickering (can be done only after the toolbar was initially created with TBSTYLE_TRANSPARENT !?)
-	m_btnSearchListMenu.ModifyStyle(TBSTYLE_TOOLTIPS | ((theApp.m_ullComCtrlVer >= MAKEDLLVERULL(6, 16, 0, 0)) ? TBSTYLE_TRANSPARENT : 0), 0);
+	m_btnSearchListMenu.ModifyStyle(TBSTYLE_TOOLTIPS | TBSTYLE_TRANSPARENT, 0);
 	m_btnSearchListMenu.SetExtendedStyle(m_btnSearchListMenu.GetExtendedStyle() & ~TBSTYLE_EX_MIXEDBUTTONS);
 	m_btnSearchListMenu.RecalcLayout(true);
 
@@ -1389,13 +1392,11 @@ void CSearchResultsWnd::DeleteSelectedSearch()
 	}
 }
 
-#pragma warning(push)
-#pragma warning(disable:4701) //local variable 'ti'
 void CSearchResultsWnd::DeleteSearch(uint32 uSearchID)
 {
 	Kademlia::CSearchManager::StopSearch(uSearchID, false);
 
-	TCITEM ti;
+	TCITEM ti = {};
 	ti.mask = TCIF_PARAM;
 	int i = searchselect.GetItemCount();
 	while (--i >= 0 && !(searchselect.GetItem(i, &ti) && ti.lParam && reinterpret_cast<SSearchParams*>(ti.lParam)->dwSearchID == uSearchID));
@@ -1440,7 +1441,6 @@ void CSearchResultsWnd::DeleteSearch(uint32 uSearchID)
 	} else
 		NoTabItems();
 }
-#pragma warning(pop)
 
 void CSearchResultsWnd::DeleteAllSearches()
 {
@@ -1708,9 +1708,12 @@ void CSearchResultsWnd::SearchRelatedFiles(CPtrList &listFiles)
 ///////////////////////////////////////////////////////////////////////////////
 // CSearchResultsSelector
 
+#pragma warning(push)
+#pragma warning(disable:4191) // MFC message maps cast every handler to AFX_PMSG; only a pragma inside the .cpp reaches this
 BEGIN_MESSAGE_MAP(CSearchResultsSelector, CClosableTabCtrl)
 	ON_WM_CONTEXTMENU()
 END_MESSAGE_MAP()
+#pragma warning(pop)
 
 BOOL CSearchResultsSelector::OnCommand(WPARAM wParam, LPARAM lParam)
 {

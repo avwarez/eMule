@@ -24,6 +24,8 @@
 #include "partfile.h"
 #include "log.h"
 #include "preferences.h"
+#include "emuledlg.h"
+#include "SharedFilesWnd.h"
 #include "safefile.h"
 #include "listensocket.h"
 #include "packets.h"
@@ -44,6 +46,75 @@ static char THIS_FILE[] = __FILE__;
 #define RUN_IDLE	1
 #define RUN_WORK	2
 #define WAKEUP		((ULONG_PTR)(~0))
+
+// 97p: a read that takes this long is logged and lowers the file's priority, see ReadCompletionRoutine()
+#define SLOW_READ_MS	SEC2MS(20)
+
+// 97p: GetQueuedCompletionStatus() also returns FALSE when the packet it hands over is a read
+// that failed. That read is handed on as one that read nothing, so that ReadCompletionRoutine()
+// drops the upload it was for and the thread goes on; FALSE is returned only when nothing was
+// dequeued (the drain is over, or the port itself failed).
+BOOL CUploadDiskIOThread::GetNextCompletion(DWORD &dwRead, ULONG_PTR &completionKey, OverlappedRead_Struct *&pCurIO, DWORD dwWait)
+{
+	pCurIO = NULL;
+	if (::GetQueuedCompletionStatus(m_hPort, &dwRead, &completionKey, (LPOVERLAPPED*)&pCurIO, dwWait))
+		return TRUE;
+	const DWORD dwError = ::GetLastError();
+	if (pCurIO != NULL) {
+		// a read that eMule cancelled itself, by closing the file under it (DissociateFile()), says nothing about the disk
+		if (dwError == ERROR_OPERATION_ABORTED || pCurIO->pFile->m_hRead == INVALID_HANDLE_VALUE)
+			theApp.QueueDebugLogLineEx(LOG_INFO, _T("Upload disk I/O: reading \"%s\" at %I64u-%I64u was cancelled, error %lu")
+				, (LPCTSTR)pCurIO->pFile->GetFileName(), pCurIO->uStartOffset, pCurIO->uEndOffset, dwError);
+		else {
+			theApp.QueueLogLineEx(LOG_ERROR, _T("Upload disk I/O: reading \"%s\" at %I64u-%I64u failed, error %lu: %s - the upload it was for is stopped, the others go on")
+				, (LPCTSTR)pCurIO->pFile->GetFileName(), pCurIO->uStartOffset, pCurIO->uEndOffset, dwError, (LPCTSTR)GetErrorMessage(dwError, 1));
+			ReportTroubledFile(pCurIO->pFile);
+		}
+		dwRead = 0;
+		return TRUE;
+	}
+	if (dwError != WAIT_TIMEOUT)
+		theApp.QueueLogLineEx(LOG_ERROR, _T("Upload disk I/O: waiting for disk reads failed, error %lu: %s - no upload gets data until eMule restarts")
+			, dwError, (LPCTSTR)GetErrorMessage(dwError, 1));
+	::SetLastError(dwError);
+	return FALSE;
+}
+
+void CUploadDiskIOThread::ReportTroubledFile(const CKnownFile *pFile)
+{
+	CSingleLock lock(&m_csTroubledFiles, TRUE);
+	m_mapTroubledFiles[CSKey(pFile->GetFileHash())] = true;
+}
+
+// 97p: a file that cannot be read from its disk, or only very slowly, gets fewer upload slots from
+// then on, and the user is told, so that the disk can be looked at; the priority stays until set again
+void CUploadDiskIOThread::LowerPriorityOfTroubledFiles()
+{
+	CList<CSKey> listFiles;
+	m_csTroubledFiles.Lock();
+	for (POSITION pos = m_mapTroubledFiles.GetStartPosition(); pos != NULL;) {
+		CSKey key;
+		bool bDummy;
+		m_mapTroubledFiles.GetNextAssoc(pos, key, bDummy);
+		listFiles.AddTail(key);
+	}
+	m_mapTroubledFiles.RemoveAll();
+	m_csTroubledFiles.Unlock();
+
+	while (!listFiles.IsEmpty()) {
+		const CSKey key(listFiles.RemoveHead());
+		CKnownFile *pFile = theApp.sharedfiles->GetFileByID(key.m_key);
+		if (pFile == NULL || (pFile->GetUpPriority() == PR_VERYLOW && !pFile->IsAutoUpPriority()))
+			continue;
+		const CString strBefore(pFile->GetUpPriorityDisplayString());
+		pFile->SetAutoUpPriority(false);
+		pFile->SetUpPriority(PR_VERYLOW);
+		LogWarning(_T("Upload disk I/O: \"%s\" cannot be read reliably from its disk (see above) - its upload priority goes from %s to %s until you set it again")
+			, (LPCTSTR)pFile->GetFileName(), (LPCTSTR)strBefore, (LPCTSTR)pFile->GetUpPriorityDisplayString());
+		if (theApp.emuledlg->sharedfileswnd->m_hWnd)
+			theApp.emuledlg->sharedfileswnd->sharedfilesctrl.UpdateFile(pFile);
+	}
+}
 
 IMPLEMENT_DYNCREATE(CUploadDiskIOThread, CWinThread)
 
@@ -91,7 +162,7 @@ UINT CUploadDiskIOThread::RunInternal()
 	OverlappedRead_Struct *pCurIO = NULL;
 	m_Run = RUN_IDLE;
 	while (m_Run
-			&& ::GetQueuedCompletionStatus(m_hPort, &dwRead, &completionKey, (LPOVERLAPPED*)&pCurIO, INFINITE)
+			&& GetNextCompletion(dwRead, completionKey, pCurIO, INFINITE)
 			&& completionKey)
 	{
 		m_Run = RUN_WORK;
@@ -101,7 +172,7 @@ UINT CUploadDiskIOThread::RunInternal()
 		pcsUploadListRead->Lock();
 		for (POSITION pos = rUploadList.GetHeadPosition(); pos != NULL;)
 			StartCreateNextBlockPackage(rUploadList.GetNext(pos));
-		InterlockedExchange8(&m_bNewData, 0);
+		m_bNewData.exchange(0);
 		pcsUploadListRead->Unlock();
 
 		//check completed I/O
@@ -110,7 +181,7 @@ UINT CUploadDiskIOThread::RunInternal()
 				break;
 			if (completionKey != WAKEUP) //ignore wakeups
 				ReadCompletionRoutine(dwRead, pCurIO);
-		} while (::GetQueuedCompletionStatus(m_hPort, &dwRead, &completionKey, (LPOVERLAPPED*)&pCurIO, 0));
+		} while (GetNextCompletion(dwRead, completionKey, pCurIO, 0));
 
 		if (!completionKey) //thread termination
 			break;
@@ -120,7 +191,8 @@ UINT CUploadDiskIOThread::RunInternal()
 			theApp.uploadBandwidthThrottler->NewUploadDataAvailable();
 			m_bSignalThrottler = false;
 		}
-		if (InterlockedExchange8(&m_bNewData, 0) && m_listPendingIO.IsEmpty())
+		// 97p: also with reads pending, as a slow one must not hold up the others
+		if (m_bNewData.exchange(0))
 			PostQueuedCompletionStatus(m_hPort, 0, WAKEUP, NULL);
 	}
 	m_Run = RUN_STOP;
@@ -238,6 +310,7 @@ void CUploadDiskIOThread::StartCreateNextBlockPackage(UploadingToClient_Struct *
 			pOverlappedRead->uStartOffset = currentblock->StartOffset;
 			pOverlappedRead->uEndOffset = currentblock->EndOffset;
 			pOverlappedRead->pBuffer = new byte[(size_t)uTogo];
+			pOverlappedRead->dwStart = ::GetTickCount();
 
 			if (!::ReadFile(pFile->m_hRead, pOverlappedRead->pBuffer, (DWORD)uTogo, NULL, (LPOVERLAPPED)pOverlappedRead)) {
 				DWORD dwError = ::GetLastError();
@@ -282,6 +355,13 @@ void CUploadDiskIOThread::ReadCompletionRoutine(DWORD dwRead, const OverlappedRe
 
 	CKnownFile *pKnownFile = pOvRead->pFile;
 	if (m_Run) {
+		// 97p: a disk that is slow to answer, or about to fail, is worth knowing about
+		const DWORD dwTook = ::GetTickCount() - pOvRead->dwStart;
+		if (dwTook >= SLOW_READ_MS) {
+			theApp.QueueLogLineEx(LOG_WARNING, _T("Upload disk I/O: reading \"%s\" at %I64u-%I64u took %lu ms, %lu bytes read - the disk is slow to answer")
+				, (LPCTSTR)pOvRead->pFile->GetFileName(), pOvRead->uStartOffset, pOvRead->uEndOffset, dwTook, dwRead);
+			ReportTroubledFile(pOvRead->pFile);
+		}
 		m_listPendingIO.RemoveAt(pOvRead->pos);
 		bool bReadError = !dwRead;
 		if (bReadError)
@@ -480,9 +560,10 @@ void CUploadDiskIOThread::CreatePackedPackets(const OverlappedRead_Struct &Overl
 
 void CUploadDiskIOThread::WakeUpCall()
 {
-	//pending I/O makes posting unnecessary
-	if (m_Run == RUN_IDLE && m_listPendingIO.IsEmpty())
+	// 97p: pending I/O does not make posting unnecessary: a read that takes long
+	// (a disk that does not answer) would hold up every other upload until it ends
+	if (m_Run == RUN_IDLE)
 		PostQueuedCompletionStatus(m_hPort, 0, WAKEUP, NULL);
 	else
-		InterlockedExchange8(&m_bNewData, 1);
+		m_bNewData.exchange(1);
 }

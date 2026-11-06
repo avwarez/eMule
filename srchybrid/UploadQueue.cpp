@@ -44,6 +44,7 @@
 #include "Kademlia/Kademlia/Prefs.h"
 #include "Log.h"
 #include "collection.h"
+#include "UploadDiskIOThread.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -122,6 +123,15 @@ CUpDownClient* CUploadQueue::FindBestClientInQueue()
 			RemoveFromWaitingQueue(pos2, true);
 		} else {
 			// finished clearing
+			//A client whose session we ended ourselves is on this list on its behalf, without
+			//having asked for anything. Skip it while it still has the connection that carried
+			//OP_OUTOFPARTREQS: giving it a slot back on that connection is what the comment in
+			//SendOutOfPartReqsAndAddToWaitingQueue() warns about, and it does not work - no
+			//block request follows and the slot stays empty until the socket times out. The
+			//flag falls when the connection ends, and from then on this client asks for a slot
+			//the way every other client on this list did.
+			if (cur_client->HasSentOutOfPartReqs())
+				continue;
 			uint32 cur_score = cur_client->GetScore(false);
 
 			if (cur_score > bestscore) {
@@ -147,8 +157,12 @@ CUpDownClient* CUploadQueue::FindBestClientInQueue()
 		}
 	}
 
-	if (lowclient && bestlowscore > bestscore)
+	if (lowclient && bestlowscore > bestscore) {
 		lowclient->m_bAddNextConnect = true;
+		if (thePrefs.GetLogUlDlEvents() && lowclient->IsPowerShareRequest())
+			AddDebugLogLine(false, _T("PowerShare: LowID client not connected, slot kept for its next connection, score %u (best connected %u) Client: %s")
+				, bestlowscore, bestscore, (LPCTSTR)lowclient->DbgGetClientInfo());
+	}
 
 	return newclient;
 }
@@ -196,6 +210,11 @@ bool CUploadQueue::AddUpNextClient(LPCTSTR pszReason, CUpDownClient *directadd)
 
 	if (pszReason && thePrefs.GetLogUlDlEvents())
 		AddDebugLogLine(false, _T("Adding client to upload list: %s Client: %s"), pszReason, (LPCTSTR)newclient->DbgGetClientInfo());
+	if (thePrefs.GetLogUlDlEvents() && newclient->IsPowerShareRequest())
+		AddDebugLogLine(false, _T("PowerShare: upload slot after waiting %s, score %u%s Client: %s")
+			, (LPCTSTR)CastSecondsToHM((::GetTickCount() - newclient->GetWaitStartTime()) / SEC2MS(1))
+			, newclient->GetScore(false), newclient->HasLowID() ? _T(" (LowID)") : _T("")
+			, (LPCTSTR)newclient->DbgGetClientInfo());
 
 	if (newclient->HasCollectionUploadSlot() && directadd == NULL) {
 		ASSERT(0);
@@ -284,6 +303,9 @@ void CUploadQueue::Process()
 {
 	const DWORD curTick = ::GetTickCount();
 	UpdateActiveClientsInfo(curTick);
+
+	if (theApp.m_pUploadDiskIOThread != NULL)
+		theApp.m_pUploadDiskIOThread->LowerPriorityOfTroubledFiles(); // 97p
 
 	if (ForceNewClient())
 		// There's not enough open uploads. Open another one.
@@ -604,7 +626,8 @@ void CUploadQueue::AddClientToQueue(CUpDownClient *client, bool bIgnoreTimelimit
 
 	// emule collection will bypass the queue
 	if (reqfile != NULL && CCollection::HasCollectionExtention(reqfile->GetFileName()) && reqfile->GetFileSize() < (uint64)MAXPRIORITYCOLL_SIZE
-		&& !client->IsDownloading() && client->socket != NULL && client->socket->IsConnected())
+		&& !client->IsDownloading() && !client->HasSentOutOfPartReqs() //see FindBestClientInQueue()
+		&& client->socket != NULL && client->socket->IsConnected())
 	{
 		client->SetCollectionUploadSlot(true);
 		RemoveFromWaitingQueue(client, true);
@@ -640,7 +663,7 @@ void CUploadQueue::AddClientToQueue(CUpDownClient *client, bool bIgnoreTimelimit
 		client->SendPacket(packet);
 		return;
 	}
-	if (waitinglist.IsEmpty() && ForceNewClient(true)) {
+	if (waitinglist.IsEmpty() && ForceNewClient(true) && !client->HasSentOutOfPartReqs()) { //see FindBestClientInQueue()
 		client->SetWaitStartTime();
 		AddUpNextClient(_T("Direct add with empty queue."), client);
 	} else {
@@ -650,6 +673,11 @@ void CUploadQueue::AddClientToQueue(CUpDownClient *client, bool bIgnoreTimelimit
 		theApp.emuledlg->transferwnd->GetQueueList().AddClient(client, true);
 		theApp.emuledlg->transferwnd->ShowQueueCount(waitinglist.GetCount());
 		client->SendRankingInfo();
+		if (thePrefs.GetLogUlDlEvents() && client->IsPowerShareRequest())
+			AddDebugLogLine(false, _T("PowerShare: request queued, score %u%s, rank %u of %u File: \"%s\" Client: %s")
+				, client->GetScore(false), client->HasLowID() ? _T(" (LowID)") : _T("")
+				, GetWaitingPosition(client), (UINT)waitinglist.GetCount()
+				, (LPCTSTR)reqfile->GetFileName(), (LPCTSTR)client->DbgGetClientInfo());
 	}
 }
 
@@ -766,7 +794,28 @@ void CUploadQueue::UpdateMaxClientScore()
 	}
 }
 
-bool CUploadQueue::CheckForTimeOver(const CUpDownClient *client)
+// A waiting client that FindBestClientInQueue() would hand a slot to right now ahead of every
+// ordinary one: its score is above the ordinary cap, which makes it a PowerShare request or a
+// friend with a friend slot, and it is neither due to be purged nor unable to take the slot.
+// nNotReady counts the waiting clients with such a score that could not take a slot yet.
+const CUpDownClient* CUploadQueue::FindWaitingPowerShareRival(UINT &nNotReady) const
+{
+	nNotReady = 0;
+	const DWORD curTick = ::GetTickCount();
+	for (POSITION pos = waitinglist.GetHeadPosition(); pos != NULL;) {
+		const CUpDownClient *cur_client = waitinglist.GetNext(pos);
+		if (cur_client->GetScore(false) < 0x08000000u)
+			continue;
+		if (!cur_client->IsReadyForUploadSlot() || curTick >= cur_client->GetLastUpRequest() + MAX_PURGEQUEUETIME) {
+			++nNotReady;
+			continue;
+		}
+		return cur_client;
+	}
+	return NULL;
+}
+
+bool CUploadQueue::CheckForTimeOver(CUpDownClient *client)
 {
 	//If we have nobody in the queue, do NOT remove the current uploads.
 	//This will save some bandwidth and some unneeded swapping from upload/queue/upload.
@@ -786,9 +835,33 @@ bool CUploadQueue::CheckForTimeOver(const CUpDownClient *client)
 
 	if (thePrefs.TransferFullChunks()) {
 		// Allow the client to download a specified amount per session; but keep going if no one needs this slot
-		if (client->GetQueueSessionPayloadUp() > SESSIONMAXTRANS && !ForceNewClient()) {
+		const uint64 uSessionLimit = SESSIONMAXTRANS * (uint64)(client->GetPowerShareStretches() + 1);
+		if (client->GetQueueSessionPayloadUp() > uSessionLimit && !ForceNewClient()) {
+			// A PowerShare client goes on for another SESSIONMAXTRANS unless a PowerShare request or
+			// a friend with a friend slot is waiting and can take the slot; the session is
+			// stretched past what was sent already, in case ForceNewClient() held the check back.
+			if (client->IsPowerShareRequest()) {
+				UINT nNotReady;
+				const CUpDownClient *pRival = FindWaitingPowerShareRival(nNotReady);
+				if (pRival == NULL) {
+					client->SetPowerShareStretches((UINT)(client->GetQueueSessionPayloadUp() / SESSIONMAXTRANS));
+					if (thePrefs.GetLogUlDlEvents())
+						AddDebugLogLine(false, _T("PowerShare: slot kept at %s, next check at %s, %u waiting, none outranking (%u PowerShare/friend not ready) Client: %s")
+							, (LPCTSTR)CastItoXBytes(client->GetQueueSessionPayloadUp())
+							, (LPCTSTR)CastItoXBytes(SESSIONMAXTRANS * (uint64)(client->GetPowerShareStretches() + 1))
+							, (UINT)waitinglist.GetCount(), nNotReady, (LPCTSTR)client->DbgGetClientInfo());
+					return false;
+				}
+				if (thePrefs.GetLogUlDlEvents())
+					AddDebugLogLine(false, _T("PowerShare: slot handed over at %s after %u extra stretches, to %s Client: %s Next: %s")
+						, (LPCTSTR)CastItoXBytes(client->GetQueueSessionPayloadUp()), client->GetPowerShareStretches()
+						, pRival->IsPowerShareRequest() ? _T("PowerShare request") : _T("friend")
+						, (LPCTSTR)client->DbgGetClientInfo(), (LPCTSTR)pRival->DbgGetClientInfo());
+			} else if (client->GetPowerShareStretches() > 0 && thePrefs.GetLogUlDlEvents())
+				AddDebugLogLine(false, _T("PowerShare: kept slot ends at %s, the request is no longer PowerShare Client: %s")
+					, (LPCTSTR)CastItoXBytes(client->GetQueueSessionPayloadUp()), (LPCTSTR)client->DbgGetClientInfo());
 			if (thePrefs.GetLogUlDlEvents())
-				AddDebugLogLine(DLP_DEFAULT, false, _T("%s: Upload session ended due to max transferred amount (%s)"), client->GetUserName(), (LPCTSTR)CastItoXBytes(SESSIONMAXTRANS));
+				AddDebugLogLine(DLP_DEFAULT, false, _T("%s: Upload session ended due to max transferred amount (%s)"), client->GetUserName(), (LPCTSTR)CastItoXBytes(uSessionLimit));
 			return true;
 		}
 	} else {
@@ -911,10 +984,8 @@ VOID CALLBACK CUploadQueue::UploadTimer(HWND /*hwnd*/, UINT /*uMsg*/, UINT_PTR /
 				// Update connection stats...
 				theStats.UpdateConnectionStats((float)theApp.uploadqueue->GetDatarate() / 1024, (float)theApp.downloadqueue->GetDatarate() / 1024);
 
-#ifdef HAVE_WIN7_SDK_H
 				if (thePrefs.IsWin7TaskbarGoodiesEnabled())
 					theApp.emuledlg->UpdateStatusBarProgress();
-#endif
 			}
 
 			// display graphs

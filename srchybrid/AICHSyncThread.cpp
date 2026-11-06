@@ -99,6 +99,7 @@ int CAICHSyncThread::Run()
 					file.WriteUInt8(KNOWN2_MET_VERSION);
 				}
 			} catch (CFileException *ex2) {
+				DebugLogCaughtException(__FUNCTION__, ex2);
 				ex2->Delete();
 			}
 		} else

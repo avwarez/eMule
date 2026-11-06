@@ -359,12 +359,14 @@ bool ShellDeleteFile(LPCTSTR pszFilePath)
 	return ::DeleteFile(pszFilePath) != 0;
 }
 
-CString ShellGetFolderPath(int iCSIDL)
+CString ShellGetFolderPath(REFKNOWNFOLDERID rfid)
 {
-	TCHAR szPath[MAX_PATH];
-	if (SUCCEEDED(::SHGetFolderPath(NULL, iCSIDL, NULL, SHGFP_TYPE_CURRENT, szPath)))
-		return CString(szPath);
-	return CString();
+	CString strPath;
+	PWSTR pszPath = NULL;
+	if (SUCCEEDED(::SHGetKnownFolderPath(rfid, 0, NULL, &pszPath)))
+		strPath = pszPath;
+	::CoTaskMemFree(pszPath);
+	return strPath;
 }
 
 // Print the hash in a format which is similar to CertMgr's.
@@ -532,7 +534,7 @@ bool Ask4RegFix(bool checkOnly, bool dontAsk, bool bAutoTakeCollections)
 		// we actually need to change the registry and write an entry for HKCU
 		if (checkOnly)
 			return true;
-		HKEY hkeyCR = thePrefs.GetWindowsVersion() < _WINVER_2K_ ? HKEY_LOCAL_MACHINE : HKEY_CURRENT_USER;
+		HKEY hkeyCR = HKEY_CURRENT_USER;
 		if (regkey.Create(hkeyCR, _T("Software\\Classes\\ed2k\\shell\\open\\command")) == ERROR_SUCCESS) {
 			if (dontAsk || (LocMessageBox(IDS_ASSIGNED2K, MB_ICONQUESTION | MB_YESNO, 0) == IDYES)) {
 				VERIFY(regkey.SetStringValue(NULL, regbuffer) == ERROR_SUCCESS);
@@ -567,7 +569,7 @@ void BackupReg()
 	//		This means that saving/restoring existent registry keys works completely differently in Win98/XP.
 	//		Actually it works correctly under Win98 and is broken in WinXP+. Though, did someone notice it at all?
 
-	HKEY hkeyCR = thePrefs.GetWindowsVersion() < _WINVER_2K_ ? HKEY_LOCAL_MACHINE : HKEY_CURRENT_USER;
+	HKEY hkeyCR = HKEY_CURRENT_USER;
 	// Look for pre-existing old ed2k links
 	CRegKey regkey;
 	if (regkey.Create(hkeyCR, _T("Software\\Classes\\ed2k\\shell\\open\\command")) == ERROR_SUCCESS) {
@@ -591,7 +593,7 @@ void BackupReg()
 // Barry - Restore previous values
 void RevertReg()
 {
-	HKEY hkeyCR = thePrefs.GetWindowsVersion() < _WINVER_2K_ ? HKEY_LOCAL_MACHINE : HKEY_CURRENT_USER;
+	HKEY hkeyCR = HKEY_CURRENT_USER;
 	// restore previous ed2k links before being assigned to emule
 	CRegKey regkey;
 	if (regkey.Create(hkeyCR, _T("Software\\Classes\\ed2k\\shell\\open\\command")) == ERROR_SUCCESS) {
@@ -616,136 +618,6 @@ void RevertReg()
 UINT GetMaxWindowsTCPConnections()
 {
 	return UNLIMITED;
-/*	OSVERSIONINFOEX osvi;
-	osvi.dwOSVersionInfoSize = (DWORD)sizeof(OSVERSIONINFOEX);
-
-	if (!GetVersionEx((OSVERSIONINFO*)&osvi)) {
-		//if OSVERSIONINFOEX doesn't work, try OSVERSIONINFO
-		osvi.dwOSVersionInfoSize = (DWORD)sizeof(OSVERSIONINFO);
-		if (!GetVersionEx((OSVERSIONINFO*)&osvi))
-			return UNLIMITED;  //shouldn't ever happen
-	}
-
-	if (osvi.dwPlatformId == VER_PLATFORM_WIN32_NT) // Windows NT product family
-		return UNLIMITED;  //no limits
-
-	if (osvi.dwPlatformId == VER_PLATFORM_WIN32_WINDOWS) { // Windows 95 product family
-
-		HKEY hKey;
-		if (osvi.dwMajorVersion == 4 && osvi.dwMinorVersion == 0) { //old school 95
-			DWORD dwValue;
-			DWORD dwLength = (DWORD)sizeof dwValue;
-
-			RegOpenKeyEx(HKEY_LOCAL_MACHINE, _T("System\\CurrentControlSet\\Services\\VxD\\MSTCP")
-				, 0, KEY_QUERY_VALUE, &hKey);
-			LONG lResult = RegQueryValueEx(hKey, _T("MaxConnections"), NULL, NULL
-				, (LPBYTE)&dwValue, &dwLength);
-			RegCloseKey(hKey);
-
-			if (lResult != ERROR_SUCCESS || dwValue < 1)
-				return 100;  //the default for 95 is 100
-
-			return dwValue;
-
-		}
-		//98 or ME
-		TCHAR szValue[32];
-		DWORD dwLength = (DWORD)sizeof szValue;
-		LONG lResult;
-
-		RegOpenKeyEx(HKEY_LOCAL_MACHINE, _T("System\\CurrentControlSet\\Services\\VxD\\MSTCP")
-			, 0, KEY_QUERY_VALUE, &hKey);
-		lResult = RegQueryValueEx(hKey, TEXT("MaxConnections"), NULL, NULL, (LPBYTE)szValue, &dwLength);
-		RegCloseKey(hKey);
-
-		LONG lMaxConnections;
-		if (lResult != ERROR_SUCCESS || (lMaxConnections = _tstoi(szValue)) < 1)
-			return 100;  //the default for 98/ME is 100
-
-		return lMaxConnections;
-	}
-
-	return UNLIMITED;  //give the user the benefit of the doubt, most use NT+ anyway
-*/
-}
-
-#pragma warning(push)
-#pragma warning(disable:4996) //GetVersionEx()
-WORD DetectWinVersion()
-{
-	OSVERSIONINFOEX osvi;
-	osvi.dwOSVersionInfoSize = (DWORD)sizeof(OSVERSIONINFOEX);
-
-	if (!GetVersionEx((OSVERSIONINFO*)&osvi)) {
-		osvi.dwOSVersionInfoSize = (DWORD)sizeof(OSVERSIONINFO);
-		if (!GetVersionEx((OSVERSIONINFO*)&osvi))
-			return 0;
-	}
-
-	switch (osvi.dwPlatformId) {
-	case VER_PLATFORM_WIN32_NT:
-		if (osvi.dwMajorVersion <= 4)
-			return _WINVER_NT4_;
-		if (osvi.dwMajorVersion == 5) {
-			if (osvi.dwMinorVersion == 0)
-				return _WINVER_2K_;
-			if (osvi.dwMinorVersion == 1)
-				return _WINVER_XP_;
-			if (osvi.dwMinorVersion == 2)
-				return _WINVER_2003_;
-		}
-		if (osvi.dwMajorVersion == 6) {
-			if (osvi.dwMinorVersion == 0)
-				return _WINVER_VISTA_;
-			if (osvi.dwMinorVersion == 1)
-				return _WINVER_7_;
-			if (osvi.dwMinorVersion == 2)
-				return _WINVER_8_;
-			if (osvi.dwMinorVersion == 3)
-				return _WINVER_8_1_;
-		}
-		if (osvi.dwMajorVersion == 10 && osvi.dwMinorVersion == 0)
-			return _WINVER_10_; //for Windows 11 - osvi.dwBuildNumber>=22000
-		return _WINVER_7_; // never return Win95 if we get the info about an NT system
-
-	case VER_PLATFORM_WIN32_WINDOWS:
-		if (osvi.dwMajorVersion == 4) {
-			if (osvi.dwMinorVersion == 0)
-				return _WINVER_95_;
-			if (osvi.dwMinorVersion == 10)
-				return _WINVER_98_;
-			if (osvi.dwMinorVersion == 90)
-				return _WINVER_ME_;
-		}
-	}
-
-	return _WINVER_95_;		// there shouldn't be anything lower than this
-}
-
-bool IsRunningXPSP2()
-{
-	OSVERSIONINFOEX osvi;
-	osvi.dwOSVersionInfoSize = (DWORD)sizeof(OSVERSIONINFOEX);
-
-	if (!GetVersionEx((OSVERSIONINFO*)&osvi)) {
-		osvi.dwOSVersionInfoSize = (DWORD)sizeof(OSVERSIONINFO);
-		if (!GetVersionEx((OSVERSIONINFO*)&osvi))
-			return false;
-	}
-
-	return osvi.dwPlatformId == VER_PLATFORM_WIN32_NT
-		&& osvi.dwMajorVersion == 5
-		&& osvi.dwMinorVersion == 1
-		&& osvi.wServicePackMajor >= 2;
-}
-#pragma warning(pop)
-
-bool IsRunningXPSP2OrHigher()
-{
-	WORD wv = thePrefs.GetWindowsVersion();
-	if (wv == _WINVER_XP_)
-		return IsRunningXPSP2();
-	return wv > _WINVER_XP_;
 }
 
 uint64 GetFreeDiskSpaceX(LPCTSTR pDirectory)
@@ -1070,31 +942,27 @@ bool SelectDir(HWND hWnd, LPTSTR pszPath, LPCTSTR pszTitle, LPCTSTR pszDlgTitle)
 {
 	ASSERT(pszPath != NULL);
 	(void)::CoInitialize(NULL);
-	LPMALLOC pShlMalloc;
-	bool bResult = (SHGetMalloc(&pShlMalloc) == NOERROR);
-	if (bResult) {
-		BROWSEINFO BrsInfo = {};
-		BrsInfo.hwndOwner = hWnd;
-		BrsInfo.lpszTitle = (pszTitle != NULL) ? pszTitle : pszDlgTitle;
-		BrsInfo.ulFlags = BIF_VALIDATE | BIF_NEWDIALOGSTYLE | BIF_RETURNONLYFSDIRS | BIF_SHAREABLE | BIF_DONTGOBELOWDOMAIN;
+	bool bResult = true;
+	BROWSEINFO BrsInfo = {};
+	BrsInfo.hwndOwner = hWnd;
+	BrsInfo.lpszTitle = (pszTitle != NULL) ? pszTitle : pszDlgTitle;
+	BrsInfo.ulFlags = BIF_VALIDATE | BIF_NEWDIALOGSTYLE | BIF_RETURNONLYFSDIRS | BIF_SHAREABLE | BIF_DONTGOBELOWDOMAIN;
 
-		BROWSEINIT BrsInit = {};
-		if (pszTitle != NULL || pszDlgTitle != NULL) {
-			// Need the 'BrowseCallbackProc' to set those strings
-			BrsInfo.lpfn = BrowseCallbackProc;
-			BrsInfo.lParam = (LPARAM)&BrsInit;
-			BrsInit.pszDlgTitle = (pszDlgTitle != NULL) ? pszDlgTitle : NULL/*pszTitle*/;
-			BrsInit.pszInitialDir = pszPath;
-		}
-
-		LPITEMIDLIST pidlBrowse;
-		if ((pidlBrowse = ::SHBrowseForFolder(&BrsInfo)) != NULL) {
-			bResult = ::SHGetPathFromIDList(pidlBrowse, pszPath);
-			pShlMalloc->Free(pidlBrowse);
-		}
-		pShlMalloc->Release();
-		::PathAddBackslash(pszPath);
+	BROWSEINIT BrsInit = {};
+	if (pszTitle != NULL || pszDlgTitle != NULL) {
+		// Need the 'BrowseCallbackProc' to set those strings
+		BrsInfo.lpfn = BrowseCallbackProc;
+		BrsInfo.lParam = (LPARAM)&BrsInit;
+		BrsInit.pszDlgTitle = (pszDlgTitle != NULL) ? pszDlgTitle : NULL/*pszTitle*/;
+		BrsInit.pszInitialDir = pszPath;
 	}
+
+	LPITEMIDLIST pidlBrowse;
+	if ((pidlBrowse = ::SHBrowseForFolder(&BrsInfo)) != NULL) {
+		bResult = ::SHGetPathFromIDList(pidlBrowse, pszPath);
+		::CoTaskMemFree(pidlBrowse);
+	}
+	::PathAddBackslash(pszPath);
 	::CoUninitialize();
 	return bResult;
 }
@@ -2180,8 +2048,8 @@ CString GetFormatedUInt(ULONG ulVal)
 		nf.LeadingZero = 0;
 		nf.Grouping = 3;
 		// we are hardcoding the following two format chars intentionally because the C-RTL also has the decimal sep hardcoded to '.'
-		nf.lpDecimalSep = _T(".");
-		nf.lpThousandSep = _T(",");
+		nf.lpDecimalSep = const_cast<LPTSTR>(_T("."));
+		nf.lpThousandSep = const_cast<LPTSTR>(_T(","));
 		nf.NegativeOrder = 0;
 	}
 	CString strVal;
@@ -2202,8 +2070,8 @@ CString GetFormatedUInt64(ULONGLONG ullVal)
 		nf.LeadingZero = 0;
 		nf.Grouping = 3;
 		// we are hardcoding the following two format chars intentionally because the C-RTL also has the decimal sep hardcoded to '.'
-		nf.lpDecimalSep = _T(".");
-		nf.lpThousandSep = _T(",");
+		nf.lpDecimalSep = const_cast<LPTSTR>(_T("."));
+		nf.lpThousandSep = const_cast<LPTSTR>(_T(","));
 		nf.NegativeOrder = 0;
 	}
 	const int iBuffSize = _countof(szVal) * 2;
@@ -2283,9 +2151,11 @@ void DebugHexDump(CFile &file)
 			file.Read(data, iSize);
 			DebugHexDump(data, iSize);
 		} catch (CFileException *ex) {
+			DebugLogCaughtException(__FUNCTION__, ex);
 			TRACE("*** DebugHexDump(CFile&); CFileException\n");
 			ex->Delete();
 		} catch (CMemoryException *ex) {
+			DebugLogCaughtException(__FUNCTION__, ex);
 			TRACE("*** DebugHexDump(CFile&); CMemoryException\n");
 			ex->Delete();
 		}
@@ -3186,27 +3056,34 @@ int CompareLocaleString(LPCTSTR psz1, LPCTSTR psz2)
 	return iResult ? iResult - CSTR_EQUAL : 0;
 }
 
-int __cdecl CompareCStringPtrLocaleStringNoCase(const void *p1, const void *p2)
+// Since C++17 noexcept is part of a function type: the comparator parameter of
+// the two Sort() below is noexcept-qualified, so it matches its declaration in
+// OtherFunctions.h, and accepts these four functions as default arguments, only
+// if they are noexcept as well (this is also what warning C5039 asks for when
+// the pointer is handed to qsort).
+int __cdecl CompareCStringPtrLocaleStringNoCase(const void *p1, const void *p2) noexcept
 {
 	return CompareLocaleStringNoCase(*(CString*)p1, *(CString*)p2);
 }
 
-int __cdecl CompareCStringPtrLocaleString(const void *p1, const void *p2)
+int __cdecl CompareCStringPtrLocaleString(const void *p1, const void *p2) noexcept
 {
 	return CompareLocaleString(*(CString*)p1, *(CString*)p2);
 }
 
 void Sort(CStringArray &astr, int(__cdecl *pfnCompare)(const void*, const void*) noexcept)
 {
-	qsort(astr.GetData(), astr.GetCount(), sizeof(CString*), pfnCompare);
+	// The elements are CString objects, not pointers to them, so the element size
+	// has to say so. It went unnoticed because sizeof(CString) == sizeof(CString*).
+	qsort(astr.GetData(), astr.GetCount(), sizeof(CString), pfnCompare);
 }
 
-int __cdecl CompareCStringPtrPtrLocaleStringNoCase(const void *p1, const void *p2)
+int __cdecl CompareCStringPtrPtrLocaleStringNoCase(const void *p1, const void *p2) noexcept
 {
 	return CompareLocaleStringNoCase(**(CString**)p1, **(CString**)p2);
 }
 
-int __cdecl CompareCStringPtrPtrLocaleString(const void *p1, const void *p2)
+int __cdecl CompareCStringPtrPtrLocaleString(const void *p1, const void *p2) noexcept
 {
 	return CompareLocaleString(**(CString**)p1, **(CString**)p2);
 }
@@ -3493,7 +3370,8 @@ bool IsRegExpValid(const CString &regexpr)
 	try {
 		std::basic_regex<TCHAR> reFN(regexpr);
 		(void)reFN;
-	} catch (const std::regex_error&) {
+	} catch (const std::regex_error &ex) {
+		DebugLogCaughtException(__FUNCTION__, CString(ex.what()));
 		return false;
 	}
 	return true;
@@ -3509,7 +3387,8 @@ bool RegularExpressionMatch(const CString &regexpr, const CString &teststring)
 		std::cmatch mcUrl;
 #endif
 		return std::regex_match((LPCTSTR)teststring, mcUrl, reFN);
-	} catch (const std::regex_error&) {
+	} catch (const std::regex_error &ex) {
+		DebugLogCaughtException(__FUNCTION__, CString(ex.what()));
 		return false;
 	}
 }
@@ -3627,7 +3506,7 @@ bool DoCollectionRegFix(bool checkOnly)
 		// we actually need to change the registry and write an entry for HKCU
 		if (checkOnly)
 			return true;
-		HKEY hkeyCR = thePrefs.GetWindowsVersion() < _WINVER_2K_ ? HKEY_LOCAL_MACHINE : HKEY_CURRENT_USER;
+		HKEY hkeyCR = HKEY_CURRENT_USER;
 		if (regkey.Create(hkeyCR, _T("Software\\Classes\\eMule\\shell\\open\\command")) == ERROR_SUCCESS) {
 			VERIFY(regkey.SetStringValue(NULL, regbuffer) == ERROR_SUCCESS);
 
@@ -3868,6 +3747,7 @@ EFileType GetFileTypeEx(CShareableFile *kfile, bool checkextention, bool checkfi
 				inFile.Close();
 			}
 		} catch (...) {
+			DebugLogCaughtException(__FUNCTION__);
 			ASSERT(0);
 			return FILETYPE_UNKNOWN;
 		}
@@ -4078,94 +3958,6 @@ int bestclr(const RGBQUAD* const palette, const BGR c)
 	return best;
 }
 
-static HBITMAP GreyBitmap(const HBITMAP inbmp)
-{
-	BITMAP bm;
-	if (!inbmp || ::GetObject(inbmp, sizeof bm, &bm) != sizeof bm)
-		return 0;
-	ASSERT(bm.bmBitsPixel != 16); //not implemented
-
-#define BGR2GREY(b,g,r) (((b)*117+(g)*601+(r)*306)>>10)
-
-	HDC hdc = ::CreateCompatibleDC(NULL);
-	HBITMAP hbmPrev = (HBITMAP)::SelectObject(hdc, inbmp);
-	struct {
-		BITMAPINFOHEADER bmiHeader;
-		RGBQUAD bmiColors[256];
-	} bmiGrey = { {0} };
-	bmiGrey.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
-	bmiGrey.bmiHeader.biWidth = bm.bmWidth;
-	bmiGrey.bmiHeader.biHeight = bm.bmHeight;
-	bmiGrey.bmiHeader.biPlanes = bm.bmPlanes;
-	bmiGrey.bmiHeader.biBitCount = bm.bmBitsPixel;
-	bmiGrey.bmiHeader.biCompression = BI_RGB;
-	if (bm.bmBitsPixel <= 8) { //1, 2, 4, 8 bpp
-		DWORD i = ::GetDIBColorTable(hdc, 0, _countof(bmiGrey.bmiColors), bmiGrey.bmiColors);
-		bmiGrey.bmiHeader.biClrUsed = i;
-		while (i-- > 0) {
-			BYTE b = BGR2GREY(bmiGrey.bmiColors[i].rgbBlue, bmiGrey.bmiColors[i].rgbGreen, bmiGrey.bmiColors[i].rgbRed);
-			bmiGrey.bmiColors[i] = RGBQUAD{b, b, b, bmiGrey.bmiColors[i].rgbReserved};
-		}
-	}
-
-	BYTE *pBits;
-	HBITMAP outbmp = ::CreateDIBSection(NULL, (BITMAPINFO*)&bmiGrey, DIB_RGB_COLORS, (void**)&pBits, NULL, 0);
-	if (outbmp) {
-		HDC hdcMem = ::CreateCompatibleDC(NULL);
-		HBITMAP hBitmapOld = (HBITMAP)::SelectObject(hdcMem, outbmp);
-		::BitBlt(hdcMem, 0, 0, bm.bmWidth, bm.bmHeight, hdc, 0, 0, SRCCOPY);
-		::SelectObject(hdcMem, hBitmapOld);
-		::DeleteDC(hdcMem);
-		if (bm.bmBitsPixel >= 24) {
-			int step = bm.bmBitsPixel / 8;
-			for (int i = bm.bmHeight; --i >= 0;) {
-				BYTE *d = pBits;
-				for (int j = bm.bmWidth; --j >= 0;) {
-					BYTE g = (BYTE)BGR2GREY(d[0], d[1], d[2]);
-					d[0] = d[1] = d[2] = g;
-					d += step;
-				}
-				pBits += bm.bmWidthBytes;
-			}
-		}
-	}
-
-	::SelectObject(hdc, hbmPrev);
-	::DeleteDC(hdc);
-	return outbmp;
-}
-
-// Create grey-scaled icon for WinXP and lower
-static HICON GreyIcon(const HICON hIcon)
-{
-	HICON hGreyIcon = 0;
-	if (hIcon) {
-		ICONINFO iinfo;
-		if (::GetIconInfo(hIcon, &iinfo)) {
-			HBITMAP hGreyBmp = GreyBitmap(iinfo.hbmColor);
-			::DeleteObject(iinfo.hbmColor);
-			if (hGreyBmp) {
-				iinfo.hbmColor = hGreyBmp;
-				hGreyIcon = ::CreateIconIndirect(&iinfo);
-				::DeleteObject(hGreyBmp);
-			}
-			::DeleteObject(iinfo.hbmMask);
-		}
-	}
-	return hGreyIcon;
-}
-
-int AddIconGreyedToImageList(CImageList &rList, const HICON hIcon)
-{
-	int nPos = -1;
-	HICON hGreyBmp = GreyIcon(hIcon);
-	if (hGreyBmp) {
-		nPos = rList.Add(hGreyBmp);
-		::DeleteObject(hGreyBmp);
-	}
-	return nPos;
-}
-
 byte* bmp2mem(HBITMAP hbmp, size_t &size, REFGUID imgfmt)
 {
 	if (hbmp) {
@@ -4199,22 +3991,6 @@ HBITMAP mem2bmp(const byte *inbuf, const size_t size)
 		CImage img;
 		if (SUCCEEDED(img.Load(stream)))
 			return img.Detach();
-	}
-	return 0;
-}
-
-HICON ReplaceIconGreyedInImageList(CImageList &rList, int nPos)
-{
-	if (nPos >= 0 && nPos < rList.GetImageCount()) {
-		HICON hIcon = rList.ExtractIcon(nPos);
-		if (hIcon) {
-			HICON hGreyIcon = GreyIcon(hIcon);
-			if (hGreyIcon) {
-				VERIFY(rList.Replace(nPos, hGreyIcon) == nPos);
-				VERIFY(::DestroyIcon(hGreyIcon));
-			}
-		}
-		return hIcon;
 	}
 	return 0;
 }

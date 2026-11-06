@@ -71,7 +71,7 @@ time_t		CKademlia::m_tBootstrap;
 time_t		CKademlia::m_tConsolidate;
 time_t		CKademlia::m_tExternPortLookup;
 time_t		CKademlia::m_tLANModeCheck = 0;
-volatile bool	CKademlia::m_bRunning = false;
+std::atomic<bool>	CKademlia::m_bRunning = false;
 bool		CKademlia::m_bLANMode = false;
 CList<uint32> CKademlia::m_liStatsEstUsersProbes;
 _ContactList CKademlia::s_liBootstrapList;

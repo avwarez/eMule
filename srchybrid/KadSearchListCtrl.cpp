@@ -22,6 +22,7 @@
 #include "OtherFunctions.h"
 #include "kademlia/kademlia/search.h"
 #include "kademlia/utils/LookupHistory.h"
+#include "Log.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -34,10 +35,13 @@ static char THIS_FILE[] = __FILE__;
 
 IMPLEMENT_DYNAMIC(CKadSearchListCtrl, CMuleListCtrl)
 
+#pragma warning(push)
+#pragma warning(disable:4191) // MFC message maps cast every handler to AFX_PMSG; only a pragma inside the .cpp reaches this
 BEGIN_MESSAGE_MAP(CKadSearchListCtrl, CMuleListCtrl)
 	ON_NOTIFY_REFLECT(LVN_COLUMNCLICK, OnLvnColumnClick)
 	ON_WM_SYSCOLORCHANGE()
 END_MESSAGE_MAP()
+#pragma warning(pop)
 
 CKadSearchListCtrl::CKadSearchListCtrl()
 {
@@ -180,6 +184,7 @@ void CKadSearchListCtrl::SearchAdd(const Kademlia::CSearch *search)
 			UpdateKadSearchCount();
 		}
 	} catch (...) {
+		DebugLogCaughtException(__FUNCTION__);
 		ASSERT(0);
 	}
 }
@@ -197,6 +202,7 @@ void CKadSearchListCtrl::SearchRem(const Kademlia::CSearch *search)
 			UpdateKadSearchCount();
 		}
 	} catch (...) {
+		DebugLogCaughtException(__FUNCTION__);
 		ASSERT(0);
 	}
 }
@@ -212,6 +218,7 @@ void CKadSearchListCtrl::SearchRef(const Kademlia::CSearch *search)
 		if (iItem >= 0)
 			UpdateSearch(iItem, search);
 	} catch (...) {
+		DebugLogCaughtException(__FUNCTION__);
 		ASSERT(0);
 	}
 }

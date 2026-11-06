@@ -31,6 +31,8 @@
 #include <share.h>
 #include <dbt.h>
 #include <uxtheme.h>
+#include <dwmapi.h>
+#pragma comment(lib, "dwmapi.lib")
 #include "emule.h"
 #include "emuleDlg.h"
 #include "otherfunctions.h"
@@ -92,12 +94,13 @@
 #include "CollectionViewDialog.h"
 #include "UPnPImpl.h"
 #include "UPnPImplWrapper.h"
+#include "FirewallCheck.h"
+#include "FirewallBar.h"
 #include "ExitBox.h"
 #include "UploadDiskIOThread.h"
 #include "PartFileWriteThread.h"
 #include "ImportParts.h"
 #include "ClientCredits.h"
-#include "FirewallOpener.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -112,9 +115,7 @@ extern BOOL FirstTimeWizard();
 UINT g_uMainThreadId = 0;
 static const UINT UWM_ARE_YOU_EMULE = RegisterWindowMessage(EMULE_GUID);
 
-#ifdef HAVE_WIN7_SDK_H
 static const UINT UWM_TASK_BUTTON_CREATED = RegisterWindowMessage(_T("TaskbarButtonCreated"));
-#endif
 
 
 
@@ -123,6 +124,8 @@ static const UINT UWM_TASK_BUTTON_CREATED = RegisterWindowMessage(_T("TaskbarBut
 
 IMPLEMENT_DYNAMIC(CMsgBoxException, CException)
 
+#pragma warning(push)
+#pragma warning(disable:4191) // MFC message maps cast every handler to AFX_PMSG; only a pragma inside the .cpp reaches this
 BEGIN_MESSAGE_MAP(CemuleDlg, CTrayDialog)
 	///////////////////////////////////////////////////////////////////////////
 	// Windows messages
@@ -185,6 +188,7 @@ BEGIN_MESSAGE_MAP(CemuleDlg, CTrayDialog)
 
 	// UPnP
 	ON_MESSAGE(UM_UPNP_RESULT, OnUPnPResult)
+	ON_MESSAGE(UM_FIREWALL_STATE, OnFirewallState)
 
 	///////////////////////////////////////////////////////////////////////////
 	// WM_APP messages
@@ -198,11 +202,10 @@ BEGIN_MESSAGE_MAP(CemuleDlg, CTrayDialog)
 	ON_MESSAGE(TM_FILECOMPLETED, OnFileCompleted)
 	ON_MESSAGE(TM_CONSOLETHREADEVENT, OnConsoleThreadEvent)
 
-#ifdef HAVE_WIN7_SDK_H
 	ON_REGISTERED_MESSAGE(UWM_TASK_BUTTON_CREATED, OnTaskbarBtnCreated)
-#endif
 
 END_MESSAGE_MAP()
+#pragma warning(pop)
 
 CemuleDlg::CemuleDlg(CWnd *pParent /*=NULL*/)
 	: CTrayDialog(CemuleDlg::IDD, pParent)
@@ -243,6 +246,8 @@ CemuleDlg::CemuleDlg(CWnd *pParent /*=NULL*/)
 	, m_hTimer()
 	, m_hUPnPTimeOutTimer()
 	, notifierenabled()
+	, m_pFirewallBar()
+	, m_bFirewallBarWanted()
 {
 	g_uMainThreadId = GetCurrentThreadId();
 	SetClientIconList();
@@ -314,14 +319,12 @@ CemuleDlg::~CemuleDlg()
 	if (usericon)
 		VERIFY(::DestroyIcon(usericon));
 
-#ifdef HAVE_WIN7_SDK_H
 	if (m_pTaskbarList != NULL) {
 		m_pTaskbarList.Release();
 		ASSERT(m_bInitedCOM);
 	}
 	if (m_bInitedCOM)
 		::CoUninitialize();
-#endif
 
 	// already destroyed by windows?
 	//VERIFY(m_menuUploadCtrl.DestroyMenu());
@@ -329,6 +332,7 @@ CemuleDlg::~CemuleDlg()
 	//VERIFY(m_SysMenuOptions.DestroyMenu());
 
 	delete m_pDropTarget;
+	delete m_pFirewallBar;
 	delete statusbar;
 	delete toolbar;
 	delete statisticswnd;
@@ -370,22 +374,13 @@ static void DialogCreateIndirect(CDialog *pWnd, UINT uID)
 BOOL CemuleDlg::OnInitDialog()
 {
 	theStats.starttime = ::GetTickCount();
-#ifdef HAVE_WIN7_SDK_H
 	// allow the TaskbarButtonCreated- & (tbb-)WM_COMMAND message to be sent to our window if our app is running elevated
-	if (thePrefs.GetWindowsVersion() >= _WINVER_7_) {
-		m_bInitedCOM = SUCCEEDED(::CoInitialize(NULL));
-		if (m_bInitedCOM) {
-			typedef BOOL(WINAPI *PChangeWindowMessageFilter)(UINT message, DWORD dwFlag);
-			PChangeWindowMessageFilter ChangeWindowMessageFilter
-				= (PChangeWindowMessageFilter)(::GetProcAddress(::GetModuleHandle(_T("user32.dll")), "ChangeWindowMessageFilter"));
-			if (ChangeWindowMessageFilter) {
-				ChangeWindowMessageFilter(UWM_TASK_BUTTON_CREATED, 1);
-				ChangeWindowMessageFilter(WM_COMMAND, 1);
-			}
-		} else
-			ASSERT(0);
-	}
-#endif
+	m_bInitedCOM = SUCCEEDED(::CoInitialize(NULL));
+	if (m_bInitedCOM) {
+		::ChangeWindowMessageFilter(UWM_TASK_BUTTON_CREATED, MSGFLT_ADD);
+		::ChangeWindowMessageFilter(WM_COMMAND, MSGFLT_ADD);
+	} else
+		ASSERT(0);
 
 	// temporary disable the 'startup minimized' option, otherwise no window will be shown at all
 	if (!thePrefs.IsFirstStart())
@@ -557,6 +552,9 @@ BOOL CemuleDlg::OnInitDialog()
 	ShowPing();
 	searchwnd->UpdateCatTabs();
 
+	// the firewall check may have finished before this window existed
+	PostMessage(UM_FIREWALL_STATE);
+
 	///////////////////////////////////////////////////////////////////////////
 	// Restore saved window placement
 	//
@@ -681,6 +679,7 @@ void CALLBACK CemuleDlg::StartupTimer(HWND /*hwnd*/, UINT /*uiMsg*/, UINT_PTR /*
 			++theApp.emuledlg->status;
 			theApp.sharedfiles->SetOutputCtrl(&theApp.emuledlg->sharedfileswnd->sharedfilesctrl);
 			++theApp.emuledlg->status;
+			[[fallthrough]];
 		case 1:
 			break;
 		case 2:
@@ -692,6 +691,7 @@ void CALLBACK CemuleDlg::StartupTimer(HWND /*hwnd*/, UINT /*uiMsg*/, UINT_PTR /*
 				LogError(LOG_STATUSBAR, _T("Failed to initialize server list - Unknown exception"));
 			}
 			++theApp.emuledlg->status;
+			[[fallthrough]];
 		case 3:
 			break;
 		case 4:
@@ -736,9 +736,7 @@ void CALLBACK CemuleDlg::StartupTimer(HWND /*hwnd*/, UINT /*uiMsg*/, UINT_PTR /*
 				if (thePrefs.DoAutoConnect())
 					theApp.emuledlg->OnBnClickedConnect();
 
-#ifdef HAVE_WIN7_SDK_H
 				theApp.emuledlg->UpdateStatusBarProgress();
-#endif
 			}
 			break;
 		case 5:
@@ -1044,9 +1042,7 @@ void CemuleDlg::ShowConnectionState()
 		}
 	}
 	ShowUserCount();
-#ifdef HAVE_WIN7_SDK_H
 	UpdateThumbBarButtons();
-#endif
 }
 
 void CemuleDlg::ShowUserCount()
@@ -1228,6 +1224,8 @@ void CemuleDlg::OnSize(UINT nType, int cx, int cy)
 {
 	CTrayDialog::OnSize(nType, cx, cy);
 	SetStatusBarPartsSize();
+	if (nType != SIZE_MINIMIZED)
+		ApplyFirewallBar();
 	// we might receive this message during shutdown -> bad
 	if (transferwnd != NULL && !theApp.IsClosing())
 		transferwnd->VerifyCatTabSize();
@@ -1302,6 +1300,7 @@ void CemuleDlg::ProcessED2KLink(LPCWSTR pszData)
 				SetActiveDialog(searchwnd);
 				searchwnd->ProcessEd2kSearchLinkRequest(pListLink->GetSearchTerm());
 			}
+			[[fallthrough]];
 		default:
 			break;
 		}
@@ -1390,10 +1389,11 @@ LRESULT CemuleDlg::OnWMData(WPARAM, LPARAM lParam)
 					else
 						uid = IDS_DISCONNECTED;
 					_ftprintf(file, _T("%s\n"), (LPCTSTR)GetResString(uid));
-#pragma warning(push)
-#pragma warning(disable:4774)
-					_ftprintf(file, (LPCTSTR)GetResString(IDS_UPDOWNSMALL), (float)theApp.uploadqueue->GetDatarate() / 1024, (float)theApp.downloadqueue->GetDatarate() / 1024);
-#pragma warning(pop)
+					// the format is the translated IDS_UPDOWNSMALL, which cannot be a literal:
+					// format it the way the tray tooltip does, then write the result
+					CString sUpDown;
+					sUpDown.Format(GetResString(IDS_UPDOWNSMALL), (float)theApp.uploadqueue->GetDatarate() / 1024, (float)theApp.downloadqueue->GetDatarate() / 1024);
+					_ftprintf(file, _T("%s"), (LPCTSTR)sUpDown);
 					// next string (getTextList) is already prefixed with '\n'!
 					_ftprintf(file, _T("%s\n"), (LPCTSTR)transferwnd->GetDownloadList().getTextList());
 
@@ -1762,10 +1762,10 @@ void CemuleDlg::OnClose()
 	delete theApp.scheduler;				theApp.scheduler = NULL;
 	delete theApp.ipfilter;					theApp.ipfilter = NULL;			// CIPFilter::SaveToDefaultFile
 	delete theApp.webserver;				theApp.webserver = NULL;
-	delete theApp.m_pFirewallOpener;		theApp.m_pFirewallOpener = NULL;
 	delete theApp.uploadBandwidthThrottler;	theApp.uploadBandwidthThrottler = NULL;
 	delete theApp.lastCommonRouteFinder;	theApp.lastCommonRouteFinder = NULL;
 	delete theApp.m_pUPnPFinder;			theApp.m_pUPnPFinder = NULL;
+	delete theApp.m_pFirewallCheck;			theApp.m_pFirewallCheck = NULL;
 	delete theApp.m_pUploadDiskIOThread;	theApp.m_pUploadDiskIOThread = NULL;
 	delete theApp.m_pPartFileWriteThread;	theApp.m_pPartFileWriteThread = NULL;
 
@@ -1817,6 +1817,7 @@ void CemuleDlg::OnTrayLButtonUp()
 			m_pMiniMule->SetForegroundWindow();
 			m_pMiniMule->BringWindowToTop();
 		} catch (...) {
+			DebugLogCaughtException(__FUNCTION__);
 			ASSERT(0);
 			m_pMiniMule = NULL;
 		}
@@ -1850,6 +1851,7 @@ void CemuleDlg::OnTrayRButtonUp(CPoint pt)
 			, thePrefs.GetMaxGraphUploadRate(true), thePrefs.GetMaxGraphDownloadRate()
 			, thePrefs.GetMaxUpload(), thePrefs.GetMaxDownload());
 	} catch (...) {
+		DebugLogCaughtException(__FUNCTION__);
 		return;
 	}
 
@@ -2542,11 +2544,9 @@ BOOL CemuleDlg::OnCommand(WPARAM wParam, LPARAM lParam)
 	else if (wParam >= MP_SCHACTIONS && wParam <= MP_SCHACTIONS + 99) {
 		theApp.scheduler->ActivateSchedule(wParam - MP_SCHACTIONS);
 		theApp.scheduler->SaveOriginals(); // use the new settings as original
-#ifdef HAVE_WIN7_SDK_H
 	} else if (HIWORD(wParam) == THBN_CLICKED) {
 		OnTBBPressed(LOWORD(wParam));
 		return TRUE;
-#endif
 	}
 
 	return CTrayDialog::OnCommand(wParam, lParam);
@@ -2782,6 +2782,7 @@ void CemuleDlg::ShowSplash()
 		try {
 			m_pSplashWnd = new CSplashScreen;
 		} catch (...) {
+			DebugLogCaughtException(__FUNCTION__);
 			return;
 		}
 		ASSERT(m_hWnd);
@@ -3459,8 +3460,10 @@ void CemuleDlg::StartUPnP(bool bReset, uint16 nForceTCPPort, uint16 nForceUDPPor
 			} else
 				/*theApp.emuledlg->*/PostMessage(UM_UPNP_RESULT, (WPARAM)CUPnPImpl::UPNP_FAILED, 0);
 		} catch (const CUPnPImpl::UPnPError&) {
+			DebugLogCaughtException(__FUNCTION__, CString(_T("UPnP error")));
 			//ignore
 		} catch (CException *ex) {
+			DebugLogCaughtException(__FUNCTION__, ex);
 			ex->Delete();
 		}
 	} else
@@ -3484,8 +3487,10 @@ void CemuleDlg::RefreshUPnP(bool bRequestAnswer)
 			} else
 				DebugLogWarning(_T("RefreshUPnP, implementation not ready"));
 		} catch (const CUPnPImpl::UPnPError&) {
+			DebugLogCaughtException(__FUNCTION__, CString(_T("UPnP error")));
 			//ignore
 		} catch (CException *ex) {
+			DebugLogCaughtException(__FUNCTION__, ex);
 			ex->Delete();
 		}
 	} else
@@ -3503,12 +3508,12 @@ BOOL CemuleDlg::OnDeviceChange(UINT nEventType, DWORD_PTR dwData)
 	//	ZIP disk drives (although Windows Explorer recognises a changed media, we do not get a message)
 	//	CD-ROM drives (although MSDN says different...)
 	//
-	if ((nEventType == DBT_DEVICEARRIVAL || nEventType == DBT_DEVICEREMOVECOMPLETE) && !IsBadReadPtr((void*)dwData, sizeof(DEV_BROADCAST_HDR))) {
+	if ((nEventType == DBT_DEVICEARRIVAL || nEventType == DBT_DEVICEREMOVECOMPLETE) && dwData != 0) {
 #ifdef _DEBUG
 		CString strMsg(nEventType == DBT_DEVICEARRIVAL ? _T("DBT_DEVICEARRIVAL") : _T("DBT_DEVICEREMOVECOMPLETE"));
 #endif
 		const DEV_BROADCAST_HDR *pHdr = (DEV_BROADCAST_HDR*)dwData;
-		if (pHdr->dbch_devicetype == DBT_DEVTYP_VOLUME && !IsBadReadPtr((void*)dwData, sizeof(DEV_BROADCAST_VOLUME))) {
+		if (pHdr->dbch_devicetype == DBT_DEVTYP_VOLUME && pHdr->dbch_size >= sizeof(DEV_BROADCAST_VOLUME)) {
 			const DEV_BROADCAST_VOLUME *pVol = (DEV_BROADCAST_VOLUME*)pHdr;
 #ifdef _DEBUG
 			strMsg += _T(" Volume");
@@ -3586,7 +3591,6 @@ void CemuleDlg::OnDrawClipboard()
 //////////////////////////////////////////////////////////////////
 // Windows 7 GUI goodies
 
-#ifdef HAVE_WIN7_SDK_H
 // update thumbbarbutton structs and add/update the GUI thumbbar
 void CemuleDlg::UpdateThumbBarButtons(bool initialAddToDlg)
 {
@@ -3670,8 +3674,7 @@ void CemuleDlg::OnTBBPressed(UINT id)
 // When Windows tells us, the taskbar button was created, it is safe to initialize our taskbar stuff
 LRESULT CemuleDlg::OnTaskbarBtnCreated(WPARAM, LPARAM)
 {
-	// Sanity check that the OS is Win 7 or later
-	if (thePrefs.GetWindowsVersion() >= _WINVER_7_ && !theApp.IsClosing()) {
+	if (!theApp.IsClosing()) {
 		if (m_pTaskbarList)
 			m_pTaskbarList.Release();
 
@@ -3755,7 +3758,6 @@ void CemuleDlg::UpdateStatusBarProgress()
 		}
 	}
 }
-#endif
 
 void CemuleDlg::SetTaskbarIconColor()
 {
@@ -3763,26 +3765,18 @@ void CemuleDlg::SetTaskbarIconColor()
 	bool bTransparent = false;
 	COLORREF cr = RGB(0, 0, 0);
 	if (thePrefs.IsRunningAeroGlassTheme()) {
-		HMODULE hDWMAPI = ::LoadLibrary(_T("dwmapi.dll"));
-		if (hDWMAPI) {
-			HRESULT(WINAPI *pfnDwmGetColorizationColor)(DWORD*, BOOL*);
-			(FARPROC&)pfnDwmGetColorizationColor = ::GetProcAddress(hDWMAPI, "DwmGetColorizationColor");
-			if (pfnDwmGetColorizationColor != NULL) {
-				DWORD dwGlassColor;
-				BOOL bOpaque;
-				if (pfnDwmGetColorizationColor(&dwGlassColor, &bOpaque) == S_OK) {
-					uint8 byAlpha = (uint8)(dwGlassColor >> 24);
-					cr = 0xFFFFFF & dwGlassColor;
-					if (byAlpha < 200 && !bOpaque) {
-						// on transparent themes we can never figure out what exact color is shown
-						// (if we could in real time?), but given that a color is blended against
-						// the background, it is a good guess that a bright speedbar will be
-						// the best solution in most cases
-						bTransparent = true;
-					}
-				}
+		DWORD dwGlassColor;
+		BOOL bOpaque;
+		if (::DwmGetColorizationColor(&dwGlassColor, &bOpaque) == S_OK) {
+			uint8 byAlpha = (uint8)(dwGlassColor >> 24);
+			cr = 0xFFFFFF & dwGlassColor;
+			if (byAlpha < 200 && !bOpaque) {
+				// on transparent themes we can never figure out what exact color is shown
+				// (if we could in real time?), but given that a color is blended against
+				// the background, it is a good guess that a bright speedbar will be
+				// the best solution in most cases
+				bTransparent = true;
 			}
-			::FreeLibrary(hDWMAPI);
 		}
 	} else if (::IsThemeActive() && ::IsAppThemed()) {
 		CWnd tmpWnd;
@@ -3807,4 +3801,72 @@ void CemuleDlg::SetTaskbarIconColor()
 	bBrightTaskbarIconSpeed = iBrightness < 132;
 	DebugLog(_T("Taskbar Notifier Color: R:%u G:%u B:%u, Brightness: %u, Transparent: %s"), iRed, iGreen, iBlue, iBrightness, bTransparent ? _T("Yes") : _T("No"));
 	thePrefs.SetStatsColor(11, ((bBrightTaskbarIconSpeed || bTransparent) ? RGB(255, 255, 255) : RGB(0, 0, 0)));
+}
+
+LRESULT CemuleDlg::OnFirewallState(WPARAM, LPARAM)
+{
+	if (theApp.m_pFirewallCheck == NULL || theApp.IsClosing())
+		return 0;
+	CString sFixCmdLine;
+	const bool bBlocked = theApp.m_pFirewallCheck->IsBlocked(sFixCmdLine);
+	if (bBlocked && m_pFirewallBar == NULL) {
+		m_pFirewallBar = new CFirewallBar;
+		if (!m_pFirewallBar->CreateBar(this)) {
+			delete m_pFirewallBar;
+			m_pFirewallBar = NULL;
+			return 0;
+		}
+	}
+	if (m_pFirewallBar != NULL) {
+		m_pFirewallBar->SetCanAllow(!sFixCmdLine.IsEmpty());
+		ShowFirewallBar(bBlocked);
+	}
+	return 0;
+}
+
+void CemuleDlg::ShowFirewallBar(bool bShow)
+{
+	m_bFirewallBarWanted = bShow;
+	ApplyFirewallBar();
+}
+
+// The bar takes its height from the top of the main window pages, or gives it back. The layout
+// is left alone while the window is minimized: the anchors would be taken from an empty client
+// area. OnSize brings the bar in line on restore. Whether the bar is shown is read from its own
+// style: IsWindowVisible() is false for it too while the main window is hidden in the tray.
+void CemuleDlg::ApplyFirewallBar()
+{
+	if (m_pFirewallBar == NULL || IsIconic() || m_bFirewallBarWanted == ((m_pFirewallBar->GetStyle() & WS_VISIBLE) != 0))
+		return;
+	CRect rcPages;
+	toolbarWnds[0]->GetWindowRect(&rcPages);
+	ScreenToClient(&rcPages);
+	if (m_bFirewallBarWanted)
+		PlaceFirewallBar(rcPages);
+	else {
+		CRect rcBar;
+		m_pFirewallBar->GetWindowRect(&rcBar);
+		RemoveAnchor(m_pFirewallBar->m_hWnd);
+		m_pFirewallBar->ShowWindow(SW_HIDE);
+		rcPages.top -= rcBar.Height();
+	}
+	for (unsigned i = 0; i < _countof(toolbarWnds); ++i) {
+		RemoveAnchor(toolbarWnds[i]->m_hWnd);
+		toolbarWnds[i]->SetWindowPos(NULL, rcPages.left, rcPages.top, rcPages.Width(), rcPages.Height(), SWP_NOZORDER);
+		AddAnchor(toolbarWnds[i]->m_hWnd, TOP_LEFT, BOTTOM_RIGHT);
+	}
+	Invalidate();
+}
+
+// Puts the bar, when it is shown, at the top of the area for the main window pages, and takes
+// its height from that area.
+void CemuleDlg::PlaceFirewallBar(CRect &rcPages)
+{
+	if (m_pFirewallBar == NULL || !m_bFirewallBarWanted)
+		return;
+	const int iHeight = m_pFirewallBar->GetHeight();
+	RemoveAnchor(m_pFirewallBar->m_hWnd);
+	m_pFirewallBar->SetWindowPos(NULL, rcPages.left, rcPages.top, rcPages.Width(), iHeight, SWP_NOZORDER | SWP_SHOWWINDOW);
+	AddAnchor(m_pFirewallBar->m_hWnd, TOP_LEFT, TOP_RIGHT);
+	rcPages.top += iHeight;
 }

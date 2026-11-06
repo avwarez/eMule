@@ -2246,11 +2246,7 @@ void CTreeOptionsEdit::BrowseForFolder(const CString &sInitialFolder)
 
 		//avoid memory leaks by deleting the PIDL
 		//using the shells task allocator
-		IMalloc *pMalloc;
-		if (SUCCEEDED(SHGetMalloc(&pMalloc))) {
-			pMalloc->Free(pItemIDList);
-			pMalloc->Release();
-		}
+		::CoTaskMemFree(pItemIDList);
 	}
 }
 
