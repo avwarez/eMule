@@ -43,6 +43,7 @@ their client on the eMule forum.
 #include "sharedfilelist.h"
 #include "UpDownClient.h"
 #include "KnownFileList.h"
+#include "NatTraversal.h"
 #include "kademlia/io/ByteIO.h"
 #include "kademlia/io/IOException.h"
 #include "kademlia/kademlia/Defines.h"
@@ -691,6 +692,10 @@ void CSearch::StorePacket()
 			}
 
 			listTag.push_back(new CKadTagUInt8(TAG_ENCRYPTION, CKademlia::GetPrefs()->GetMyConnectOptions(true, true)));
+			// A LowID that can be punched to says so: a LowID downloader keeps the source only then
+			// (the index node keeps tags it does not know, as every other client ignores them)
+			if (theApp.IsFirewalled() && theApp.nattraversal->IsPunchable())
+				listTag.push_back(new CKadTagUInt8(TAG_NATDCLIENT, NATD_TRANSPORTS));
 
 			// Send packet
 			CKademlia::GetUDPListener()->SendPublishSourcePacket(pFromContact, m_uTarget, uID, listTag);
@@ -923,9 +928,14 @@ void CSearch::ProcessResultFile(const CUInt128 &uAnswer, TagList &rlistInfo)
 	//uint32 uClientID = 0;
 	CUInt128 uBuddy;
 	uint8 byCryptOptions = 0; // 0 = not supported
+	bool bNatd = false;
 
 	for (TagList::const_iterator itInfoList = rlistInfo.begin(); itInfoList != rlistInfo.end(); ++itInfoList) {
 		const CKadTag &cTag(**itInfoList);
+		if (cTag.m_name.Compare(TAG_NATDCLIENT) == 0) {
+			bNatd = cTag.IsInt() && (cTag.GetInt() & NATD_TRANSPORTS) != 0;	// a transport in common
+			continue;
+		}
 		if (cTag.m_name.GetLength() != 1) //all names are 1 byte strings
 			continue;
 		switch ((byte)cTag.m_name[0]) {
@@ -973,7 +983,7 @@ void CSearch::ProcessResultFile(const CUInt128 &uAnswer, TagList &rlistInfo)
 	case 6:
 		++m_uAnswers;
 		theApp.emuledlg->kademliawnd->searchList->SearchRef(this);
-		theApp.downloadqueue->KademliaSearchFile(m_uSearchID, &uAnswer, &uBuddy, uType, uIP, uTCPPort, uUDPPort, uBuddyIP, uBuddyPort, byCryptOptions);
+		theApp.downloadqueue->KademliaSearchFile(m_uSearchID, &uAnswer, &uBuddy, uType, uIP, uTCPPort, uUDPPort, uBuddyIP, uBuddyPort, byCryptOptions, bNatd);
 		break;
 	}
 }

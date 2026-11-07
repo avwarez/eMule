@@ -23,6 +23,7 @@
 #include "ed2kLink.h"
 #include "SearchFile.h"
 #include "ClientList.h"
+#include "NatTraversal.h"
 #include "Statistics.h"
 #include "SharedFileList.h"
 #include "SafeFile.h"
@@ -1520,7 +1521,19 @@ bool CDownloadQueue::DoKademliaFileRequest() const
 	return ::GetTickCount() >= m_lastkademliafilerequest + KADEMLIAASKTIME;
 }
 
-void CDownloadQueue::KademliaSearchFile(uint32 nSearchID, const Kademlia::CUInt128 *pcontactID, const Kademlia::CUInt128 *pbuddyID, uint8 type, uint32 ip, uint16 tcp, uint16 udp, uint32 dwBuddyIP, uint16 dwBuddyPort, uint8 byCryptOptions)
+// A LowID Kad source is of use to a LowID only when both of them can be punched to (89nb)
+static bool KeepFirewalledSource(bool bNatd, uint32 dwIP, const CPartFile &file)
+{
+	if (!theApp.IsFirewalled())
+		return true;
+	const bool bKeep = bNatd && theApp.nattraversal->IsPunchable();
+	if (bNatd && thePrefs.GetVerbose())
+		AddDebugLogLine(false, bKeep ? _T("NAT traversal: LowID source %s for \"%s\" not dropped as LowID-to-LowID: both of us can be punched to")
+			: _T("NAT traversal: LowID source %s for \"%s\" dropped: it can be punched to, we cannot"), (LPCTSTR)ipstr(dwIP), (LPCTSTR)file.GetFileName());
+	return bKeep;
+}
+
+void CDownloadQueue::KademliaSearchFile(uint32 nSearchID, const Kademlia::CUInt128 *pcontactID, const Kademlia::CUInt128 *pbuddyID, uint8 type, uint32 ip, uint16 tcp, uint16 udp, uint32 dwBuddyIP, uint16 dwBuddyPort, uint8 byCryptOptions, bool bNatd)
 {
 	//Safety measure to make sure we are looking for these sources
 	CPartFile *temp = GetFileByKadFileSearchID(nSearchID);
@@ -1568,7 +1581,8 @@ void CDownloadQueue::KademliaSearchFile(uint32 nSearchID, const Kademlia::CUInt1
 	case 3:
 		//This will be a firewalled client connected to Kad only.
 		// if we are firewalled ourself, the source is useless to us
-		if (theApp.IsFirewalled())
+		// - unless both of us can be punched to (TAG_NATDCLIENT)
+		if (!KeepFirewalledSource(bNatd, ED2Kip, *temp))
 			break;
 
 		if (theApp.ipfilter->IsFiltered(dwBuddyIP)) {
@@ -1593,12 +1607,18 @@ void CDownloadQueue::KademliaSearchFile(uint32 nSearchID, const Kademlia::CUInt1
 			ctemp->SetBuddyID(cID);
 			ctemp->SetBuddyIP(dwBuddyIP);
 			ctemp->SetBuddyPort(dwBuddyPort);
+			if (bNatd) {
+				// the punch goes to the endpoint the index node saw publishing
+				ctemp->SetConnectIP(ED2Kip);
+				ctemp->SetNatdSource(true);
+			}
 		}
 		break;
 	case 6:
 		// firewalled source which supports direct UDP callback
 		// if we are firewalled ourselves, the source is useless to us
-		if (theApp.IsFirewalled())
+		// - unless both of us can be punched to (TAG_NATDCLIENT)
+		if (!KeepFirewalledSource(bNatd, ED2Kip, *temp))
 			break;
 
 		if ((byCryptOptions & 0x08) == 0)
@@ -1611,6 +1631,7 @@ void CDownloadQueue::KademliaSearchFile(uint32 nSearchID, const Kademlia::CUInt1
 			byte cID[16];
 			pcontactID->ToByteArray(cID);
 			ctemp->SetUserHash(cID);
+			ctemp->SetNatdSource(bNatd);
 		}
 	}
 

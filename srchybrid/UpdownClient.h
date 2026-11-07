@@ -118,6 +118,9 @@ public:
 	uint32			GetBuddyIP() const								{ return m_nBuddyIP; }
 	void			SetBuddyPort(uint16 val)						{ m_nBuddyPort = val; }
 	uint16			GetBuddyPort() const							{ return m_nBuddyPort; }
+	// a LowID Kad source whose record carries TAG_NATDCLIENT: it answers a punch request
+	bool			IsNatdSource() const							{ return m_bNatdSource; }
+	void			SetNatdSource(bool bNatd)						{ m_bNatdSource = bNatd; }
 	EClientSoftware	GetClientSoft() const							{ return m_clientSoft; }
 	const CString&	GetClientSoftVer() const						{ return m_strClientSoftware; }
 	const CString&	GetClientModVer() const							{ return m_strModVersion; }
@@ -506,6 +509,7 @@ protected:
 	//--group aligned to int32
 	uint16	m_nBuddyPort;
 	bool	m_bBuddyIDValid;
+	bool	m_bNatdSource = false;
 	bool	m_bUnicodeSupport;
 	//--group aligned to int32
 	uint32	m_nBuddyIP;
