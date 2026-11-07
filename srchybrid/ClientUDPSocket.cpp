@@ -393,7 +393,18 @@ bool CClientUDPSocket::ProcessPacket(const BYTE *packet, UINT size, uint8 opcode
 				pRequester->SetConnectOptions(byConnectOptions, true, false);
 				pRequester->SetDirectUDPCallbackSupport(false);
 				DEBUG_ONLY(DebugLog(_T("Accepting incoming DirectCallbackRequest from %s"), (LPCTSTR)pRequester->DbgGetClientInfo()));
-				pRequester->TryToConnect();
+				// a LowID that asks for a punch too (89nc): towards the endpoint it sent from. The
+				// fields above are the request's (SNatCallback), off a server.
+				uint64 nNonce;
+				if (CNatTraversal::ReadMarker(data, nNonce)) {
+					SNatCallback cb;
+					cb.dwIP = ip;
+					cb.nPort = port;
+					cb.nID = 0;
+					md4cpy(cb.abyHash, uchUserHash);
+					theApp.nattraversal->StartIncoming(cb, nNonce, NATD_VIA_DIRECT);
+				} else
+					pRequester->TryToConnect();
 			} else
 				DebugLogWarning(_T("Ignored DirectCallback Request because we do not accept DirectCall backs at all (%s)"), (LPCTSTR)ipstr(ip));
 		}

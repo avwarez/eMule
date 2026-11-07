@@ -20,6 +20,7 @@
 #include "ThrottledSocket.h" // ZZ:UploadBandWithThrottler (UDP)
 
 class CAsyncProxySocketLayer;
+class CNatdSocketLayer;
 
 #define EMS_DISCONNECTED	0xFF
 #define EMS_NOTCONNECTED	0x00
@@ -66,6 +67,7 @@ public:
 
 	void InitProxySupport();
 	virtual void RemoveAllLayers();
+	void AttachNatdLayer(CNatdSocketLayer *pLayer);
 	const CString GetLastProxyError() const					{ return m_strLastProxyError; }
 	bool GetProxyConnectFailed() const						{ return m_bProxyConnectFailed; }
 
@@ -96,6 +98,7 @@ protected:
 	virtual bool	PacketReceived(Packet *packet) = 0;
 	virtual void	OnError(int nErrorCode) = 0;
 	CAsyncProxySocketLayer *m_pProxyLayer;
+	CNatdSocketLayer *m_pNatdLayer = NULL;	// the stream goes over a punched UDP path instead of TCP
 	CString m_strLastProxyError;
 	UINT	m_uTimeOut;
 	uint8	byConnected;

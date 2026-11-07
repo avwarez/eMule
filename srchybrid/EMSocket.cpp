@@ -22,6 +22,7 @@
 #include <timeapi.h>
 #include "emsocket.h"
 #include "AsyncProxySocketLayer.h"
+#include "NatTraversal.h"
 #include "Packets.h"
 #include "OtherFunctions.h"
 #include "UploadBandwidthThrottler.h"
@@ -200,6 +201,8 @@ BOOL CEMSocket::Connect(const LPSOCKADDR pSockAddr, int iSockAddrLen)
 void CEMSocket::InitProxySupport()
 {
 	m_bProxyConnectFailed = false;
+	if (m_pNatdLayer != NULL)
+		return; // the punched path is UDP, which no proxy here carries
 
 	// Proxy Initialization
 	const ProxySettings &settings = thePrefs.GetProxySettings();
@@ -1007,6 +1010,17 @@ void CEMSocket::RemoveAllLayers()
 	CEncryptedStreamSocket::RemoveAllLayers();
 	delete m_pProxyLayer;
 	m_pProxyLayer = NULL;
+	delete m_pNatdLayer;
+	m_pNatdLayer = NULL;
+}
+
+// Before Create(): the layer then makes the socket handle, which stays unconnected and silent,
+// and carries the stream itself. Sends go through Send(), never overlapped on that handle.
+void CEMSocket::AttachNatdLayer(CNatdSocketLayer *pLayer)
+{
+	m_bUseOverlappedSend = false;
+	m_pNatdLayer = pLayer;
+	AddLayer(pLayer);
 }
 
 int CEMSocket::OnLayerCallback(std::vector<t_callbackMsg> &callbacks)

@@ -126,6 +126,11 @@ protected:
 	AsyncSocketExState GetLayerState() const		{ return m_nLayerState; }
 	BOOL TriggerEvent(long lEvent, int nErrorCode, BOOL bPassThrough = FALSE);
 
+	// for a layer that is the transport itself (CNatdSocketLayer): no socket below it
+	// moves the states, the layer does
+	void SetLayerState(AsyncSocketExState nLayerState);
+	void SetOwnerSocketState(AsyncSocketExState nState)	{ m_pOwnerSocket->SetState(nState); }
+
 	//Gets the socket family
 	ADDRESS_FAMILY GetFamily() const				{ return m_nFamily; }
 
@@ -136,8 +141,6 @@ protected:
 	bool TryNextProtocol();
 
 private:
-	//Layer state can't be set directly from derived classes
-	void SetLayerState(AsyncSocketExState nLayerState);
 	AsyncSocketExState m_nLayerState;
 
 	ADDRESS_FAMILY m_nFamily;

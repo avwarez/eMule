@@ -56,6 +56,7 @@
 #include "ClientUDPSocket.h"
 #include "shahashset.h"
 #include "Log.h"
+#include "NatTraversal.h"
 #include "CaptchaGenerator.h"
 #include <atlimage.h>
 
@@ -1340,7 +1341,12 @@ bool CUpDownClient::TryToConnect(bool bIgnoreMaxCon, bool bNoCallbacks, CRuntime
 		}
 	}
 
-	if (HasLowID() && GetKadState() != KS_CONNECTING_FWCHECK) {
+	// LowID->LowID, both of us can be punched to: the source is asked to punch towards us and
+	// the stream goes over the punched path (89nc); nothing else differs from a TCP connection
+	const uint8 byPunchVia = (HasLowID() && GetKadState() != KS_CONNECTING_FWCHECK && pClassSocket == NULL && !bNoCallbacks
+		&& !theApp.CanDoCallback(this)) ? theApp.nattraversal->PunchVia(*this) : NATD_VIA_NONE;
+	const bool bPunch = byPunchVia != NATD_VIA_NONE;
+	if (HasLowID() && GetKadState() != KS_CONNECTING_FWCHECK && !bPunch) {
 		ASSERT(pClassSocket == NULL);
 		if (!theApp.CanDoCallback(this)) { // lowid2lowid check used for the whole function, don't remove
 			// We cannot reach this client, so we hard fail to connect, if this client should be kept,
@@ -1381,6 +1387,20 @@ bool CUpDownClient::TryToConnect(bool bIgnoreMaxCon, bool bNoCallbacks, CRuntime
 	////////////////////////////////////////////////////
 
 	theApp.clientlist->AddConnectingClient(this); // Starts and checks for the timeout, ensures following Disconnect() or ConnectionEstablished() call
+
+	if (bPunch) {
+		m_eConnectingState = CCS_DIRECTTCP;
+		socket = static_cast<CClientReqSocket*>(RUNTIME_CLASS(CClientReqSocket)->CreateObject());
+		socket->SetClient(this);
+		if (theApp.nattraversal->AttachOutgoing(socket, *this, byPunchVia) && socket->Create())
+			Connect();
+		else {
+			socket->Safe_Delete();
+			// we let the timeout handle the cleanup in this case
+			DebugLogError(_T("TryToConnect: Failed to create socket for a punched connection, %s"), (LPCTSTR)DbgGetClientInfo());
+		}
+		return true;
+	}
 
 	////////////////////////////////////////////////////////////
 	// 3) Normal Outgoing TCP Connection

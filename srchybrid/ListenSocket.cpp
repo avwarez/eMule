@@ -41,6 +41,7 @@
 #include "ClientUDPSocket.h"
 #include "SHAHashSet.h"
 #include "Log.h"
+#include "NatTraversal.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -1418,6 +1419,16 @@ void CClientReqSocket::ProcessExtPacket(const BYTE *packet, uint32 size, UINT op
 					theApp.clientudp->SendPacket(response, destip, destport, sender->ShouldReceiveCryptUDPPackets(), sender->GetUserHash(), false, 0);
 				else
 					theApp.clientudp->SendPacket(response, destip, destport, false, NULL, false, 0);
+				return;
+			}
+
+			// a LowID asks us to punch towards it (89nc): the endpoint is the one our buddy
+			// saw the request come from, and nothing else of this packet is for us
+			uint64 nNonce;
+			if (CNatTraversal::ReadMarker(data_in, nNonce)) {
+				SNatCallback cb;
+				if (theApp.IsFirewalled() && CNatTraversal::ReadCallback(data_in, destip, destport, cb))
+					theApp.nattraversal->StartIncoming(cb, nNonce, NATD_VIA_BUDDY);
 				return;
 			}
 
