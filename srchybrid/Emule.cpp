@@ -65,6 +65,7 @@
 #include "FirewallCheck.h"
 #include "UploadDiskIOThread.h"
 #include "PartFileWriteThread.h"
+#include "NatTraversal.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -525,6 +526,7 @@ BOOL CemuleApp::InitInstance()
 	sharedfiles = new CSharedFileList(serverconnect);
 	listensocket = new CListenSocket();
 	clientudp = new CClientUDPSocket();
+	nattraversal = new CNatTraversal();
 	clientcredits = new CClientCreditsList();
 	downloadqueue = new CDownloadQueue();	// bugfix - do this before creating the upload queue
 	uploadqueue = new CUploadQueue();

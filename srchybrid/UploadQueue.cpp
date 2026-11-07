@@ -16,6 +16,7 @@
 //Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 #include "stdafx.h"
 #include "emule.h"
+#include "NatTraversal.h"
 #include "UploadQueue.h"
 #include "Packets.h"
 #include "PartFile.h"
@@ -946,6 +947,7 @@ VOID CALLBACK CUploadQueue::UploadTimer(HWND /*hwnd*/, UINT /*uMsg*/, UINT_PTR /
 
 		theApp.uploadqueue->Process();
 		theApp.downloadqueue->Process();
+		theApp.nattraversal->Process();
 		if (thePrefs.ShowOverhead()) {
 			theStats.CompUpDatarateOverhead();
 			theStats.CompDownDatarateOverhead();

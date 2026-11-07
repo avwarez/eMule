@@ -99,6 +99,7 @@
 #include "ExitBox.h"
 #include "UploadDiskIOThread.h"
 #include "PartFileWriteThread.h"
+#include "NatTraversal.h"
 #include "ImportParts.h"
 #include "ClientCredits.h"
 
@@ -1749,6 +1750,7 @@ void CemuleDlg::OnClose()
 	// after we have closed the main window -> crash!
 	delete theApp.listensocket;				theApp.listensocket = NULL;
 	delete theApp.clientudp;				theApp.clientudp = NULL;
+	delete theApp.nattraversal;			theApp.nattraversal = NULL;	// after every client socket
 	delete theApp.sharedfiles;				theApp.sharedfiles = NULL;
 	delete theApp.serverconnect;			theApp.serverconnect = NULL;
 	delete theApp.serverlist;				theApp.serverlist = NULL;		// CServerList::SaveServermetToFile

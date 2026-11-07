@@ -30,6 +30,7 @@
 #include "IPFilter.h"
 #include "Listensocket.h"
 #include "Log.h"
+#include "NatTraversal.h"
 #include "SafeFile.h"
 #include "kademlia/kademlia/Kademlia.h"
 #include "kademlia/io/IOException.h"
@@ -73,6 +74,9 @@ void CClientUDPSocket::OnReceive(int nErrorCode)
 	SOCKADDR_IN sockAddr = {};
 	int iSockAddrLen = sizeof sockAddr;
 	int nRealLen = ReceiveFrom(buffer, sizeof buffer, (LPSOCKADDR)&sockAddr, &iSockAddrLen);
+	// NAT traversal first, never through the UDP obfuscation: it filters what it takes itself
+	if (theApp.nattraversal != NULL && theApp.nattraversal->OnDatagram(buffer, nRealLen, sockAddr.sin_addr.s_addr, ntohs(sockAddr.sin_port)))
+		return;
 	if (theApp.ipfilter->IsFiltered(sockAddr.sin_addr.s_addr) || theApp.clientlist->IsBannedClient(sockAddr.sin_addr.s_addr) || !sockAddr.sin_port)
 		return;
 

@@ -290,6 +290,7 @@
     <ClCompile Include="MuleStatusBarCtrl.cpp" />
     <ClCompile Include="MuleSystrayDlg.cpp" />
     <ClCompile Include="MuleToolBarCtrl.cpp" />
+    <ClCompile Include="NatTraversal.cpp" />
     <ClCompile Include="NetworkInfoDlg.cpp" />
     <ClCompile Include="OScopeCtrl.cpp" />
     <ClCompile Include="OtherFunctions.cpp" />
@@ -576,6 +577,7 @@
     <ClInclude Include="MuleStatusBarCtrl.h" />
     <ClInclude Include="MuleSystrayDlg.h" />
     <ClInclude Include="MuleToolBarCtrl.h" />
+    <ClInclude Include="NatTraversal.h" />
     <ClInclude Include="NetworkInfoDlg.h" />
     <ClInclude Include="Opcodes.h" />
     <ClInclude Include="OScopeCtrl.h" />
