@@ -15,6 +15,7 @@
 //along with this program; if not, write to the Free Software
 //Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 #pragma once
+#include <atomic>
 #include "UploadBandwidthThrottler.h" // ZZ:UploadBandWithThrottler (UDP)
 #include "EncryptedDatagramSocket.h"
 
@@ -46,6 +47,10 @@ public:
 	uint16	GetConnectedPort() const	{ return m_port; }
 	bool	SendPacket(Packet *packet, uint32 dwIP, uint16 nPort, bool bEncrypt, const uchar *pachTargetClientHashORKadID, bool bKad, uint32 nReceiverVerifyKey);
 	SocketSentBytes  SendControlData(uint32 maxNumberOfBytesToSend, uint32 /*minFragSize*/); // ZZ:UploadBandWithThrottler (UDP)
+	// the last datagram that left the socket (GetTickCount), eMule's or natd's: the NAT
+	// keeps the port's mapping only while something goes out (RFC 4787 REQ-6)
+	DWORD	GetLastSent() const			{ return m_dwLastSent; }
+	void	SetSentNow()				{ m_dwLastSent = ::GetTickCount(); }
 
 protected:
 	bool	ProcessPacket(const BYTE *packet, UINT size, uint8 opcode, uint32 ip, uint16 port);
@@ -63,4 +68,5 @@ private:
 
 	uint16	m_port;
 	bool	m_bWouldBlock;
+	std::atomic<DWORD> m_dwLastSent{0};	// SendTo runs on the upload throttler thread
 };

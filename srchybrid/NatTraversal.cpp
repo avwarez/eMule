@@ -39,6 +39,11 @@
 #include "Log.h"
 #include "kademlia/kademlia/Kademlia.h"
 #include "kademlia/kademlia/Prefs.h"
+#include "kademlia/net/KademliaUDPListener.h"
+#include "kademlia/routing/Contact.h"
+#include "kademlia/routing/RoutingZone.h"
+#include "kademlia/utils/KadUDPKey.h"
+#include "kademlia/utils/UInt128.h"
 #include "natd/natd.hpp"
 #include "natd/resolve.hpp"
 #include "natd/winsock_io.hpp"
@@ -61,6 +66,7 @@ static char THIS_FILE[] = __FILE__;
 #define NATD_PATH_FINS			3		// a FIN goes this many times, NATD_PATH_FIN_GAP apart: a lost one
 #define NATD_PATH_FIN_GAP		((DWORD)300)	// would leave the peer waiting for the path to go silent
 #define NATD_PATH_LINGER		((DWORD)SEC2MS(10))	// a stream eMule closed, until its FIN is through
+#define NATD_KEEPALIVE_MARGIN	natd::Duration(SEC2MS(10))	// the keepalive goes this long before natd's mapping lifetime
 
 namespace
 {
@@ -161,8 +167,11 @@ namespace
 			if (theApp.clientudp == NULL || theApp.clientudp->m_hSocket == INVALID_SOCKET || nLen > 8192)
 				return false;
 			const sockaddr_in sa(SockAddr(htonl(to.ip), to.port));
-			return ::sendto(theApp.clientudp->m_hSocket, reinterpret_cast<const char*>(pData), (int)nLen, 0
+			const bool bSent = ::sendto(theApp.clientudp->m_hSocket, reinterpret_cast<const char*>(pData), (int)nLen, 0
 				, reinterpret_cast<const sockaddr*>(&sa), (int)sizeof sa) == (int)nLen;
+			if (bSent)
+				theApp.clientudp->SetSentNow();
+			return bSent;
 		}
 	};
 }
@@ -386,6 +395,9 @@ struct CNatTraversal::Impl
 	void RaiseEvents();
 	DWORD dwLastStats = 0;
 	void LogStats(LPCTSTR pszWhen) const;
+	void Keepalive();
+	DWORD dwLastKeepalive = 0;
+	uint32 nKeepalives = 0;	// since the last hourly counters
 };
 
 #define NATD_STUN_FILE			_T("stun.dat")
@@ -772,9 +784,9 @@ void CNatTraversal::Impl::LogStats(LPCTSTR pszWhen) const
 	if (!thePrefs.GetVerbose() || !pAgent->started())
 		return;
 	const natd::AgentStats &st = pAgent->stats();
-	AddDebugLogLine(false, _T("NAT traversal: counters (%s): punches started %I64u, queued %I64u, established %I64u, failed %I64u, refused %I64u; streams dead %I64u, ended for an address change %I64u; endpoint checks %I64u, reused %I64u, changes %I64u; sessions now %u")
+	AddDebugLogLine(false, _T("NAT traversal: counters (%s): punches started %I64u, queued %I64u, established %I64u, failed %I64u, refused %I64u; streams dead %I64u, ended for an address change %I64u; endpoint checks %I64u, reused %I64u, changes %I64u; sessions now %u; mapping keepalives %u")
 		, pszWhen, st.punchesStarted, st.punchesQueued, st.punchesEstablished, st.punchesFailed, st.punchesRefused
-		, nPathsDead, nPathsAddressChanged, st.endpointChecks, st.endpointChecksReused, st.endpointChanges, (unsigned)sessions.size());
+		, nPathsDead, nPathsAddressChanged, st.endpointChecks, st.endpointChecksReused, st.endpointChanges, (unsigned)sessions.size(), nKeepalives);
 }
 
 CNatTraversal::~CNatTraversal()
@@ -832,7 +844,33 @@ void CNatTraversal::Process()
 		if (impl.dwLastStats != 0)
 			impl.LogStats(_T("last hour"));
 		impl.dwLastStats = ::GetTickCount();
+		impl.nKeepalives = 0;
 	}
+	impl.Keepalive();
+}
+
+// A LowID that published its port as punchable keeps the NAT's mapping of it: when nothing left
+// the client UDP socket for the mapping lifetime natd gives, less a margin, a Kad ping to a random
+// contact, as the external port lookup sends (CKademlia::Process). Nothing is sent otherwise.
+void CNatTraversal::Impl::Keepalive()
+{
+	if (!pAgent->directPunchable() || !Kademlia::CKademlia::IsConnected() || !Kademlia::CKademlia::IsFirewalled() || theApp.clientudp == NULL)
+		return;
+	const std::optional<natd::Duration> lifetime = natd::mappingLifetime(pAgent->profile());
+	if (!lifetime || *lifetime <= NATD_KEEPALIVE_MARGIN)
+		return;
+	const DWORD dwIdle = (DWORD)(*lifetime - NATD_KEEPALIVE_MARGIN).count();
+	const DWORD dwNow = ::GetTickCount();
+	// the ping is queued: until it is on the wire the socket's last send is older than it
+	if (dwNow - theApp.clientudp->GetLastSent() < dwIdle || (dwLastKeepalive != 0 && dwNow - dwLastKeepalive < dwIdle))
+		return;
+	Kademlia::CContact *pContact = Kademlia::CKademlia::GetRoutingZone()->GetRandomContact(3, KADEMLIA_VERSION6_49aBETA);
+	if (pContact == NULL)
+		return;
+	dwLastKeepalive = dwNow;
+	++nKeepalives;
+	const Kademlia::CUInt128 uTargetID(pContact->GetClientID());
+	Kademlia::CKademlia::GetUDPListener()->SendNullPacket(KADEMLIA2_PING, pContact->GetIPAddress(), pContact->GetUDPPort(), pContact->GetUDPKey(), &uTargetID);
 }
 
 bool CNatTraversal::IsPunchable() const
