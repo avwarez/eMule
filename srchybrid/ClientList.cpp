@@ -37,6 +37,7 @@
 #include "TransferDlg.h"
 #include "serverwnd.h"
 #include "Log.h"
+#include "NatTraversal.h"
 #include "packets.h"
 #include "Statistics.h"
 
@@ -595,6 +596,8 @@ void CClientList::Process()
 				//Go ahead and instantly try to find a new buddy.
 				Kademlia::CKademlia::GetPrefs()->SetFindBuddy();
 			}
+			if (m_nBuddyStatus == Connected)
+				theApp.nattraversal->OnBuddyLost();
 			m_pBuddy = NULL;
 			m_nBuddyStatus = Disconnected;
 			theApp.emuledlg->serverwnd->UpdateMyInfo();

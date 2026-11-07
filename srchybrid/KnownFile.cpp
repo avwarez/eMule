@@ -39,6 +39,7 @@
 #include "SafeFile.h"
 #include "shahashset.h"
 #include "Log.h"
+#include "NatTraversal.h"
 #include "MD4.h"
 #include "Collection.h"
 #include "emuledlg.h"
@@ -1630,8 +1631,13 @@ bool CKnownFile::PublishSrc()
 		if (!buddy)
 			return false;
 		lastBuddyIP = buddy->GetIP();
-		if (lastBuddyIP != m_lastBuddyIP) {
+		// the same for the other datum of the record a punch depends on: the public endpoint the
+		// index node sees (a new one, the client just found punchable, or no longer so: the record
+		// then goes again without TAG_NATDCLIENT)
+		const uint64 nPunchEndpoint = theApp.nattraversal->GetPunchEndpoint();
+		if (lastBuddyIP != m_lastBuddyIP || nPunchEndpoint != m_nLastPunchEndpoint) {
 			SetLastPublishTimeKadSrc(tNow + KADEMLIAREPUBLISHTIMES, lastBuddyIP);
+			m_nLastPunchEndpoint = nPunchEndpoint;
 			return true;
 		}
 	} else

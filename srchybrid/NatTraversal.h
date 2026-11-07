@@ -87,6 +87,12 @@ public:
 
 	// The discovery found an endpoint-independent mapping of the client UDP port.
 	bool	IsPunchable() const;
+	// The public endpoint as one number while punchable, 0 otherwise: a source record carries
+	// it (the IP and UDP port the index node sees), so a change means publishing again.
+	uint64	GetPunchEndpoint() const;
+	// The TCP connection to the buddy broke: a new public address breaks it at once. The
+	// endpoint is checked; if it changed, the punched streams end as TCP connections do.
+	void	OnBuddyLost();
 
 	// Downloader side. True when TCP cannot reach the client (LowID->LowID) but a punch can.
 	bool	CanPunchTo(const CUpDownClient &client) const	{ return PunchVia(client) != NATD_VIA_NONE; }
