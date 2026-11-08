@@ -50,6 +50,11 @@ public:
 	// the last datagram that left the socket (GetTickCount), eMule's or natd's: the NAT
 	// keeps the port's mapping only while something goes out (RFC 4787 REQ-6)
 	DWORD	GetLastSent() const			{ return m_dwLastSent; }
+	// the eD2K server's UDP obfuscation, for the punch requests (89ng), which leave from this
+	// socket so that the server sees the endpoint to punch to
+	static int		ServerOverheadSize()	{ return EncryptOverheadSize(false); }
+	static uint32	EncryptForServer(uchar *pbyBuf, uint32 nBufLen, uint32 dwBaseKey)	{ return EncryptSendServer(pbyBuf, nBufLen, dwBaseKey); }
+	static int		DecryptFromServer(BYTE *pbyBufIn, int nBufLen, BYTE **ppbyBufOut, uint32 dwBaseKey, const SOCKADDR_IN &dbgIP)	{ return DecryptReceivedServer(pbyBufIn, nBufLen, ppbyBufOut, dwBaseKey, dbgIP); }
 	void	SetSentNow()				{ m_dwLastSent = ::GetTickCount(); }
 
 protected:

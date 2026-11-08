@@ -35,6 +35,7 @@
 #include "SearchDlg.h"
 #include "IPFilter.h"
 #include "Log.h"
+#include "NatTraversal.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -564,6 +565,12 @@ bool CServerSocket::ProcessPacket(const BYTE *packet, uint32 size, uint8 opcode)
 
 				client->TryToConnect();
 			}
+			break;
+		case OP_NAT_CALLBACK_TCP:
+			// a LowID asks to punch to us (89ng)
+			if (thePrefs.GetDebugServerTCPLevel() > 0)
+				Debug(_T("ServerMsg - OP_NatCallback %s\n"), (LPCTSTR)DbgGetHexDump(packet, size));
+			theApp.nattraversal->OnServerCallback(packet, size);
 			break;
 		case OP_CALLBACK_FAIL:
 			if (thePrefs.GetDebugServerTCPLevel() > 0)

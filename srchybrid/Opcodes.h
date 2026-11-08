@@ -173,6 +173,7 @@
 #define	OP_SERVERSTATUS			0x34	// <USER 4><FILES 4>
 #define OP_CALLBACKREQUESTED	0x35	// <IP 4><PORT 2>
 #define OP_CALLBACK_FAIL		0x36	// (null not verified)
+#define OP_NAT_CALLBACK_TCP		0x37	// <IP 4><UDP PORT 2><ID 4><crypt 1>[<HASH 16> if crypt&0x80] Lugdunum NAT traversal: a LowID asks to punch to us
 #define OP_SERVERMESSAGE		0x38	// <len 2><Message len>
 #define OP_CHAT_ROOM_REQUEST    0x39    // (deprecated not supported by server any longer)
 #define OP_CHAT_BROADCAST       0x3A    // (deprecated not supported by server any longer)
@@ -198,6 +199,8 @@
 #define OP_GLOBFOUNDSOURCES		0x9B	//
 #define OP_GLOBCALLBACKREQ		0x9C	// <IP 4><PORT 2><client_ID 4>
 #define OP_INVALID_LOWID		0x9E	// <ID 4>
+#define OP_NAT_CALLBACK_REQUEST	0xA6	// <target ID 4><our ID 4> Lugdunum NAT traversal, obfuscated with the server's UDP key, from the UDP port to punch from
+#define OP_NAT_CALLBACK_UDP		0xA7	// as OP_NAT_CALLBACK_TCP, when we asked the server ourselves within 20 s
 #define	OP_SERVER_LIST_REQ		0xA0	// <IP 4><PORT 2>
 #define OP_SERVER_LIST_RES		0xA1	// <count 1> (<ip 4><port 2>)[count]
 #define OP_SERVER_DESC_REQ		0xA2	// (null)
@@ -543,6 +546,7 @@
 #define SRVCAP_SUPPORTCRYPT     0x0200
 #define SRVCAP_REQUESTCRYPT     0x0400
 #define SRVCAP_REQUIRECRYPT     0x0800
+#define SRVCAP_NATTRAVERSAL		0x1000	// Lugdunum NAT traversal (OP_NAT_CALLBACK_*); also the server's TCP flag in OP_IDCHANGE
 
 // values for CT_SERVER_UDPSEARCH_FLAGS
 #define SRVCAP_UDP_NEWTAGS_LARGEFILES	0x01

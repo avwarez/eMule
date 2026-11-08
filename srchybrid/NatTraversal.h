@@ -40,6 +40,17 @@
 // it, its ID on the server (0 off a server), its crypt settings and its user hash. The
 // session token comes from that user hash and the nonce of the request.
 //
+// Through the server (89ng) - two LowIDs logged in to the same server that coordinates
+// punches (Lugdunum's NAT callback, SRVCAP_NATTRAVERSAL; the Rust ed2k-server takes it too),
+// whether or not they are in Kad: the requester sends OP_NAT_CALLBACK_REQUEST from the client
+// UDP port, obfuscated with the server's UDP key; the server forwards it with the endpoint it
+// saw (OP_NAT_CALLBACK_TCP/UDP). The source sends its own request back, which brings its
+// endpoint to the requester the same way. No marker fits there, so both sides derive the
+// session from what both know: the lower of the two IDs starts the punch, and the token comes
+// from its user hash and the two IDs. Two LowIDs asking each other at once then still meet in
+// one punch. Which side starts the punch does not say which side has the eD2K socket: the one
+// that asked.
+//
 // The natd headers stay inside NatTraversal.cpp. Every method is called on the main thread,
 // but Write(), which the upload throttler calls too.
 
@@ -55,6 +66,7 @@ class CUpDownClient;
 #define NATD_VIA_NONE			0
 #define NATD_VIA_BUDDY			1	// OP_REASKCALLBACKUDP to the source's buddy
 #define NATD_VIA_DIRECT			2	// OP_DIRECTCALLBACKREQ to a source with an open UDP port
+#define NATD_VIA_SERVER			3	// through the server both are logged in to (89ng)
 
 // The punch request: <ID 4><crypt 1>[<user hash 16> if crypt & NATD_CALLBACK_HASH] after the
 // endpoint the relay adds, as Lugdunum forwards it (OP_NAT_CALLBACK_*). crypt is the requester's
@@ -111,6 +123,21 @@ public:
 	// from its user hash and the nonce. False when the punch was not started.
 	bool	StartIncoming(const SNatCallback &cb, uint64 nNonce, uint8 byVia);
 
+	// 89ng, the server. A LowID on our server can be punched to through it: the server
+	// coordinates punches for us, and the ID is odd (the client announced the NAT callback).
+	bool	ServerCanPunch(uint32 nID, uint32 dwServerIP, uint16 nServerPort) const;
+	// Whether the login announces the NAT callback (SRVCAP_NATTRAVERSAL): not once the discovery
+	// found that we cannot be punched to, so that no LowID asks us through the server in vain.
+	// Before the discovery, yes: it starts only when the server has given us a LowID.
+	bool	AnnounceServerPunch() const;
+	// OP_NAT_CALLBACK_TCP from the server we are logged in to (bUdp: OP_NAT_CALLBACK_UDP).
+	void	OnServerCallback(const BYTE *pData, uint32 nSize, bool bUdp = false);
+	// A datagram from the server on the client UDP socket (the answer to the status request
+	// that gives its UDP key, OP_NAT_CALLBACK_UDP): true when it was one, and is done with.
+	bool	OnServerDatagram(BYTE *pData, int nLen, const SOCKADDR_IN &from);
+	// A layer waiting for the target's endpoint is gone
+	void	ForgetLayer(CNatdSocketLayer *pLayer);
+
 	// CNatdSocketLayer; Write() also from the upload throttler thread
 	bool	Connect(CNatdSocketLayer *pLayer);
 	int		Write(uint32 nSession, const void *pBuf, int nLen);
@@ -121,6 +148,10 @@ private:
 	// A punch session towards dwIP:nPort (network order IP): natd connects when bConnect, else
 	// accepts. pLayer: the socket's, NULL for a socket made when the stream opens.
 	bool	OpenSession(uint32 dwIP, uint16 nPort, const BYTE *pToken12, bool bConnect, CNatdSocketLayer *pLayer, uint8 byVia);
+	void	ServerTimer();
+	void	OnServerPeer(const SNatCallback &cb);
+	// our request to that target, waiting for its endpoint, is over (nError 0: no event)
+	void	DropWait(uint32 nTargetID, int nError);
 
 	struct Impl;
 	std::unique_ptr<Impl> m_pImpl;
@@ -132,6 +163,7 @@ class CNatdSocketLayer : public CAsyncSocketExLayer
 {
 	friend class CNatTraversal;
 public:
+	// pToken12 NULL: not known yet (through the server, it comes with the peer)
 	CNatdSocketLayer(uint32 dwIP, uint16 nPort, const BYTE *pToken12, uint8 byVia);
 	virtual	~CNatdSocketLayer();
 
@@ -162,9 +194,10 @@ protected:
 	virtual BOOL ShutDown(int nHow = CAsyncSocket::sends);
 
 private:
-	void	Unhook();		// the session goes
+	void	Unhook();		// the session goes, and the wait for the server's answer (89ng)
 
 	uint32	m_nSession;		// 0: none (not connected yet, or gone)
+	uint32	m_nServerTarget;	// 89ng: the ID of the target whose endpoint the server is to bring, 0 when known
 	uint32	m_dwIP;			// network order
 	uint16	m_nPort;		// host order, the UDP port of the peer
 	uint8	m_byVia;		// NATD_VIA_*, the channel of the request

@@ -2414,7 +2414,8 @@ bool CPartFile::CanAddSource(uint32 userid, uint16 port, uint32 serverip, uint16
 		return false;
 	}
 	//This allows *.*.*.0 clients to not be removed if Ed2kID == false
-	if (::IsLowID(hybridID) && theApp.IsFirewalled()) {
+	// - but a LowID on our server, which coordinates a punch with it (89ng)
+	if (::IsLowID(hybridID) && theApp.IsFirewalled() && !theApp.nattraversal->ServerCanPunch(hybridID, serverip, serverport)) {
 		if (pdebug_lowiddropped)
 			++(*pdebug_lowiddropped);
 		return false;

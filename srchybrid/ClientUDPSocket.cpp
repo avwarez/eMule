@@ -77,6 +77,11 @@ void CClientUDPSocket::OnReceive(int nErrorCode)
 	// NAT traversal first, never through the UDP obfuscation: it filters what it takes itself
 	if (theApp.nattraversal != NULL && theApp.nattraversal->OnDatagram(buffer, nRealLen, sockAddr.sin_addr.s_addr, ntohs(sockAddr.sin_port)))
 		return;
+	// the eD2K server, answering the punch requests sent from this socket (89ng): the server we
+	// are logged in to, which the IP filter does not keep us from (FilterServersByIP is off by
+	// default, and the server UDP socket does not filter what it receives)
+	if (theApp.nattraversal != NULL && theApp.nattraversal->OnServerDatagram(buffer, nRealLen, sockAddr))
+		return;
 	if (theApp.ipfilter->IsFiltered(sockAddr.sin_addr.s_addr) || theApp.clientlist->IsBannedClient(sockAddr.sin_addr.s_addr) || !sockAddr.sin_port)
 		return;
 

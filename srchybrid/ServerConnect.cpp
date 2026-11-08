@@ -33,6 +33,7 @@
 #include "ServerWnd.h"
 #include "TaskbarNotifier.h"
 #include "Log.h"
+#include "NatTraversal.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -188,6 +189,14 @@ void CServerConnect::ConnectionEstablished(CServerSocket *sender)
 			dwCryptFlags |= SRVCAP_REQUESTCRYPT;
 		if (thePrefs.IsCryptLayerRequired())
 			dwCryptFlags |= SRVCAP_REQUIRECRYPT;
+
+		// Lugdunum's NAT callback (89ng): a LowID then gets an odd ID and can be asked to punch,
+		// through requests obfuscated with the server's UDP key
+		if (thePrefs.IsCryptLayerEnabled() && theApp.nattraversal->AnnounceServerPunch())
+			dwCryptFlags |= SRVCAP_NATTRAVERSAL;
+		if (thePrefs.GetVerbose())
+			AddDebugLogLine(false, _T("NAT traversal: the login %s the NAT callback%s"), (dwCryptFlags & SRVCAP_NATTRAVERSAL) ? _T("announces") : _T("does not announce")
+				, (dwCryptFlags & SRVCAP_NATTRAVERSAL) ? _T("") : !thePrefs.IsCryptLayerEnabled() ? _T(": protocol obfuscation is off") : _T(": we cannot be punched to"));
 
 		CTag tagFlags(CT_SERVER_FLAGS, SRVCAP_ZLIB | SRVCAP_NEWTAGS | SRVCAP_LARGEFILES | SRVCAP_UNICODE | dwCryptFlags);
 		tagFlags.WriteTagToFile(data);
