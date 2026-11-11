@@ -1341,9 +1341,12 @@ uint8 CNatTraversal::PunchVia(const CUpDownClient &client) const
 {
 	if (!m_pImpl->pAgent->punchable() || client.GetRequestFile() == NULL || thePrefs.GetUDPPort() == 0)
 		return NATD_VIA_NONE;
-	// One channel a connection attempt, as eMule's callbacks. Kad comes first, the server only when
-	// Kad cannot reach the source (the user's choice: eMule itself asks the server first). A
-	// source that published in Kad that it can be punched to: directly, with an open UDP port
+	// One channel a connection attempt, as eMule's callbacks, and in their order: the server
+	// first, for a LowID logged in to our server, which coordinates the punch (its address comes
+	// with the server's answer); Kad only when the server cannot reach the source.
+	if (client.HasLowID() && ServerCanPunch(client.GetUserIDHybrid(), client.GetServerIP(), client.GetServerPort()))
+		return NATD_VIA_SERVER;
+	// A source that published in Kad that it can be punched to: directly, with an open UDP port
 	// (we punch the endpoint it published, it the one our request came from, which needs an
 	// endpoint-independent mapping of ours), or through its buddy and ours, which do what the
 	// server does. The addresses are checked when they are punched to.
@@ -1357,10 +1360,6 @@ uint8 CNatTraversal::PunchVia(const CUpDownClient &client) const
 		} else if (client.HasValidBuddyID() && client.GetBuddyIP() != 0 && client.GetBuddyPort() != 0 && OurBuddy(abyBuddyID, dwBuddyIP, nBuddyPort))
 			return NATD_VIA_BUDDY;
 	}
-	// a LowID logged in to our server, which coordinates the punch. Its address comes
-	// with the server's answer.
-	if (client.HasLowID() && ServerCanPunch(client.GetUserIDHybrid(), client.GetServerIP(), client.GetServerPort()))
-		return NATD_VIA_SERVER;
 	return NATD_VIA_NONE;
 }
 
