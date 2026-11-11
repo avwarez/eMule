@@ -25,11 +25,12 @@
 // The client is "punchable" when its NAT maps that port endpoint-independently (natd
 // Predictability::Stable): the endpoint a third party sees is then the one every peer sees,
 // so two punchable LowIDs can reach each other through the endpoints their buddies saw.
-// Through the server (89nh) a NAT that maps it to random ports inside a block of ports
-// (Predictability::Bounded, mobile CGNs) can be punched to as well: nothing tells either side
-// the other's NAT there, so an endpoint-independent side punches the endpoint the server saw
-// and, should nobody answer there, the block of ports around it (natd::PeerNat::Unknown); a
-// Bounded side punches the endpoint from the client UDP port.
+// Through the server a NAT that maps it to random ports inside a block of ports
+// (Predictability::Bounded, mobile CGNs, 89nh) or to sequential ports (Predictable, 89nj) can
+// be punched to as well: nothing tells either side the other's NAT there, so an
+// endpoint-independent side punches the endpoint the server saw and, should nobody answer
+// there, the block of ports around it and the ports just past it (natd::PeerNat::Unknown); the
+// other side punches the endpoint from the client UDP port.
 //
 // A punch is used only where TCP cannot work: a LowID downloader and a LowID source that
 // carries TAG_NATDCLIENT. The downloader asks the source through the source's buddy
@@ -107,7 +108,7 @@ public:
 	void	Shutdown();
 
 	// The discovery found an endpoint-independent mapping of the client UDP port (the Kad
-	// channels; the server takes a Bounded one too, 89nh).
+	// channels; the server takes a Bounded or Predictable one too, 89nh, 89nj).
 	bool	IsPunchable() const;
 	// The public endpoint as one number while punchable, 0 otherwise: a source record carries
 	// it (the IP and UDP port the index node sees), so a change means publishing again.
