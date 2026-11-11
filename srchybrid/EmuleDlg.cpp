@@ -235,6 +235,7 @@ CemuleDlg::CemuleDlg(CWnd *pParent /*=NULL*/)
 	, m_bStartMinimized()
 	, m_bMsgBlinkState()
 	, m_bConnectRequestDelayedForUPnP()
+	, m_bConnectRequestDelayedForNatd()
 	, m_bKadSuspendDisconnect()
 	, m_bEd2kSuspendDisconnect()
 	, m_bInitedCOM()
@@ -1952,6 +1953,11 @@ void CemuleDlg::StartConnection()
 			VERIFY(::KillTimer(NULL, m_hUPnPTimeOutTimer));
 			m_hUPnPTimeOutTimer = 0;
 		}
+		// then the NAT discovery, so that the login announces what it found (89nm); a second
+		// click connects at once here too
+		m_bConnectRequestDelayedForNatd = !m_bConnectRequestDelayedForNatd && theApp.nattraversal->DelayConnection();
+		if (m_bConnectRequestDelayedForNatd)
+			return;
 		AddLogLine(true, GetResString(IDS_CONNECTING));
 
 		// ed2k
@@ -1968,8 +1974,15 @@ void CemuleDlg::StartConnection()
 	m_bKadSuspendDisconnect = false;
 }
 
+void CemuleDlg::OnNatDiscoveryOver()
+{
+	if (theApp.IsRunning() && m_bConnectRequestDelayedForNatd)
+		StartConnection();
+}
+
 void CemuleDlg::CloseConnection()
 {
+	m_bConnectRequestDelayedForNatd = false;	// no connection once the discovery is over (89nm)
 	theApp.serverconnect->StopConnectionTry();
 	theApp.serverconnect->Disconnect();
 

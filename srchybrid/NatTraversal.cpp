@@ -24,6 +24,7 @@
 #include <map>
 #include <vector>
 #include "emule.h"
+#include "emuleDlg.h"
 #include "NatTraversal.h"
 #include "ClientList.h"
 #include "ClientUDPSocket.h"
@@ -81,6 +82,9 @@ static char THIS_FILE[] = __FILE__;
 // fresh (89nl).
 #define NATD_SERVER_RETRY_WITHIN	((DWORD)CONNECTION_TIMEOUT)
 #define NATD_SERVER_TRIES		3		// at most, whatever the time
+// The connection waits for the discovery at most this long (89nm). natd's discovery ends within
+// about 40 s even when no STUN server answers: the rest is for resolving their names.
+#define NATD_CONNECT_WAIT		((DWORD)SEC2MS(60))
 
 namespace
 {
@@ -430,6 +434,10 @@ struct CNatTraversal::Impl
 	void RaiseEvents();
 	DWORD dwLastStats = 0;
 	void LogStats(LPCTSTR pszWhen) const;
+	// 89nm: the connection to the server and to Kad waits for the discovery, as for UPnP. When
+	// the wait began (0: not asked), and whether the dialog still waits to be told it is over
+	DWORD dwConnectWait = 0;
+	bool bConnectWaiting = false;
 	void Keepalive();
 	DWORD dwLastKeepalive = 0;
 	uint32 nKeepalives = 0;	// since the last hourly counters
@@ -496,7 +504,7 @@ static std::vector<natd::stun::ServerEntry> StunServers()
 
 void CNatTraversal::Impl::StartDiscovery(natd::TimePoint now)
 {
-	if (!pStun) {	// a HighID never gets here: it resolves no STUN server either
+	if (!pStun) {
 		pStun = std::make_unique<natd::StunResolver>(StunServers());
 		return;
 	}
@@ -926,11 +934,15 @@ void CNatTraversal::Process()
 	Impl &impl = *m_pImpl;
 	const natd::TimePoint now = natd::Clock::now();
 	CSingleLock lock(&impl.cs, TRUE);
-	// only a LowID punches: on the server, or in Kad once its firewall check is over (Kad says
-	// firewalled while it checks); a HighID never asks the STUN servers
-	if (!impl.pAgent->started() && theApp.clientudp != NULL && theApp.clientudp->m_hSocket != INVALID_SOCKET && theApp.IsFirewalled()
-		&& ((theApp.serverconnect->IsConnected() && theApp.serverconnect->IsLowID())
-			|| (Kademlia::CKademlia::IsConnected() && Kademlia::CKademlia::IsFirewalled() && !Kademlia::CKademlia::GetPrefs()->GetRecheckIP())))
+	// before the connection, which waits for it (DelayConnection, 89nm); else as soon as we are a
+	// LowID: on the server, or in Kad once its firewall check is over (Kad says firewalled while
+	// it checks) - a connection made without the wait (the user clicked twice, a server picked
+	// in the list, Kad started from its window)
+	if (!impl.pAgent->started() && theApp.clientudp != NULL && theApp.clientudp->m_hSocket != INVALID_SOCKET
+		&& (impl.dwConnectWait != 0
+			|| (theApp.IsFirewalled()
+				&& ((theApp.serverconnect->IsConnected() && theApp.serverconnect->IsLowID())
+					|| (Kademlia::CKademlia::IsConnected() && Kademlia::CKademlia::IsFirewalled() && !Kademlia::CKademlia::GetPrefs()->GetRecheckIP())))))
 	{
 		impl.StartDiscovery(now);
 	}
@@ -948,6 +960,36 @@ void CNatTraversal::Process()
 	}
 	impl.Keepalive();
 	ServerTimer();
+	bool bConnect = false;
+	if (impl.bConnectWaiting && (impl.pAgent->profileReady() || ::GetTickCount() - impl.dwConnectWait >= NATD_CONNECT_WAIT)) {
+		impl.bConnectWaiting = false;
+		bConnect = true;
+		if (!impl.pAgent->profileReady())
+			AddLogLine(false, _T("NAT traversal: no result of the discovery after %u s, connecting without it"), (unsigned)(NATD_CONNECT_WAIT / SEC2MS(1)));
+	}
+	lock.Unlock();
+	if (bConnect)	// it may log in at once, which asks AnnounceServerPunch()
+		theApp.emuledlg->OnNatDiscoveryOver();
+}
+
+// As UPnP before it: the login then announces what the discovery found (AnnounceServerPunch),
+// and the discovery's own mappings, about fifty, are made before those of the server, Kad and
+// the peers, not among them - on a NAT with a block of ports per subscriber they come from the
+// same block.
+bool CNatTraversal::DelayConnection()
+{
+	Impl &impl = *m_pImpl;
+	CSingleLock lock(&impl.cs, TRUE);
+	if (impl.pAgent->profileReady() || theApp.clientudp == NULL || theApp.clientudp->m_hSocket == INVALID_SOCKET)
+		return false;
+	const DWORD dwNow = ::GetTickCount();
+	if (impl.dwConnectWait == 0) {
+		impl.dwConnectWait = dwNow ? dwNow : 1;
+		AddLogLine(false, _T("NAT traversal: connecting after the NAT discovery, at most %u s (click Connect again to connect at once)"), (unsigned)(NATD_CONNECT_WAIT / SEC2MS(1)));
+	} else if (dwNow - impl.dwConnectWait >= NATD_CONNECT_WAIT)
+		return false;	// it had its time, once
+	impl.bConnectWaiting = true;
+	return true;
 }
 
 // The server we are logged in to: whether it coordinates punches for us (a LowID there, with
@@ -1272,6 +1314,7 @@ uint8 CNatTraversal::PunchVia(const CUpDownClient &client) const
 	return NATD_VIA_NONE;
 }
 
+// 89nm: the login normally comes after the discovery (DelayConnection)
 bool CNatTraversal::AnnounceServerPunch() const
 {
 	return !m_pImpl->pAgent->profileReady() || m_pImpl->pAgent->punchable();

@@ -59,6 +59,10 @@
 // has been connecting for less than eMule's connection timeout, as TCP sends its SYN again
 // within it: the peer's NAT opens a new mapping, whose endpoint the server brings fresh (89nl).
 //
+// The discovery runs before the connection to the server and to Kad, after UPnP, whatever the
+// ID the client will get (89nm): the login then announces what it found, and its mappings do
+// not mix with those of the connection.
+//
 // The natd headers stay inside NatTraversal.cpp. Every method is called on the main thread,
 // but Write(), which the upload throttler calls too.
 
@@ -104,6 +108,11 @@ public:
 	bool	OnDatagram(const BYTE *pData, int nLen, uint32 dwIP, uint16 nPort);
 	// every 100 ms, from the upload timer
 	void	Process();
+	// The connection to the server and to Kad is about to start: true when it should wait for
+	// the NAT discovery, which this starts (as for UPnP, which comes first; 89nm). The dialog is
+	// then told when the discovery has a result (CemuleDlg::OnNatDiscoveryOver), or when it gave
+	// up waiting. Once only: after the wait it is false whatever the discovery.
+	bool	DelayConnection();
 	// eMule closes, before the client UDP socket goes: every punched stream still open ends with
 	// its FINs at once, as a TCP connection gets its FIN, so that the peer does not wait for the
 	// path to go silent (89ni)
@@ -141,7 +150,7 @@ public:
 	bool	ServerCanPunch(uint32 nID, uint32 dwServerIP, uint16 nServerPort) const;
 	// Whether the login announces the NAT callback (SRVCAP_NATTRAVERSAL): not once the discovery
 	// found that we cannot be punched to, so that no LowID asks us through the server in vain.
-	// Before the discovery, yes: it starts only when the server has given us a LowID.
+	// Without a result yet (a connection that did not wait for it), yes.
 	bool	AnnounceServerPunch() const;
 	// OP_NAT_CALLBACK_TCP from the server we are logged in to (bUdp: OP_NAT_CALLBACK_UDP).
 	void	OnServerCallback(const BYTE *pData, uint32 nSize, bool bUdp = false);

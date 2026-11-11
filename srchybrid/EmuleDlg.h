@@ -191,6 +191,7 @@ protected:
 	bool			m_bStartMinimized;
 	bool			m_bMsgBlinkState;
 	bool			m_bConnectRequestDelayedForUPnP;
+	bool			m_bConnectRequestDelayedForNatd;	// 89nm
 	bool			m_bKadSuspendDisconnect;
 	bool			m_bEd2kSuspendDisconnect;
 	bool			m_bInitedCOM;
@@ -223,6 +224,8 @@ protected:
 	static void CALLBACK UPnPTimeOutTimer(HWND hwnd, UINT uiMsg, UINT_PTR idEvent, DWORD dwTime) noexcept;
 
 	void StartConnection();
+	// CNatTraversal::DelayConnection's wait is over (89nm)
+	void OnNatDiscoveryOver();
 	void CloseConnection();
 	void MinimizeWindow();
 	void PostStartupMinimized();
