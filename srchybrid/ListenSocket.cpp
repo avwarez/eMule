@@ -1419,6 +1419,15 @@ void CClientReqSocket::ProcessExtPacket(const BYTE *packet, uint32 size, UINT op
 			data_in.ReadHash16(reqfilehash);
 			if (thePrefs.GetDebugClientTCPLevel() > 0)
 				DebugRecv("OP_ReaskCallbackTCP", client, reqfilehash);
+			// a source answers our punch request through our buddy (89nn): its endpoint, as our
+			// buddy saw it, for the file we asked for, which we may not share yet
+			uint64 nNonce;
+			if (CNatTraversal::ReadMarker(data_in, nNonce, NATD_MARKER_BACK)) {
+				SNatCallback cb;
+				if (CNatTraversal::ReadCallback(data_in, destip, destport, cb))
+					theApp.nattraversal->OnBuddyBack(cb, nNonce);
+				return;
+			}
 			CKnownFile *reqfile = theApp.sharedfiles->GetFileByID(reqfilehash);
 
 			bool bSenderMultipleIpUnknown = false;
@@ -1437,11 +1446,10 @@ void CClientReqSocket::ProcessExtPacket(const BYTE *packet, uint32 size, UINT op
 
 			// a LowID asks us to punch towards it (89nc): the endpoint is the one our buddy
 			// saw the request come from, and nothing else of this packet is for us
-			uint64 nNonce;
 			if (CNatTraversal::ReadMarker(data_in, nNonce)) {
 				SNatCallback cb;
 				if (theApp.IsFirewalled() && CNatTraversal::ReadCallback(data_in, destip, destport, cb))
-					theApp.nattraversal->StartIncoming(cb, nNonce, NATD_VIA_BUDDY);
+					theApp.nattraversal->StartIncoming(cb, nNonce, NATD_VIA_BUDDY, reqfilehash);
 				return;
 			}
 

@@ -63,6 +63,13 @@
 // ID the client will get (89nm): the login then announces what it found, and its mappings do
 // not mix with those of the connection.
 //
+// Through the buddies (89nn) the two buddies do what the server does: the requester's request
+// carries its own buddy, and the source, as it starts its punch, sends its request back through
+// that buddy (NATD_MARKER_BACK, the same nonce), which brings the source's endpoint fresh to the
+// requester. Both then punch endpoints seen a moment ago, as through the server: a NAT with port
+// blocks or sequential ports can be punched to through Kad too, the punch that times out is
+// asked for once more, and the endpoint the source published in Kad is not used.
+//
 // The natd headers stay inside NatTraversal.cpp. Every method is called on the main thread,
 // but Write(), which the upload throttler calls too.
 
@@ -73,6 +80,7 @@ class CUpDownClient;
 
 // The natd marker, at the end of a callback request: "NATD", version, type, nonce.
 #define NATD_MARKER_PUNCH		1
+#define NATD_MARKER_BACK		2	// the source's request back, through the requester's buddy (89nn)
 
 // The channels a punch request goes through
 #define NATD_VIA_NONE			0
@@ -84,13 +92,20 @@ class CUpDownClient;
 // endpoint the relay adds, as Lugdunum forwards it (OP_NAT_CALLBACK_*). crypt is the requester's
 // crypt layer support, request and require in bits 0-2, as GetMyConnectOptions puts them; the
 // punch needs only the user hash (the stream's crypt layer negotiates as over TCP).
+// Through the buddies the requester's buddy follows the user hash (NATD_CALLBACK_BUDDY, 89nn):
+// <buddy ID 16><IP 4><UDP port 2>, as the requester publishes it in its Kad sources.
 #define NATD_CALLBACK_HASH		0x80
+#define NATD_CALLBACK_BUDDY		0x40
 struct SNatCallback
 {
 	uint32	dwIP;			// network order
 	uint16	nPort;			// the requester's UDP port
 	uint32	nID;			// the requester's ID on the server, 0 for a request that came through no server
 	uchar	abyHash[16];	// the requester's user hash
+	bool	bBuddy = false;	// 89nn: the requester's buddy, for the request back
+	uchar	abyBuddyID[16] = {};
+	uint32	dwBuddyIP = 0;	// network order
+	uint16	nBuddyPort = 0;
 };
 
 class CNatTraversal
@@ -118,11 +133,13 @@ public:
 	// path to go silent (89ni)
 	void	Shutdown();
 
-	// The discovery found an endpoint-independent mapping of the client UDP port (the Kad
-	// channels; the server takes a Bounded or Predictable one too, 89nh, 89nj).
+	// The discovery found a mapping of the client UDP port that can be punched to through the
+	// server or the buddies: endpoint-independent, or random in a block of ports, or sequential
+	// (89nh, 89nj, 89nn). A source with an open UDP port takes an endpoint-independent one only.
 	bool	IsPunchable() const;
-	// The public endpoint as one number while punchable, 0 otherwise: a source record carries
-	// it (the IP and UDP port the index node sees), so a change means publishing again.
+	// What of the NAT a source record says, as one number: the public endpoint the index node
+	// sees while endpoint-independent, 1 while punchable otherwise (TAG_NATDCLIENT), 0 when not;
+	// a change means publishing again.
 	uint64	GetPunchEndpoint() const;
 	// The TCP connection to the buddy broke: a new public address breaks it at once. The
 	// endpoint is checked; if it changed, the punched streams end as TCP connections do.
@@ -136,14 +153,19 @@ public:
 	// punches when the socket connects; false when nothing was sent (the socket is then left as it was).
 	bool	AttachOutgoing(CClientReqSocket *pSocket, CUpDownClient &client, uint8 byVia);
 
-	// Source side: the marker at the current position of a callback request, if there is one.
-	static bool ReadMarker(CSafeMemFile &data, uint64 &nNonce);
+	// The marker at the current position of a callback request, if there is one of the kind
+	// byKind (NATD_MARKER_*); else the position stays.
+	static bool ReadMarker(CSafeMemFile &data, uint64 &nNonce, uint8 byKind = NATD_MARKER_PUNCH);
 	// The request after the endpoint, at the current position; false without the user hash.
 	// dwIP (network order) and nPort: the requester's endpoint, as the relay saw it.
 	static bool ReadCallback(CSafeMemFile &data, uint32 dwIP, uint16 nPort, SNatCallback &cb);
-	// A request arrived through byVia: punch towards the requester's endpoint, with the token
-	// from its user hash and the nonce. False when the punch was not started.
-	bool	StartIncoming(const SNatCallback &cb, uint64 nNonce, uint8 byVia);
+	// Source side. A request arrived through byVia: punch towards the requester's endpoint, with
+	// the token from its user hash and the nonce. Through the buddies, the request back goes
+	// first, for the same file (pFileHash, 89nn). False when the punch was not started.
+	bool	StartIncoming(const SNatCallback &cb, uint64 nNonce, uint8 byVia, const uchar *pFileHash = NULL);
+	// Downloader side, 89nn: the source's request back, which our buddy forwarded with the
+	// endpoint it saw it come from. Our socket waiting for it gets the punch.
+	void	OnBuddyBack(const SNatCallback &cb, uint64 nNonce);
 
 	// 89ng, the server. A LowID on our server can be punched to through it: the server
 	// coordinates punches for us, and the ID is odd (the client announced the NAT callback).
@@ -157,7 +179,7 @@ public:
 	// A datagram from the server on the client UDP socket (the answer to the status request
 	// that gives its UDP key, OP_NAT_CALLBACK_UDP): true when it was one, and is done with.
 	bool	OnServerDatagram(BYTE *pData, int nLen, const SOCKADDR_IN &from);
-	// A layer waiting for the target's endpoint is gone
+	// A layer waiting for the target's endpoint (server or buddy) is gone
 	void	ForgetLayer(CNatdSocketLayer *pLayer);
 
 	// CNatdSocketLayer; Write() also from the upload throttler thread
@@ -169,12 +191,16 @@ public:
 private:
 	// A punch session towards dwIP:nPort (network order IP): natd connects when bConnect, else
 	// accepts. pLayer: the socket's, NULL for a socket made when the stream opens.
-	// nServerPeer: through the server, the peer's ID there (89nl)
-	bool	OpenSession(uint32 dwIP, uint16 nPort, const BYTE *pToken12, bool bConnect, CNatdSocketLayer *pLayer, uint8 byVia, uint32 nServerPeer = 0);
+	// nServerPeer: through the server, the peer's ID there (89nl). bRelayed: both endpoints come
+	// fresh through a relay, the server or the two buddies (89nn).
+	bool	OpenSession(uint32 dwIP, uint16 nPort, const BYTE *pToken12, bool bConnect, CNatdSocketLayer *pLayer, uint8 byVia, uint32 nServerPeer = 0, bool bRelayed = false);
 	void	ServerTimer();
 	void	OnServerPeer(const SNatCallback &cb);
 	// our request to that target, waiting for its endpoint, is over (nError 0: no event)
 	void	DropWait(uint32 nTargetID, int nError);
+	// 89nn: the same through the buddies, our requests by their nonce
+	void	BuddyTimer();
+	void	DropBuddyWait(uint64 nNonce, int nError);
 
 	struct Impl;
 	std::unique_ptr<Impl> m_pImpl;
@@ -205,6 +231,14 @@ public:
 	uint8	GetTries() const						{ return m_nTries; }
 	// the punch timed out and a new request went: waiting for the target's endpoint again
 	void	ServerRetry()							{ m_nSession = 0; m_nServerTarget = m_nServerPeer; ++m_nTries; }
+	// 89nn, through the buddies: whether the request went with our buddy (the source answers
+	// back through it); the same after a timed-out punch, with the new request's nonce and token
+	bool	HasBuddyRoute() const					{ return m_bBuddyRoute; }
+	const uchar* GetRelayID() const					{ return m_abyRelayID; }
+	uint32	GetRelayIP() const						{ return m_dwRelayIP; }
+	uint16	GetRelayPort() const					{ return m_nRelayPort; }
+	const uchar* GetFile() const					{ return m_abyFile; }
+	void	BuddyRetry(uint64 nNonce, const BYTE *pToken12);
 
 protected:
 	// Events of the socket handle under this layer: there is no connection on it, so there
@@ -232,6 +266,14 @@ private:
 	uint32	m_nServerPeer;	// 89nl: that target, kept once its endpoint is known
 	DWORD	m_dwAsked;		// 89nl: when the first request to it went
 	uint8	m_nTries;		// 89nl: punches asked for, the first included
+	// 89nn, through the buddies: the nonce of the request waiting for the source's request back
+	// (0 when none), and the source's buddy and file, for the request once more
+	uint64	m_nBuddyNonce;
+	bool	m_bBuddyRoute;
+	uint32	m_dwRelayIP;	// the source's buddy, network order
+	uint16	m_nRelayPort;
+	uchar	m_abyRelayID[16];
+	uchar	m_abyFile[16];
 	uint32	m_dwIP;			// network order
 	uint16	m_nPort;		// host order, the UDP port of the peer
 	uint8	m_byVia;		// NATD_VIA_*, the channel of the request
