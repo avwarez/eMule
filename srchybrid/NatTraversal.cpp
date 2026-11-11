@@ -1341,7 +1341,9 @@ uint8 CNatTraversal::PunchVia(const CUpDownClient &client) const
 {
 	if (!m_pImpl->pAgent->punchable() || client.GetRequestFile() == NULL || thePrefs.GetUDPPort() == 0)
 		return NATD_VIA_NONE;
-	// a source that published in Kad that it can be punched to: directly, with an open UDP port
+	// One channel a connection attempt, as eMule's callbacks. Kad comes first, the server only when
+	// Kad cannot reach the source (the user's choice: eMule itself asks the server first). A
+	// source that published in Kad that it can be punched to: directly, with an open UDP port
 	// (we punch the endpoint it published, it the one our request came from, which needs an
 	// endpoint-independent mapping of ours), or through its buddy and ours, which do what the
 	// server does. The addresses are checked when they are punched to.
