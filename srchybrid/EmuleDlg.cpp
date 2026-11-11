@@ -1953,9 +1953,9 @@ void CemuleDlg::StartConnection()
 			VERIFY(::KillTimer(NULL, m_hUPnPTimeOutTimer));
 			m_hUPnPTimeOutTimer = 0;
 		}
-		// then the NAT discovery, so that the login announces what it found (89nm); a second
-		// click connects at once here too
-		m_bConnectRequestDelayedForNatd = !m_bConnectRequestDelayedForNatd && theApp.nattraversal->DelayConnection();
+		// then the NAT discovery, so that the login announces what it found (89nm): the
+		// connection starts only when it is over (OnNatDiscoveryOver)
+		m_bConnectRequestDelayedForNatd = theApp.nattraversal->DelayConnection();
 		if (m_bConnectRequestDelayedForNatd)
 			return;
 		AddLogLine(true, GetResString(IDS_CONNECTING));

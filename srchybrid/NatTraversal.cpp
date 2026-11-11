@@ -936,8 +936,8 @@ void CNatTraversal::Process()
 	CSingleLock lock(&impl.cs, TRUE);
 	// before the connection, which waits for it (DelayConnection, 89nm); else as soon as we are a
 	// LowID: on the server, or in Kad once its firewall check is over (Kad says firewalled while
-	// it checks) - a connection made without the wait (the user clicked twice, a server picked
-	// in the list, Kad started from its window)
+	// it checks) - a connection made without the wait (a server picked in the list, Kad started
+	// from its window)
 	if (!impl.pAgent->started() && theApp.clientudp != NULL && theApp.clientudp->m_hSocket != INVALID_SOCKET
 		&& (impl.dwConnectWait != 0
 			|| (theApp.IsFirewalled()
@@ -985,7 +985,7 @@ bool CNatTraversal::DelayConnection()
 	const DWORD dwNow = ::GetTickCount();
 	if (impl.dwConnectWait == 0) {
 		impl.dwConnectWait = dwNow ? dwNow : 1;
-		AddLogLine(false, _T("NAT traversal: connecting after the NAT discovery, at most %u s (click Connect again to connect at once)"), (unsigned)(NATD_CONNECT_WAIT / SEC2MS(1)));
+		AddLogLine(false, _T("NAT traversal: connecting after the NAT discovery, at most %u s"), (unsigned)(NATD_CONNECT_WAIT / SEC2MS(1)));
 	} else if (dwNow - impl.dwConnectWait >= NATD_CONNECT_WAIT)
 		return false;	// it had its time, once
 	impl.bConnectWaiting = true;

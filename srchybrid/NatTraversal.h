@@ -109,9 +109,9 @@ public:
 	// every 100 ms, from the upload timer
 	void	Process();
 	// The connection to the server and to Kad is about to start: true when it should wait for
-	// the NAT discovery, which this starts (as for UPnP, which comes first; 89nm). The dialog is
-	// then told when the discovery has a result (CemuleDlg::OnNatDiscoveryOver), or when it gave
-	// up waiting. Once only: after the wait it is false whatever the discovery.
+	// the NAT discovery, which this starts (after UPnP; 89nm). The dialog is then told when the
+	// discovery has a result (CemuleDlg::OnNatDiscoveryOver), or when it gave up waiting. Once
+	// only: after the wait it is false whatever the discovery.
 	bool	DelayConnection();
 	// eMule closes, before the client UDP socket goes: every punched stream still open ends with
 	// its FINs at once, as a TCP connection gets its FIN, so that the peer does not wait for the
