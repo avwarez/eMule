@@ -55,7 +55,9 @@
 // session from what both know: the lower of the two IDs starts the punch, and the token comes
 // from its user hash and the two IDs. Two LowIDs asking each other at once then still meet in
 // one punch. Which side starts the punch does not say which side has the eD2K socket: the one
-// that asked.
+// that asked. A punch through the server that times out is asked for once more while the socket
+// has been connecting for less than eMule's connection timeout, as TCP sends its SYN again
+// within it: the peer's NAT opens a new mapping, whose endpoint the server brings fresh (89nl).
 //
 // The natd headers stay inside NatTraversal.cpp. Every method is called on the main thread,
 // but Write(), which the upload throttler calls too.
@@ -158,7 +160,8 @@ public:
 private:
 	// A punch session towards dwIP:nPort (network order IP): natd connects when bConnect, else
 	// accepts. pLayer: the socket's, NULL for a socket made when the stream opens.
-	bool	OpenSession(uint32 dwIP, uint16 nPort, const BYTE *pToken12, bool bConnect, CNatdSocketLayer *pLayer, uint8 byVia);
+	// nServerPeer: through the server, the peer's ID there (89nl)
+	bool	OpenSession(uint32 dwIP, uint16 nPort, const BYTE *pToken12, bool bConnect, CNatdSocketLayer *pLayer, uint8 byVia, uint32 nServerPeer = 0);
 	void	ServerTimer();
 	void	OnServerPeer(const SNatCallback &cb);
 	// our request to that target, waiting for its endpoint, is over (nError 0: no event)
@@ -185,6 +188,14 @@ public:
 	uint32	GetIP() const							{ return m_dwIP; }
 	uint16	GetPort() const							{ return m_nPort; }
 	const BYTE* GetToken() const					{ return m_abyToken; }
+	uint8	GetVia() const							{ return m_byVia; }
+	bool	IsConnecting() const					{ return GetLayerState() == connecting; }
+	// 89nl, through the server: the target, when the first request went, the punches asked for
+	uint32	GetServerPeer() const					{ return m_nServerPeer; }
+	DWORD	GetAskedAt() const						{ return m_dwAsked; }
+	uint8	GetTries() const						{ return m_nTries; }
+	// the punch timed out and a new request went: waiting for the target's endpoint again
+	void	ServerRetry()							{ m_nSession = 0; m_nServerTarget = m_nServerPeer; ++m_nTries; }
 
 protected:
 	// Events of the socket handle under this layer: there is no connection on it, so there
@@ -209,6 +220,9 @@ private:
 
 	uint32	m_nSession;		// 0: none (not connected yet, or gone)
 	uint32	m_nServerTarget;	// 89ng: the ID of the target whose endpoint the server is to bring, 0 when known
+	uint32	m_nServerPeer;	// 89nl: that target, kept once its endpoint is known
+	DWORD	m_dwAsked;		// 89nl: when the first request to it went
+	uint8	m_nTries;		// 89nl: punches asked for, the first included
 	uint32	m_dwIP;			// network order
 	uint16	m_nPort;		// host order, the UDP port of the peer
 	uint8	m_byVia;		// NATD_VIA_*, the channel of the request

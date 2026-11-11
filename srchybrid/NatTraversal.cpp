@@ -75,6 +75,12 @@ static char THIS_FILE[] = __FILE__;
 #define NATD_SERVER_PINGS		5		// status requests for the server's UDP key, 20 s apart
 #define NATD_SERVER_PING_RETRY	((DWORD)SEC2MS(20))
 #define NATD_SERVER_SEEN		((DWORD)SEC2MS(30))	// a peer the server brought again within this is a copy
+// A punch through the server that timed out is asked for once more, with a new request, while
+// the socket has been connecting for less than eMule's connection timeout: as TCP sends its SYN
+// again within it. The peer's NAT then opens a new mapping, whose endpoint the server brings
+// fresh (89nl).
+#define NATD_SERVER_RETRY_WITHIN	((DWORD)CONNECTION_TIMEOUT)
+#define NATD_SERVER_TRIES		3		// at most, whatever the time
 
 namespace
 {
@@ -356,6 +362,7 @@ namespace
 		bool				bReadPosted = false;	// an FD_READ is on its way to the socket
 		bool				bClosePosted = false;
 		bool				bOver = false;		// the punch failed, or the path ended
+		uint32				nServerPeer = 0;	// 89nl: through the server, the peer's ID there
 		// once punched: the path and the stream on it
 		natd::PunchResult	path;
 		std::unique_ptr<CNatdKcpTransport> pKcp;
@@ -400,7 +407,7 @@ struct CNatTraversal::Impl
 	void StartDiscovery(natd::TimePoint now);
 	void Poll(natd::TimePoint now);
 	void HandleEvents(natd::TimePoint now);
-	void Punched(natd::SessionId id, SSession &s, const natd::PunchResult &r, natd::TimePoint now);
+	void Punched(natd::SessionId id, SSession &s, const natd::PunchResult &r, natd::TimePoint now, uint32 nPackets, uint16 nRounds);
 	void Accept(natd::SessionId id, SSession &s);
 	bool OnPath(const natd::Endpoint &from, const BYTE *pData, size_t nLen, natd::TimePoint now);
 	void PollPaths(natd::TimePoint now);
@@ -557,12 +564,29 @@ void CNatTraversal::Impl::HandleEvents(natd::TimePoint now)
 		if (e.type == natd::AgentEventType::Punched) {
 			const std::optional<natd::PunchResult> r(pAgent->takeResult(e.session, now));
 			if (r)
-				Punched(e.session, s, *r, now);
+				Punched(e.session, s, *r, now, e.packets, e.rounds);
 		} else if (e.type == natd::AgentEventType::PunchFailed) {
 			if (thePrefs.GetVerbose())
-				AddDebugLogLine(false, _T("NAT traversal: punch towards %s failed: %hs"), (LPCTSTR)EndpointStr(s.remote), natd::toString(e.error));
+				AddDebugLogLine(false, _T("NAT traversal: punch towards %s failed: %hs, %u packets in %u rounds"), (LPCTSTR)EndpointStr(s.remote), natd::toString(e.error)
+					, e.packets, (unsigned)e.rounds);
 			if (s.pLayer == NULL) {
 				sessions.erase(it);	// a punch we were asked for, or a socket already gone
+				continue;
+			}
+			// through the server, timed out: once more with a new request while the socket has been
+			// connecting for less than eMule's connection timeout (89nl)
+			CNatdSocketLayer *pLayer = s.pLayer;
+			const DWORD dwNow = ::GetTickCount();
+			if (e.error == natd::PunchError::TimedOut && pLayer->GetVia() == NATD_VIA_SERVER && pLayer->GetServerPeer() != 0
+				&& pLayer->GetTries() < NATD_SERVER_TRIES && dwNow - pLayer->GetAskedAt() < NATD_SERVER_RETRY_WITHIN
+				&& pLayer->IsConnecting() && serverWaits.find(pLayer->GetServerPeer()) == serverWaits.end()
+				&& ServerRequest(pLayer->GetServerPeer(), _T("ours, once more: the punch timed out")))
+			{
+				const uint32 nPeer = pLayer->GetServerPeer();
+				sessions.erase(it);
+				pLayer->ServerRetry();
+				serverSeen.erase(nPeer);
+				serverWaits[nPeer] = SServerWait{pLayer, dwNow, false};
 				continue;
 			}
 			// as a TCP connection: refused, or timed out
@@ -576,7 +600,7 @@ void CNatTraversal::Impl::HandleEvents(natd::TimePoint now)
 
 // The path is ours from here: the eD2K stream starts on it. Whichever side started the punch,
 // the socket that asked connects, and the other side's socket is made now, as an accepted one.
-void CNatTraversal::Impl::Punched(natd::SessionId id, SSession &s, const natd::PunchResult &r, natd::TimePoint now)
+void CNatTraversal::Impl::Punched(natd::SessionId id, SSession &s, const natd::PunchResult &r, natd::TimePoint now, uint32 nPackets, uint16 nRounds)
 {
 	s.path = r;
 	s.remote = r.remote;
@@ -585,8 +609,8 @@ void CNatTraversal::Impl::Punched(natd::SessionId id, SSession &s, const natd::P
 	s.tHeard = now;
 	s.tKeepalive = now + r.keepalive;
 	if (thePrefs.GetVerbose())
-		AddDebugLogLine(false, _T("NAT traversal: punched to %s (%hs), stream open, keepalive every %u s"), (LPCTSTR)EndpointStr(r.remote)
-			, natd::toString(r.strategy), (unsigned)(std::chrono::duration_cast<std::chrono::seconds>(r.keepalive).count()));
+		AddDebugLogLine(false, _T("NAT traversal: punched to %s (%hs) after %u packets in %u rounds, stream open, keepalive every %u s"), (LPCTSTR)EndpointStr(r.remote)
+			, natd::toString(r.strategy), nPackets, (unsigned)nRounds, (unsigned)(std::chrono::duration_cast<std::chrono::seconds>(r.keepalive).count()));
 	if (s.pLayer != NULL)
 		s.lPendingEvents |= FD_CONNECT;
 	else
@@ -1121,11 +1145,23 @@ void CNatTraversal::OnServerPeer(const SNatCallback &cb)
 	Impl &impl = *m_pImpl;
 	const bool bConnect = impl.server.nID < cb.nID;
 	const DWORD dwNow = ::GetTickCount();
+	// a copy while the punch it asked for is on; once that punch is over, the peer asks once more
+	// (89nl)
 	const std::map<uint32, DWORD>::const_iterator itSeen = impl.serverSeen.find(cb.nID);
 	if (itSeen != impl.serverSeen.end() && dwNow - itSeen->second < NATD_SERVER_SEEN) {
+		const DWORD dwSeen = itSeen->second;	// the poll may erase it
+		CSingleLock lock(&impl.cs, TRUE);
+		impl.Poll(natd::Clock::now());	// a punch whose time is up by now is over
+		bool bOn = false;
+		for (const std::pair<const natd::SessionId, SSession> &se : impl.sessions)
+			bOn |= se.second.nServerPeer == cb.nID && !se.second.bOver;
+		if (bOn) {
+			if (thePrefs.GetVerbose())
+				AddDebugLogLine(false, _T("NAT traversal: punch request from ID %u already taken %u s ago"), cb.nID, (unsigned)((dwNow - dwSeen) / SEC2MS(1)));
+			return;
+		}
 		if (thePrefs.GetVerbose())
-			AddDebugLogLine(false, _T("NAT traversal: punch request from ID %u already taken %u s ago"), cb.nID, (unsigned)((dwNow - itSeen->second) / SEC2MS(1)));
-		return;
+			AddDebugLogLine(false, _T("NAT traversal: punch request from ID %u once more, the last punch with it is over"), cb.nID);
 	}
 	impl.serverSeen[cb.nID] = dwNow;
 	// what both sides know: the user hash of the one that starts and both IDs, its own first
@@ -1143,14 +1179,14 @@ void CNatTraversal::OnServerPeer(const SNatCallback &cb)
 			if (thePrefs.GetVerbose())
 				AddDebugLogLine(false, _T("NAT traversal: punch with ID %u not started: our socket is no longer connecting"), cb.nID);
 			pLayer->RaiseEvent(FD_CONNECT, WSAECONNREFUSED);
-		} else if (!OpenSession(cb.dwIP, cb.nPort, token.data(), bConnect, pLayer, NATD_VIA_SERVER))
+		} else if (!OpenSession(cb.dwIP, cb.nPort, token.data(), bConnect, pLayer, NATD_VIA_SERVER, cb.nID))
 			pLayer->RaiseEvent(FD_CONNECT, WSAECONNREFUSED);
 		return;
 	}
 	// The request back goes before our first punch packet, which the next Process() sends: the
 	// endpoint the server sees is then our newest mapping, and the one towards the peer comes
 	// right after it, as a NAT with sequential ports gives them (89nj)
-	if (OpenSession(cb.dwIP, cb.nPort, token.data(), bConnect, NULL, NATD_VIA_SERVER) && impl.ServerRequest(cb.nID, _T("back, so that it learns our endpoint")))
+	if (OpenSession(cb.dwIP, cb.nPort, token.data(), bConnect, NULL, NATD_VIA_SERVER, cb.nID) && impl.ServerRequest(cb.nID, _T("back, so that it learns our endpoint")))
 		impl.serverAgain.emplace_back(cb.nID, dwNow);
 }
 
@@ -1279,6 +1315,8 @@ bool CNatTraversal::AttachOutgoing(CClientReqSocket *pSocket, CUpDownClient &cli
 		DropWait(nTargetID, WSAECONNREFUSED);
 		CNatdSocketLayer *pLayer = new CNatdSocketLayer(0, 0, NULL, byVia);
 		pLayer->m_nServerTarget = nTargetID;
+		pLayer->m_nServerPeer = nTargetID;
+		pLayer->m_dwAsked = ::GetTickCount();
 		m_pImpl->serverWaits[nTargetID] = Impl::SServerWait{pLayer, ::GetTickCount(), false};
 		pSocket->AttachNatdLayer(pLayer);
 	} else {
@@ -1345,7 +1383,7 @@ bool CNatTraversal::Connect(CNatdSocketLayer *pLayer)
 	return OpenSession(pLayer->GetIP(), pLayer->GetPort(), pLayer->GetToken(), true, pLayer, pLayer->m_byVia);
 }
 
-bool CNatTraversal::OpenSession(uint32 dwIP, uint16 nPort, const BYTE *pToken12, bool bConnect, CNatdSocketLayer *pLayer, uint8 byVia)
+bool CNatTraversal::OpenSession(uint32 dwIP, uint16 nPort, const BYTE *pToken12, bool bConnect, CNatdSocketLayer *pLayer, uint8 byVia, uint32 nServerPeer)
 {
 	CSingleLock lock(&m_pImpl->cs, TRUE);
 	// the IP filter, as for anything we would send to or read from that address: a request
@@ -1382,6 +1420,7 @@ bool CNatTraversal::OpenSession(uint32 dwIP, uint16 nPort, const BYTE *pToken12,
 	SSession &s = m_pImpl->sessions[id];
 	s.pLayer = pLayer;
 	s.remote = remote;
+	s.nServerPeer = nServerPeer;
 	if (pLayer != NULL)
 		pLayer->m_nSession = id;
 	if (thePrefs.GetVerbose())
@@ -1455,6 +1494,9 @@ void CNatTraversal::Detach(uint32 nSession)
 CNatdSocketLayer::CNatdSocketLayer(uint32 dwIP, uint16 nPort, const BYTE *pToken12, uint8 byVia)
 	: m_nSession()
 	, m_nServerTarget()
+	, m_nServerPeer()
+	, m_dwAsked()
+	, m_nTries(1)
 	, m_dwIP(dwIP)
 	, m_nPort(nPort)
 	, m_byVia(byVia)
