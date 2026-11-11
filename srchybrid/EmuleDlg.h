@@ -78,6 +78,8 @@ public:
 
 	CImageList& GetClientIconList()				{ return m_IconList; }
 	void ShowConnectionState();
+	// CNatTraversal::DelayConnection's wait is over (89nm)
+	void OnNatDiscoveryOver();
 	void ShowNotifier(LPCTSTR pszText, TbnMsg nMsgType, LPCTSTR pszLink = NULL, bool bForceSoundOFF = false);
 	void SendNotificationMail(TbnMsg nMsgType, LPCTSTR pszText);
 	void ShowUserCount();
@@ -224,8 +226,6 @@ protected:
 	static void CALLBACK UPnPTimeOutTimer(HWND hwnd, UINT uiMsg, UINT_PTR idEvent, DWORD dwTime) noexcept;
 
 	void StartConnection();
-	// CNatTraversal::DelayConnection's wait is over (89nm)
-	void OnNatDiscoveryOver();
 	void CloseConnection();
 	void MinimizeWindow();
 	void PostStartupMinimized();
