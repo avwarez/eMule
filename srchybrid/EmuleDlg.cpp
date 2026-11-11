@@ -236,6 +236,7 @@ CemuleDlg::CemuleDlg(CWnd *pParent /*=NULL*/)
 	, m_bMsgBlinkState()
 	, m_bConnectRequestDelayedForUPnP()
 	, m_bConnectRequestDelayedForNatd()
+	, m_bStartupNetCheck()
 	, m_bKadSuspendDisconnect()
 	, m_bEd2kSuspendDisconnect()
 	, m_bInitedCOM()
@@ -730,13 +731,10 @@ void CALLBACK CemuleDlg::StartupTimer(HWND /*hwnd*/, UINT /*uiMsg*/, UINT_PTR /*
 					AddLogLine(true, GetResString(IDS_MAIN_READY), (LPCTSTR)theApp.m_strCurVersionLong);
 
 				theApp.m_app_state = APP_STATE_RUNNING; //initialization completed
-				theApp.emuledlg->toolbar->EnableButton(TBBTN_CONNECT, TRUE);
-				theApp.emuledlg->m_SysMenuOptions.EnableMenuItem(MP_CONNECT, MF_ENABLED);
-				theApp.emuledlg->serverwnd->GetDlgItem(IDC_ED2KCONNECT)->EnableWindow();
+				// the connect buttons and the automatic connection wait for UPnP and the NAT discovery (89nm)
+				theApp.emuledlg->m_bStartupNetCheck = true;
 				theApp.emuledlg->kademliawnd->UpdateControlsState(); //application state change is not tracked - force update
-
-				if (thePrefs.DoAutoConnect())
-					theApp.emuledlg->OnBnClickedConnect();
+				theApp.emuledlg->EndStartupNetCheck();
 
 				theApp.emuledlg->UpdateStatusBarProgress();
 			}
@@ -1043,6 +1041,8 @@ void CemuleDlg::ShowConnectionState()
 			theApp.emuledlg->m_SysMenuOptions.ModifyMenu(MP_DISCONNECT, MF_STRING, MP_CONNECT, strPane);
 		}
 	}
+	if (m_bStartupNetCheck)	// ModifyMenu enabled it (89nm)
+		m_SysMenuOptions.EnableMenuItem(MP_CONNECT, MF_GRAYED);
 	ShowUserCount();
 	UpdateThumbBarButtons();
 }
@@ -1939,6 +1939,8 @@ void CemuleDlg::AddSpeedSelectorMenus(CMenu *addToMenu)
 
 void CemuleDlg::StartConnection()
 {
+	if (m_bStartupNetCheck)	// from the tray, the command line, the web server: the buttons are disabled (89nm)
+		return;
 	if ((!theApp.serverconnect->IsConnecting() && !theApp.serverconnect->IsConnected()) || !Kademlia::CKademlia::IsRunning()) {
 		// UPnP is still trying to open the ports. In order to not get a LowID by connecting to the servers / kad before
 		// the ports are opened we delay the connection until UPnP gets a result or the timeout is reached
@@ -1976,8 +1978,24 @@ void CemuleDlg::StartConnection()
 
 void CemuleDlg::OnNatDiscoveryOver()
 {
-	if (theApp.IsRunning() && m_bConnectRequestDelayedForNatd)
+	if (m_bStartupNetCheck)
+		EndStartupNetCheck();
+	else if (theApp.IsRunning() && m_bConnectRequestDelayedForNatd)
 		StartConnection();
+}
+
+void CemuleDlg::EndStartupNetCheck()
+{
+	// UPnP first (OnUPnPResult comes back here), then the NAT discovery (OnNatDiscoveryOver)
+	if (!m_bStartupNetCheck || m_hUPnPTimeOutTimer != 0 || theApp.nattraversal->DelayConnection())
+		return;
+	m_bStartupNetCheck = false;
+	toolbar->EnableButton(TBBTN_CONNECT, TRUE);
+	m_SysMenuOptions.EnableMenuItem(MP_CONNECT, MF_ENABLED);
+	serverwnd->GetDlgItem(IDC_ED2KCONNECT)->EnableWindow();
+	kademliawnd->UpdateControlsState();
+	if (thePrefs.DoAutoConnect())
+		OnBnClickedConnect();
 }
 
 void CemuleDlg::CloseConnection()
@@ -3431,6 +3449,8 @@ LRESULT CemuleDlg::OnUPnPResult(WPARAM wParam, LPARAM lParam)
 
 	if (theApp.IsRunning() && m_bConnectRequestDelayedForUPnP)
 		StartConnection();
+	if (m_bStartupNetCheck && m_hUPnPTimeOutTimer == 0)	// not while another UPnP implementation tries (89nm)
+		EndStartupNetCheck();
 
 	return 0;
 }

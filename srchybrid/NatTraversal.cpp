@@ -965,7 +965,7 @@ void CNatTraversal::Process()
 		impl.bConnectWaiting = false;
 		bConnect = true;
 		if (!impl.pAgent->profileReady())
-			AddLogLine(false, _T("NAT traversal: no result of the discovery after %u s, connecting without it"), (unsigned)(NATD_CONNECT_WAIT / SEC2MS(1)));
+			AddLogLine(false, _T("NAT traversal: no result of the discovery after %u s, the connection waits no longer"), (unsigned)(NATD_CONNECT_WAIT / SEC2MS(1)));
 	}
 	lock.Unlock();
 	if (bConnect)	// it may log in at once, which asks AnnounceServerPunch()
@@ -985,7 +985,7 @@ bool CNatTraversal::DelayConnection()
 	const DWORD dwNow = ::GetTickCount();
 	if (impl.dwConnectWait == 0) {
 		impl.dwConnectWait = dwNow ? dwNow : 1;
-		AddLogLine(false, _T("NAT traversal: connecting after the NAT discovery, at most %u s"), (unsigned)(NATD_CONNECT_WAIT / SEC2MS(1)));
+		AddLogLine(false, _T("NAT traversal: the connection waits for the NAT discovery, at most %u s"), (unsigned)(NATD_CONNECT_WAIT / SEC2MS(1)));
 	} else if (dwNow - impl.dwConnectWait >= NATD_CONNECT_WAIT)
 		return false;	// it had its time, once
 	impl.bConnectWaiting = true;

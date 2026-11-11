@@ -108,8 +108,8 @@ public:
 	bool	OnDatagram(const BYTE *pData, int nLen, uint32 dwIP, uint16 nPort);
 	// every 100 ms, from the upload timer
 	void	Process();
-	// The connection to the server and to Kad is about to start: true when it should wait for
-	// the NAT discovery, which this starts (after UPnP; 89nm). The dialog is then told when the
+	// At startup, and when the connection to the server and to Kad is about to start: true when
+	// it should wait for the NAT discovery, which this starts (after UPnP; 89nm). The dialog is then told when the
 	// discovery has a result (CemuleDlg::OnNatDiscoveryOver), or when it gave up waiting. Once
 	// only: after the wait it is false whatever the discovery.
 	bool	DelayConnection();
