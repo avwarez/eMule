@@ -101,6 +101,10 @@ public:
 	bool	OnDatagram(const BYTE *pData, int nLen, uint32 dwIP, uint16 nPort);
 	// every 100 ms, from the upload timer
 	void	Process();
+	// eMule closes, before the client UDP socket goes: every punched stream still open ends with
+	// its FINs at once, as a TCP connection gets its FIN, so that the peer does not wait for the
+	// path to go silent (89ni)
+	void	Shutdown();
 
 	// The discovery found an endpoint-independent mapping of the client UDP port (the Kad
 	// channels; the server takes a Bounded one too, 89nh).

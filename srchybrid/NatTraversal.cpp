@@ -846,6 +846,25 @@ void CNatTraversal::Impl::LogStats(LPCTSTR pszWhen) const
 		, nPathsDead, nPathsAddressChanged, st.endpointChecks, st.endpointChecksReused, st.endpointChanges, (unsigned)sessions.size(), nKeepalives);
 }
 
+// The FINs go back to back: nothing runs after to space them (NATD_PATH_FIN_GAP)
+void CNatTraversal::Shutdown()
+{
+	CSingleLock lock(&m_pImpl->cs, TRUE);
+	Impl &impl = *m_pImpl;
+	for (std::vector<Impl::SFin>::const_iterator it = impl.fins.begin(); it != impl.fins.end(); ++it)
+		for (int i = 0; i < it->nLeft; ++i)
+			impl.SendDatagram(it->socket, it->remote, it->token, NATD_PATH_FIN, NULL, 0);
+	impl.fins.clear();
+	for (std::map<natd::SessionId, SSession>::iterator it = impl.sessions.begin(); it != impl.sessions.end(); ++it) {
+		SSession &s = it->second;
+		if (!s.pKcp || s.bOver)
+			continue;
+		for (int i = 0; i < NATD_PATH_FINS; ++i)
+			impl.SendDatagram(s.path.socket, s.path.remote, s.path.token, NATD_PATH_FIN, NULL, 0);
+		s.bOver = true;
+	}
+}
+
 CNatTraversal::~CNatTraversal()
 {
 	CSingleLock lock(&m_pImpl->cs, TRUE);

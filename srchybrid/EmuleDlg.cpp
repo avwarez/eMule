@@ -1748,6 +1748,7 @@ void CemuleDlg::OnClose()
 	// NOTE: Do not move those dtors into 'CemuleApp::InitInstance' (although they should be there). The
 	// dtors are indirectly calling functions which access several windows which would not be available
 	// after we have closed the main window -> crash!
+	theApp.nattraversal->Shutdown();	// the punched streams' FINs, while the client UDP socket is there
 	delete theApp.listensocket;				theApp.listensocket = NULL;
 	delete theApp.clientudp;				theApp.clientudp = NULL;
 	delete theApp.nattraversal;			theApp.nattraversal = NULL;	// after every client socket
