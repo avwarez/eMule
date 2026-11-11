@@ -1354,8 +1354,8 @@ bool CNatTraversal::OpenSession(uint32 dwIP, uint16 nPort, const BYTE *pToken12,
 		return false;
 	// Through the server nothing says whether the peer's mapping is endpoint-independent,
 	// random in a block of ports (a mobile CGN) or sequential: natd punches the endpoint the
-	// server saw and, should nobody answer there, the block around it and the ports just past it
-	// too (PeerNat::Unknown, 89nh, 89nj).
+	// server saw and, should nobody answer there, the ports nearest to it, more each round, with
+	// no block size assumed (PeerNat::Unknown, 89nh, 89nj, 89nk).
 	const bool bServer = byVia == NATD_VIA_SERVER;
 	LPCTSTR pszNot = NULL;
 	if (bServer ? !m_pImpl->pAgent->punchable() : !m_pImpl->pAgent->directPunchable())

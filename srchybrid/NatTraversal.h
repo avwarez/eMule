@@ -29,8 +29,8 @@
 // (Predictability::Bounded, mobile CGNs, 89nh) or to sequential ports (Predictable, 89nj) can
 // be punched to as well: nothing tells either side the other's NAT there, so an
 // endpoint-independent side punches the endpoint the server saw and, should nobody answer
-// there, the block of ports around it and the ports just past it (natd::PeerNat::Unknown); the
-// other side punches the endpoint from the client UDP port.
+// there, the ports nearest to it, more each round, whatever the size of the block (natd::PeerNat::
+// Unknown, 89nk); the other side punches the endpoint from the client UDP port.
 //
 // A punch is used only where TCP cannot work: a LowID downloader and a LowID source that
 // carries TAG_NATDCLIENT. The downloader asks the source through the source's buddy
