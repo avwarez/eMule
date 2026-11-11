@@ -70,7 +70,6 @@ static char THIS_FILE[] = __FILE__;
 #define NATD_PATH_FINS			3		// a FIN goes this many times, NATD_PATH_FIN_GAP apart: a lost one
 #define NATD_PATH_FIN_GAP		((DWORD)300)	// would leave the peer waiting for the path to go silent
 #define NATD_PATH_LINGER		((DWORD)SEC2MS(10))	// a stream eMule closed, until its FIN is through
-#define NATD_KEEPALIVE_MARGIN	natd::Duration(SEC2MS(10))	// the keepalive goes this long before natd's mapping lifetime
 #define NATD_SERVER_RESEND		((DWORD)SEC2MS(3))	// a request through the server goes once more after this
 #define NATD_SERVER_WAIT		((DWORD)SEC2MS(20))	// for the target's request back, with its endpoint
 #define NATD_SERVER_PINGS		5		// status requests for the server's UDP key, 20 s apart
@@ -220,11 +219,8 @@ namespace
 			if (theApp.clientudp == NULL || theApp.clientudp->m_hSocket == INVALID_SOCKET || nLen > 8192)
 				return false;
 			const sockaddr_in sa(SockAddr(htonl(to.ip), to.port));
-			const bool bSent = ::sendto(theApp.clientudp->m_hSocket, reinterpret_cast<const char*>(pData), (int)nLen, 0
+			return ::sendto(theApp.clientudp->m_hSocket, reinterpret_cast<const char*>(pData), (int)nLen, 0
 				, reinterpret_cast<const sockaddr*>(&sa), (int)sizeof sa) == (int)nLen;
-			if (bSent)
-				theApp.clientudp->SetSentNow();
-			return bSent;
 		}
 	};
 }
@@ -464,9 +460,6 @@ struct CNatTraversal::Impl
 	// the wait began (0: not asked), and whether the dialog still waits to be told it is over
 	DWORD dwConnectWait = 0;
 	bool bConnectWaiting = false;
-	void Keepalive();
-	DWORD dwLastKeepalive = 0;
-	uint32 nKeepalives = 0;	// since the last hourly counters
 
 	// 89ng, the server we are logged in to as a LowID, when it coordinates punches; main thread
 	struct SServer
@@ -591,8 +584,8 @@ void CNatTraversal::Impl::HandleEvents(natd::TimePoint now)
 		}
 		if (e.type == natd::AgentEventType::EndpointChanged) {
 			// the paths went with the old endpoint: their streams end as the TCP connections of a
-			// client whose address changed. The sources are published again with the new endpoint
-			// (CKnownFile::PublishSrc, GetPunchEndpoint).
+			// client whose address changed. The sources are not published again: nobody punches the
+			// endpoint they carry, a relay brings each peer the other's (89no).
 			AddLogLine(false, _T("NAT traversal: public endpoint changed to %s - downloads between LowIDs through UDP hole punching %s"), (LPCTSTR)EndpointStr(pAgent->publicEndpoint())
 				, VerdictStr(Verdict()));
 			for (std::map<natd::SessionId, SSession>::iterator it = sessions.begin(); it != sessions.end(); ++it)
@@ -931,9 +924,9 @@ void CNatTraversal::Impl::LogStats(LPCTSTR pszWhen) const
 	if (!thePrefs.GetVerbose() || !pAgent->started())
 		return;
 	const natd::AgentStats &st = pAgent->stats();
-	AddDebugLogLine(false, _T("NAT traversal: counters (%s): punches started %I64u, queued %I64u, established %I64u, failed %I64u, refused %I64u; streams dead %I64u, ended for an address change %I64u; endpoint checks %I64u, reused %I64u, changes %I64u; sessions now %u; mapping keepalives %u")
+	AddDebugLogLine(false, _T("NAT traversal: counters (%s): punches started %I64u, queued %I64u, established %I64u, failed %I64u, refused %I64u; streams dead %I64u, ended for an address change %I64u; endpoint checks %I64u, reused %I64u, changes %I64u; sessions now %u")
 		, pszWhen, st.punchesStarted, st.punchesQueued, st.punchesEstablished, st.punchesFailed, st.punchesRefused
-		, nPathsDead, nPathsAddressChanged, st.endpointChecks, st.endpointChecksReused, st.endpointChanges, (unsigned)sessions.size(), nKeepalives);
+		, nPathsDead, nPathsAddressChanged, st.endpointChecks, st.endpointChecksReused, st.endpointChanges, (unsigned)sessions.size());
 }
 
 // The FINs go back to back: nothing runs after to space them (NATD_PATH_FIN_GAP)
@@ -1015,9 +1008,7 @@ void CNatTraversal::Process()
 		if (impl.dwLastStats != 0)
 			impl.LogStats(_T("last hour"));
 		impl.dwLastStats = ::GetTickCount();
-		impl.nKeepalives = 0;
 	}
-	impl.Keepalive();
 	ServerTimer();
 	BuddyTimer();
 	bool bConnect = false;
@@ -1388,41 +1379,14 @@ void CNatTraversal::OnBuddyBack(const SNatCallback &cb, uint64 nNonce)
 		pLayer->RaiseEvent(FD_CONNECT, WSAECONNREFUSED);
 }
 
-// A LowID that published its port as punchable keeps the NAT's mapping of it: when nothing left
-// the client UDP socket for the mapping lifetime natd gives, less a margin, a Kad ping to a random
-// contact, as the external port lookup sends (CKademlia::Process). Nothing is sent otherwise.
-void CNatTraversal::Impl::Keepalive()
-{
-	if (!pAgent->directPunchable() || !Kademlia::CKademlia::IsConnected() || !Kademlia::CKademlia::IsFirewalled() || theApp.clientudp == NULL)
-		return;
-	const std::optional<natd::Duration> lifetime = natd::mappingLifetime(pAgent->profile());
-	if (!lifetime || *lifetime <= NATD_KEEPALIVE_MARGIN)
-		return;
-	const DWORD dwIdle = (DWORD)(*lifetime - NATD_KEEPALIVE_MARGIN).count();
-	const DWORD dwNow = ::GetTickCount();
-	// the ping is queued: until it is on the wire the socket's last send is older than it
-	if (dwNow - theApp.clientudp->GetLastSent() < dwIdle || (dwLastKeepalive != 0 && dwNow - dwLastKeepalive < dwIdle))
-		return;
-	Kademlia::CContact *pContact = Kademlia::CKademlia::GetRoutingZone()->GetRandomContact(3, KADEMLIA_VERSION6_49aBETA);
-	if (pContact == NULL)
-		return;
-	dwLastKeepalive = dwNow;
-	++nKeepalives;
-	const Kademlia::CUInt128 uTargetID(pContact->GetClientID());
-	Kademlia::CKademlia::GetUDPListener()->SendNullPacket(KADEMLIA2_PING, pContact->GetIPAddress(), pContact->GetUDPPort(), pContact->GetUDPKey(), &uTargetID);
-}
-
 bool CNatTraversal::IsPunchable() const
 {
 	return m_pImpl->pAgent->punchable();
 }
 
-uint64 CNatTraversal::GetPunchEndpoint() const
+bool CNatTraversal::IsDirectPunchable() const
 {
-	if (!m_pImpl->pAgent->directPunchable())
-		return m_pImpl->pAgent->punchable() ? 1 : 0;
-	const natd::Endpoint ep(m_pImpl->pAgent->publicEndpoint());
-	return ((uint64)ep.ip << 16) | ep.port;
+	return m_pImpl->pAgent->directPunchable();
 }
 
 // One check at a time, none within natd's checkReuse (a minute) of the last one, whose result stands.
@@ -1585,11 +1549,20 @@ bool CNatTraversal::ReadCallback(CSafeMemFile &data, uint32 dwIP, uint16 nPort, 
 // Through the buddies the request back goes before our first punch packet, which the next
 // Process() sends, as through the server: the endpoint the requester's buddy sees is then our
 // newest mapping, and the one towards the requester comes right after it (89nj, 89nn). A request
-// without the requester's buddy (89nc) is punched as before: the requester punches the endpoint
-// we published, which only an endpoint-independent mapping of ours keeps.
+// without the requester's buddy is not taken (89no): the requester would punch the endpoint we
+// published, which nobody keeps fresh, while the buddies bring each side the other's.
+// The requester's endpoint is the one its buddy saw a UDP datagram come from, which a forged
+// source address can make up, as it can for eMule's own callback: the punch towards it then
+// finds no one punching back, and ends within natd's caps (small datagrams, at most maxPackets
+// in its 20 s, a few punches at once).
 bool CNatTraversal::StartIncoming(const SNatCallback &cb, uint64 nNonce, uint8 byVia, const uchar *pFileHash)
 {
-	const bool bBack = byVia == NATD_VIA_BUDDY && cb.bBuddy && pFileHash != NULL;
+	if (byVia == NATD_VIA_BUDDY && (!cb.bBuddy || pFileHash == NULL)) {
+		if (thePrefs.GetVerbose())
+			AddDebugLogLine(false, _T("NAT traversal: punch request through our buddy from %s:%u not taken: no buddy of the requester to answer through"), (LPCTSTR)ipstr(cb.dwIP), cb.nPort);
+		return false;
+	}
+	const bool bBack = byVia == NATD_VIA_BUDDY;
 	if (!OpenSession(cb.dwIP, cb.nPort, natd::tokenFrom(cb.abyHash, 16, nNonce).data(), false, NULL, byVia, 0, bBack))
 		return false;
 	if (bBack && m_pImpl->BuddyRequest(cb.abyBuddyID, cb.dwBuddyIP, cb.nBuddyPort, pFileHash, NATD_MARKER_BACK, nNonce, _T("back, so that the requester learns our endpoint"))) {

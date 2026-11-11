@@ -22,13 +22,13 @@
 // client UDP port (the one Kad uses), with public STUN servers only - no server of our own:
 // natd's list, or the user's in stun.dat (config directory).
 //
-// The client is "punchable" when its NAT maps that port endpoint-independently (natd
-// Predictability::Stable): the endpoint a third party sees is then the one every peer sees,
-// so two punchable LowIDs can reach each other through the endpoints their buddies saw.
-// Through the server a NAT that maps it to random ports inside a block of ports
-// (Predictability::Bounded, mobile CGNs, 89nh) or to sequential ports (Predictable, 89nj) can
-// be punched to as well: nothing tells either side the other's NAT there, so an
-// endpoint-independent side punches the endpoint the server saw and, should nobody answer
+// Two LowIDs learn each other's public endpoint only through a relay that sees both of them:
+// the eD2K server, or their two Kad buddies (89nn), as the server does. A source with an open
+// UDP port is its own relay (OP_DIRECTCALLBACKREQ), and needs the requester's NAT to map
+// endpoint-independently (natd Predictability::Stable). Through a relay a NAT that maps it to
+// random ports inside a block of ports (Predictability::Bounded, mobile CGNs, 89nh) or to
+// sequential ports (Predictable, 89nj) can be punched to as well: nothing tells either side the
+// other's NAT there, so an endpoint-independent side punches the endpoint the relay saw and, should nobody answer
 // there, the ports nearest to it, more each round, whatever the size of the block (natd::PeerNat::
 // Unknown, 89nk); the other side punches the endpoint from the client UDP port.
 //
@@ -137,10 +137,8 @@ public:
 	// server or the buddies: endpoint-independent, or random in a block of ports, or sequential
 	// (89nh, 89nj, 89nn). A source with an open UDP port takes an endpoint-independent one only.
 	bool	IsPunchable() const;
-	// What of the NAT a source record says, as one number: the public endpoint the index node
-	// sees while endpoint-independent, 1 while punchable otherwise (TAG_NATDCLIENT), 0 when not;
-	// a change means publishing again.
-	uint64	GetPunchEndpoint() const;
+	// Endpoint-independent: a source with an open UDP port can be punched to as well.
+	bool	IsDirectPunchable() const;
 	// The TCP connection to the buddy broke: a new public address breaks it at once. The
 	// endpoint is checked; if it changed, the punched streams end as TCP connections do.
 	void	OnBuddyLost();

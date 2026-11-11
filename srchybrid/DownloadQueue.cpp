@@ -1521,12 +1521,13 @@ bool CDownloadQueue::DoKademliaFileRequest() const
 	return ::GetTickCount() >= m_lastkademliafilerequest + KADEMLIAASKTIME;
 }
 
-// A LowID Kad source is of use to a LowID only when both of them can be punched to (89nb)
-static bool KeepFirewalledSource(bool bNatd, uint32 dwIP, const CPartFile &file)
+// A LowID Kad source is of use to a LowID only when both of them can be punched to (89nb); one
+// with an open UDP port (bDirect) only when our NAT maps endpoint-independently (89no)
+static bool KeepFirewalledSource(bool bNatd, bool bDirect, uint32 dwIP, const CPartFile &file)
 {
 	if (!theApp.IsFirewalled())
 		return true;
-	const bool bKeep = bNatd && theApp.nattraversal->IsPunchable();
+	const bool bKeep = bNatd && (bDirect ? theApp.nattraversal->IsDirectPunchable() : theApp.nattraversal->IsPunchable());
 	if (bNatd && thePrefs.GetVerbose())
 		AddDebugLogLine(false, bKeep ? _T("NAT traversal: LowID source %s for \"%s\" not dropped as LowID-to-LowID: both of us can be punched to")
 			: _T("NAT traversal: LowID source %s for \"%s\" dropped: it can be punched to, we cannot"), (LPCTSTR)ipstr(dwIP), (LPCTSTR)file.GetFileName());
@@ -1582,7 +1583,7 @@ void CDownloadQueue::KademliaSearchFile(uint32 nSearchID, const Kademlia::CUInt1
 		//This will be a firewalled client connected to Kad only.
 		// if we are firewalled ourself, the source is useless to us
 		// - unless both of us can be punched to (TAG_NATDCLIENT)
-		if (!KeepFirewalledSource(bNatd, ED2Kip, *temp))
+		if (!KeepFirewalledSource(bNatd, false, ED2Kip, *temp))
 			break;
 
 		if (theApp.ipfilter->IsFiltered(dwBuddyIP)) {
@@ -1618,7 +1619,7 @@ void CDownloadQueue::KademliaSearchFile(uint32 nSearchID, const Kademlia::CUInt1
 		// firewalled source which supports direct UDP callback
 		// if we are firewalled ourselves, the source is useless to us
 		// - unless both of us can be punched to (TAG_NATDCLIENT)
-		if (!KeepFirewalledSource(bNatd, ED2Kip, *temp))
+		if (!KeepFirewalledSource(bNatd, true, ED2Kip, *temp))
 			break;
 
 		if ((byCryptOptions & 0x08) == 0)

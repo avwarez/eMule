@@ -509,7 +509,6 @@ int CClientUDPSocket::SendTo(uchar *lpBuf, int nBufLen, uint32 dwIP, uint16 nPor
 			DebugLogError(_T("Error: Client UDP socket, failed to send data to %s:%u: %s"), (LPCTSTR)ipstr(dwIP), nPort, (LPCTSTR)GetErrorMessage(dwError, 1));
 		return 0; //error
 	}
-	SetSentNow();
 	return result; //success
 }
 

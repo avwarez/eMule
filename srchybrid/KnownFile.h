@@ -176,7 +176,7 @@ private:
 	time_t	m_lastPublishTimeKadNotes;
 	uint32	kadFileSearchID;
 	uint32	m_lastBuddyIP;
-	uint64	m_nLastPunchEndpoint = 0;	// NAT traversal: the public endpoint the last source record carried
+	bool	m_bLastPunchable = false;	// NAT traversal: whether the last source record carried TAG_NATDCLIENT
 	UINT	m_uMetaDataVer;
 	uint16	m_iPartCount;
 	uint16	m_iED2KPartCount;
