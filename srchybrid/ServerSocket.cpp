@@ -567,7 +567,7 @@ bool CServerSocket::ProcessPacket(const BYTE *packet, uint32 size, uint8 opcode)
 			}
 			break;
 		case OP_NAT_CALLBACK_TCP:
-			// a LowID asks to punch to us (89ng)
+			// a LowID asks to punch to us
 			if (thePrefs.GetDebugServerTCPLevel() > 0)
 				Debug(_T("ServerMsg - OP_NatCallback %s\n"), (LPCTSTR)DbgGetHexDump(packet, size));
 			theApp.nattraversal->OnServerCallback(packet, size);

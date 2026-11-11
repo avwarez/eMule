@@ -78,9 +78,9 @@ public:
 
 	CImageList& GetClientIconList()				{ return m_IconList; }
 	void ShowConnectionState();
-	// CNatTraversal::DelayConnection's wait is over (89nm)
+	// CNatTraversal::DelayConnection's wait is over
 	void OnNatDiscoveryOver();
-	// At startup, until UPnP and the NAT discovery are over: the connect buttons are disabled (89nm)
+	// At startup, until UPnP and the NAT discovery are over: the connect buttons are disabled
 	bool IsStartupNetCheck() const					{ return m_bStartupNetCheck; }
 	void ShowNotifier(LPCTSTR pszText, TbnMsg nMsgType, LPCTSTR pszLink = NULL, bool bForceSoundOFF = false);
 	void SendNotificationMail(TbnMsg nMsgType, LPCTSTR pszText);
@@ -195,8 +195,8 @@ protected:
 	bool			m_bStartMinimized;
 	bool			m_bMsgBlinkState;
 	bool			m_bConnectRequestDelayedForUPnP;
-	bool			m_bConnectRequestDelayedForNatd;	// 89nm
-	bool			m_bStartupNetCheck;					// 89nm, IsStartupNetCheck
+	bool			m_bConnectRequestDelayedForNatd;
+	bool			m_bStartupNetCheck;					// IsStartupNetCheck
 	bool			m_bKadSuspendDisconnect;
 	bool			m_bEd2kSuspendDisconnect;
 	bool			m_bInitedCOM;
@@ -229,7 +229,7 @@ protected:
 	static void CALLBACK UPnPTimeOutTimer(HWND hwnd, UINT uiMsg, UINT_PTR idEvent, DWORD dwTime) noexcept;
 
 	void StartConnection();
-	// 89nm: once UPnP (when enabled) and the NAT discovery are over, the connect buttons are
+	// once UPnP (when enabled) and the NAT discovery are over, the connect buttons are
 	// enabled and the automatic connection starts; called again by both when they end
 	void EndStartupNetCheck();
 	void CloseConnection();

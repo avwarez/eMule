@@ -43,10 +43,6 @@
 #include "Log.h"
 #include "kademlia/kademlia/Kademlia.h"
 #include "kademlia/kademlia/Prefs.h"
-#include "kademlia/net/KademliaUDPListener.h"
-#include "kademlia/routing/Contact.h"
-#include "kademlia/routing/RoutingZone.h"
-#include "kademlia/utils/KadUDPKey.h"
 #include "kademlia/utils/UInt128.h"
 #include "natd/natd.hpp"
 #include "natd/resolve.hpp"
@@ -70,20 +66,18 @@ static char THIS_FILE[] = __FILE__;
 #define NATD_PATH_FINS			3		// a FIN goes this many times, NATD_PATH_FIN_GAP apart: a lost one
 #define NATD_PATH_FIN_GAP		((DWORD)300)	// would leave the peer waiting for the path to go silent
 #define NATD_PATH_LINGER		((DWORD)SEC2MS(10))	// a stream eMule closed, until its FIN is through
-#define NATD_SERVER_RESEND		((DWORD)SEC2MS(3))	// a request through the server goes once more after this
-#define NATD_SERVER_WAIT		((DWORD)SEC2MS(20))	// for the target's request back, with its endpoint
+// Through a relay (the server, the buddies): a request goes once more after NATD_RELAY_RESEND,
+// and waits for the peer's request back at most NATD_RELAY_WAIT. A punch that timed out is asked
+// for once more, with a new request, while the socket has been connecting for less than eMule's
+// connection timeout (as TCP sends its SYN again within it), NATD_RELAY_TRIES punches at most.
+#define NATD_RELAY_RESEND		((DWORD)SEC2MS(3))
+#define NATD_RELAY_WAIT			((DWORD)SEC2MS(20))
+#define NATD_RELAY_RETRY_WITHIN	((DWORD)CONNECTION_TIMEOUT)
+#define NATD_RELAY_TRIES		3
 #define NATD_SERVER_PINGS		5		// status requests for the server's UDP key, 20 s apart
 #define NATD_SERVER_PING_RETRY	((DWORD)SEC2MS(20))
 #define NATD_SERVER_SEEN		((DWORD)SEC2MS(30))	// a peer the server brought again within this is a copy
-// A punch through the server that timed out is asked for once more, with a new request, while
-// the socket has been connecting for less than eMule's connection timeout: as TCP sends its SYN
-// again within it. The peer's NAT then opens a new mapping, whose endpoint the server brings
-// fresh (89nl).
-#define NATD_SERVER_RETRY_WITHIN	((DWORD)CONNECTION_TIMEOUT)
-#define NATD_SERVER_TRIES		3		// at most, whatever the time
-// Through the buddies (89nn) the requests go, wait and are asked for once more as through the
-// server: NATD_SERVER_RESEND, NATD_SERVER_WAIT, NATD_SERVER_RETRY_WITHIN, NATD_SERVER_TRIES.
-// The connection waits for the discovery at most this long (89nm). natd's discovery ends within
+// The connection waits for the discovery at most this long. natd's discovery ends within
 // about 40 s even when no STUN server answers: the rest is for resolving their names.
 #define NATD_CONNECT_WAIT		((DWORD)SEC2MS(60))
 
@@ -126,7 +120,7 @@ namespace
 	}
 
 	// Our buddy as our Kad sources publish it (CSearch::StorePacket): the buddy ID it knows us
-	// by, its IP and UDP port. False without a buddy connected to us (89nn).
+	// by, its IP and UDP port. False without a buddy connected to us.
 	bool OurBuddy(uchar *pBuddyID, uint32 &dwIP, uint16 &nPort)
 	{
 		const CUpDownClient *pBuddy = theApp.clientlist->GetBuddy();
@@ -141,7 +135,7 @@ namespace
 	}
 
 	// The punch request after the endpoint (SNatCallback), as we send it: our ID, our crypt
-	// settings and our user hash; through the buddies, our buddy (89nn)
+	// settings and our user hash; through the buddies, our buddy
 	void WriteCallback(CSafeMemFile &data, uint32 nID, bool bBuddy = false)
 	{
 		uchar abyBuddyID[16];
@@ -172,7 +166,7 @@ namespace
 		}
 	}
 
-	// The nonce of a punch through the server (89ng), where no marker fits: both peers know the
+	// The nonce of a punch through the server, where no marker fits: both peers know the
 	// two IDs, the one of the side that starts the punch first
 	uint64 ServerNonce(uint32 nStarterID, uint32 nOtherID)
 	{
@@ -388,7 +382,7 @@ namespace
 		bool				bReadPosted = false;	// an FD_READ is on its way to the socket
 		bool				bClosePosted = false;
 		bool				bOver = false;		// the punch failed, or the path ended
-		uint32				nServerPeer = 0;	// 89nl: through the server, the peer's ID there
+		uint32				nServerPeer = 0;	// through the server, the peer's ID there
 		// once punched: the path and the stream on it
 		natd::PunchResult	path;
 		std::unique_ptr<CNatdKcpTransport> pKcp;
@@ -407,9 +401,9 @@ struct CNatTraversal::Impl
 	std::unique_ptr<natd::StunResolver> pStun;	// the STUN servers, their names resolved off the main thread; made when first needed
 	std::unique_ptr<natd::Agent> pAgent;
 	int nLoggedVerdict = -1;	// the verdict the user's log gave last (Verdict)
-	// 2: punchable through every channel (endpoint-independent mapping); 1: through the server
-	// and the buddies only, whose punch also reaches a NAT with port blocks or sequential ports
-	// (Bounded, 89nh; Predictable, 89nj; the buddies, 89nn); 0: not at all
+	// 2: punchable through every channel (endpoint-independent mapping); 1: through a relay
+	// only, the server or the buddies, whose punch also reaches a NAT with port blocks or
+	// sequential ports (Bounded, Predictable); 0: not at all
 	int Verdict() const
 	{
 		return pAgent->directPunchable() ? 2 : pAgent->punchable() ? 1 : 0;
@@ -456,12 +450,12 @@ struct CNatTraversal::Impl
 	void RaiseEvents();
 	DWORD dwLastStats = 0;
 	void LogStats(LPCTSTR pszWhen) const;
-	// 89nm: the connection to the server and to Kad waits for the discovery, as for UPnP. When
+	// the connection to the server and to Kad waits for the discovery, as for UPnP. When
 	// the wait began (0: not asked), and whether the dialog still waits to be told it is over
 	DWORD dwConnectWait = 0;
 	bool bConnectWaiting = false;
 
-	// 89ng, the server we are logged in to as a LowID, when it coordinates punches; main thread
+	// the server we are logged in to as a LowID, when it coordinates punches; main thread
 	struct SServer
 	{
 		uint32	dwIP = 0;				// network order; 0: none
@@ -475,33 +469,32 @@ struct CNatTraversal::Impl
 		bool	bGaveUp = false;		// the last status request went unanswered: logged
 		bool	Ready() const		{ return dwKey != 0; }
 	} server;
-	// our requests, until the target's request back brings its endpoint; by the target's ID
-	struct SServerWait
-	{
-		CNatdSocketLayer *pLayer;
-		DWORD	dwSent;
-		bool	bResent;
-	};
-	std::map<uint32, SServerWait> serverWaits;
-	std::deque<std::pair<uint32, DWORD>> serverAgain;	// our requests back, to send once more: ID, sent at
 	std::map<uint32, DWORD> serverSeen;	// the peers the server brought lately: ID, when
 	void ServerPing(DWORD dwNow);
 	// pszWhy: for the log
 	bool ServerRequest(uint32 nTargetID, LPCTSTR pszWhy);
 
-	// 89nn, the buddies. Our requests until the source's request back brings its endpoint, by
-	// nonce (SServerWait's fields); the requests back we send once more, as through the server
-	std::map<uint64, SServerWait> buddyWaits;
-	struct SBuddyBack
+
+	// Through a relay, the server or the buddies: our requests until the peer's request back
+	// brings its endpoint, by channel and key (the target's ID on the server, the request's nonce
+	// through the buddies); the requests back, which go once more after NATD_RELAY_RESEND
+	struct SWait
 	{
-		uchar	abyBuddyID[16];		// the requester's buddy
-		uint32	dwIP;
-		uint16	nPort;
-		uchar	abyFile[16];
-		uint64	nNonce;
+		CNatdSocketLayer *pLayer;
 		DWORD	dwSent;
+		bool	bResent;
 	};
-	std::deque<SBuddyBack> buddyAgain;
+	typedef std::pair<uint8, uint64> WaitKey;
+	std::map<WaitKey, SWait> waits;
+	struct SAgain
+	{
+		DWORD	dwSent;
+		uint8	byVia;
+		std::function<void()> send;
+	};
+	std::deque<SAgain> again;
+	// our request of that socket once more, with that key
+	bool Ask(const CNatdSocketLayer &layer, uint64 nKey, LPCTSTR pszWhy);
 	// OP_REASKCALLBACKUDP to a buddy, from the client UDP port, at once (the punch packets that
 	// follow go at once too): <buddy ID 16><file 16>, the marker of byKind with nNonce, and our
 	// request, with our buddy on a request of ours (NATD_MARKER_PUNCH). The buddy forwards it
@@ -585,7 +578,7 @@ void CNatTraversal::Impl::HandleEvents(natd::TimePoint now)
 		if (e.type == natd::AgentEventType::EndpointChanged) {
 			// the paths went with the old endpoint: their streams end as the TCP connections of a
 			// client whose address changed. The sources are not published again: nobody punches the
-			// endpoint they carry, a relay brings each peer the other's (89no).
+			// endpoint they carry, a relay brings each peer the other's.
 			AddLogLine(false, _T("NAT traversal: public endpoint changed to %s - downloads between LowIDs through UDP hole punching %s"), (LPCTSTR)EndpointStr(pAgent->publicEndpoint())
 				, VerdictStr(Verdict()));
 			for (std::map<natd::SessionId, SSession>::iterator it = sessions.begin(); it != sessions.end(); ++it)
@@ -619,33 +612,24 @@ void CNatTraversal::Impl::HandleEvents(natd::TimePoint now)
 				sessions.erase(it);	// a punch we were asked for, or a socket already gone
 				continue;
 			}
-			// through the server, timed out: once more with a new request while the socket has been
-			// connecting for less than eMule's connection timeout (89nl)
+			// through a relay, timed out: once more with a new request while the socket has been
+			// connecting for less than eMule's connection timeout, as TCP sends its SYN again. The
+			// peer's NAT opens a new mapping, whose endpoint its request back brings; through the
+			// buddies with a new nonce, so a new token.
 			CNatdSocketLayer *pLayer = s.pLayer;
 			const DWORD dwNow = ::GetTickCount();
-			if (e.error == natd::PunchError::TimedOut && pLayer->GetVia() == NATD_VIA_SERVER && pLayer->GetServerPeer() != 0
-				&& pLayer->GetTries() < NATD_SERVER_TRIES && dwNow - pLayer->GetAskedAt() < NATD_SERVER_RETRY_WITHIN
-				&& pLayer->IsConnecting() && serverWaits.find(pLayer->GetServerPeer()) == serverWaits.end()
-				&& ServerRequest(pLayer->GetServerPeer(), _T("ours, once more: the punch timed out")))
+			const uint8 byVia = pLayer->GetVia();
+			if (e.error == natd::PunchError::TimedOut && (byVia == NATD_VIA_SERVER || byVia == NATD_VIA_BUDDY)
+				&& pLayer->GetTries() < NATD_RELAY_TRIES && dwNow - pLayer->GetAskedAt() < NATD_RELAY_RETRY_WITHIN && pLayer->IsConnecting())
 			{
-				const uint32 nPeer = pLayer->GetServerPeer();
-				sessions.erase(it);
-				pLayer->ServerRetry();
-				serverSeen.erase(nPeer);
-				serverWaits[nPeer] = SServerWait{pLayer, dwNow, false};
-				continue;
-			}
-			// the same through the buddies, with a new nonce: a new token, and the source's NAT
-			// opens a new mapping, whose endpoint the source's request back brings (89nn)
-			if (e.error == natd::PunchError::TimedOut && pLayer->GetVia() == NATD_VIA_BUDDY && pLayer->HasBuddyRoute()
-				&& pLayer->GetTries() < NATD_SERVER_TRIES && dwNow - pLayer->GetAskedAt() < NATD_SERVER_RETRY_WITHIN
-				&& pLayer->IsConnecting())
-			{
-				const uint64 nNonce = RandomUInt64();
-				if (BuddyRequest(pLayer->GetRelayID(), pLayer->GetRelayIP(), pLayer->GetRelayPort(), pLayer->GetFile(), NATD_MARKER_PUNCH, nNonce, _T("ours, once more: the punch timed out"))) {
+				const bool bServer = byVia == NATD_VIA_SERVER;
+				const uint64 nKey = bServer ? pLayer->GetServerPeer() : RandomUInt64();
+				if (waits.find(WaitKey(byVia, nKey)) == waits.end() && Ask(*pLayer, nKey, _T("ours, once more: the punch timed out"))) {
 					sessions.erase(it);
-					pLayer->BuddyRetry(nNonce, natd::tokenFrom(thePrefs.GetUserHash(), 16, nNonce).data());
-					buddyWaits[nNonce] = SServerWait{pLayer, dwNow, false};
+					if (bServer)
+						serverSeen.erase(pLayer->GetServerPeer());
+					pLayer->Retry(nKey, bServer ? NULL : natd::tokenFrom(thePrefs.GetUserHash(), 16, nKey).data());
+					waits[WaitKey(byVia, nKey)] = SWait{pLayer, dwNow, false};
 					continue;
 				}
 			}
@@ -986,7 +970,7 @@ void CNatTraversal::Process()
 	Impl &impl = *m_pImpl;
 	const natd::TimePoint now = natd::Clock::now();
 	CSingleLock lock(&impl.cs, TRUE);
-	// before the connection, which waits for it (DelayConnection, 89nm); else as soon as we are a
+	// before the connection, which waits for it (DelayConnection); else as soon as we are a
 	// LowID: on the server, or in Kad once its firewall check is over (Kad says firewalled while
 	// it checks) - a connection made without the wait (a server picked in the list, Kad started
 	// from its window)
@@ -1010,7 +994,7 @@ void CNatTraversal::Process()
 		impl.dwLastStats = ::GetTickCount();
 	}
 	ServerTimer();
-	BuddyTimer();
+	RelayTimer();
 	bool bConnect = false;
 	if (impl.bConnectWaiting && (impl.pAgent->profileReady() || ::GetTickCount() - impl.dwConnectWait >= NATD_CONNECT_WAIT)) {
 		impl.bConnectWaiting = false;
@@ -1044,7 +1028,7 @@ bool CNatTraversal::DelayConnection()
 }
 
 // The server we are logged in to: whether it coordinates punches for us (a LowID there, with
-// the crypt layer for its obfuscated requests), and its UDP key; our requests not answered.
+// the crypt layer for its obfuscated requests), its UDP key, the peers it brought lately.
 void CNatTraversal::ServerTimer()
 {
 	Impl &impl = *m_pImpl;
@@ -1056,9 +1040,12 @@ void CNatTraversal::ServerTimer()
 	const uint32 nID = bCoordinates ? theApp.serverconnect->GetClientID() : 0;
 	const DWORD dwNow = ::GetTickCount();
 	if (dwIP != sv.dwIP || nPort != sv.nPort || nID != sv.nID) {
-		while (!impl.serverWaits.empty())
-			DropWait(impl.serverWaits.begin()->first, WSAECONNREFUSED);
-		impl.serverAgain.clear();
+		for (std::map<Impl::WaitKey, Impl::SWait>::iterator it = impl.waits.begin(); it != impl.waits.end();) {
+			const Impl::WaitKey key((it++)->first);
+			if (key.first == NATD_VIA_SERVER)
+				DropWait(key.first, key.second, WSAECONNREFUSED);
+		}
+		impl.again.erase(std::remove_if(impl.again.begin(), impl.again.end(), [](const Impl::SAgain &a) { return a.byVia == NATD_VIA_SERVER; }), impl.again.end());
 		impl.serverSeen.clear();
 		sv = Impl::SServer();
 		sv.dwIP = dwIP;
@@ -1082,23 +1069,6 @@ void CNatTraversal::ServerTimer()
 		return;
 	for (std::map<uint32, DWORD>::iterator it = impl.serverSeen.begin(); it != impl.serverSeen.end();)
 		it = (dwNow - it->second >= NATD_SERVER_SEEN) ? impl.serverSeen.erase(it) : std::next(it);
-	std::vector<uint32> expired;
-	for (std::pair<const uint32, Impl::SServerWait> &w : impl.serverWaits)
-		if (dwNow - w.second.dwSent >= NATD_SERVER_WAIT)
-			expired.push_back(w.first);
-		else if (!w.second.bResent && dwNow - w.second.dwSent >= NATD_SERVER_RESEND) {
-			impl.ServerRequest(w.first, _T("ours, again: no answer yet"));
-			w.second.bResent = true;
-		}
-	for (const uint32 nTargetID : expired) {
-		if (thePrefs.GetVerbose())
-			AddDebugLogLine(false, _T("NAT traversal: no answer through the server from ID %u"), nTargetID);
-		DropWait(nTargetID, WSAETIMEDOUT);
-	}
-	while (!impl.serverAgain.empty() && dwNow - impl.serverAgain.front().second >= NATD_SERVER_RESEND) {
-		impl.ServerRequest(impl.serverAgain.front().first, _T("back, again"));
-		impl.serverAgain.pop_front();
-	}
 }
 
 // The obfuscated status request, from the client UDP port: the server answers with the UDP key
@@ -1164,6 +1134,13 @@ bool CNatTraversal::Impl::BuddyRequest(const uchar *pBuddyID, uint32 dwIP, uint1
 		AddDebugLogLine(false, _T("NAT traversal: %s to the buddy %s:%u%s (%s)"), byKind == NATD_MARKER_PUNCH ? _T("request") : _T("request back")
 			, (LPCTSTR)ipstr(dwIP), nPort, bSent ? _T("") : _T(" not sent"), pszWhy);
 	return bSent;
+}
+
+bool CNatTraversal::Impl::Ask(const CNatdSocketLayer &layer, uint64 nKey, LPCTSTR pszWhy)
+{
+	if (layer.GetVia() == NATD_VIA_SERVER)
+		return ServerRequest((uint32)nKey, pszWhy);
+	return BuddyRequest(layer.GetRelayID(), layer.GetRelayIP(), layer.GetRelayPort(), layer.GetFile(), NATD_MARKER_PUNCH, nKey, pszWhy);
 }
 
 bool CNatTraversal::OnServerDatagram(BYTE *pData, int nLen, const SOCKADDR_IN &from)
@@ -1234,16 +1211,38 @@ void CNatTraversal::OnServerCallback(const BYTE *pData, uint32 nSize, bool bUdp)
 	OnServerPeer(cb);
 }
 
-void CNatTraversal::DropWait(uint32 nTargetID, int nError)
+void CNatTraversal::DropWait(uint8 byVia, uint64 nKey, int nError)
 {
-	const std::map<uint32, Impl::SServerWait>::iterator it = m_pImpl->serverWaits.find(nTargetID);
-	if (it == m_pImpl->serverWaits.end())
+	const std::map<Impl::WaitKey, Impl::SWait>::iterator it = m_pImpl->waits.find(Impl::WaitKey(byVia, nKey));
+	if (it == m_pImpl->waits.end())
 		return;
 	CNatdSocketLayer *pLayer = it->second.pLayer;
-	m_pImpl->serverWaits.erase(it);
-	pLayer->m_nServerTarget = 0;
+	m_pImpl->waits.erase(it);
+	pLayer->m_nWait = 0;
 	if (nError != 0)
 		pLayer->RaiseEvent(FD_CONNECT, nError);
+}
+
+// The peer's request back through the relay, with its endpoint as the relay saw it: the socket
+// waiting for it with that key gets the punch, towards that endpoint. False when none waits.
+bool CNatTraversal::Answered(uint8 byVia, uint64 nKey, const SNatCallback &cb, const BYTE *pToken12, bool bConnect)
+{
+	const std::map<Impl::WaitKey, Impl::SWait>::const_iterator it = m_pImpl->waits.find(Impl::WaitKey(byVia, nKey));
+	if (it == m_pImpl->waits.end())
+		return false;
+	CNatdSocketLayer *pLayer = it->second.pLayer;
+	DropWait(byVia, nKey, 0);
+	pLayer->m_dwIP = cb.dwIP;
+	pLayer->m_nPort = cb.nPort;
+	if (thePrefs.GetVerbose())
+		AddDebugLogLine(false, _T("NAT traversal: our punch request answered %s, endpoint %s:%u"), ViaStr(byVia), (LPCTSTR)ipstr(cb.dwIP), cb.nPort);
+	if (pLayer->GetLayerState() != connecting) {
+		if (thePrefs.GetVerbose())
+			AddDebugLogLine(false, _T("NAT traversal: punch with %s:%u not started: our socket is no longer connecting"), (LPCTSTR)ipstr(cb.dwIP), cb.nPort);
+		pLayer->RaiseEvent(FD_CONNECT, WSAECONNREFUSED);
+	} else if (!OpenSession(cb.dwIP, cb.nPort, pToken12 != NULL ? pToken12 : pLayer->GetToken(), bConnect, pLayer, byVia, pLayer->GetServerPeer()))
+		pLayer->RaiseEvent(FD_CONNECT, WSAECONNREFUSED);
+	return true;
 }
 
 // A request the server forwarded. The target we asked, asking back: our socket gets the punch.
@@ -1259,7 +1258,6 @@ void CNatTraversal::OnServerPeer(const SNatCallback &cb)
 	const bool bConnect = impl.server.nID < cb.nID;
 	const DWORD dwNow = ::GetTickCount();
 	// a copy while the punch it asked for is on; once that punch is over, the peer asks once more
-	// (89nl)
 	const std::map<uint32, DWORD>::const_iterator itSeen = impl.serverSeen.find(cb.nID);
 	if (itSeen != impl.serverSeen.end() && dwNow - itSeen->second < NATD_SERVER_SEEN) {
 		const DWORD dwSeen = itSeen->second;	// the poll may erase it
@@ -1280,103 +1278,55 @@ void CNatTraversal::OnServerPeer(const SNatCallback &cb)
 	// what both sides know: the user hash of the one that starts and both IDs, its own first
 	const natd::TxId token(bConnect ? natd::tokenFrom(thePrefs.GetUserHash(), 16, ServerNonce(impl.server.nID, cb.nID))
 		: natd::tokenFrom(cb.abyHash, 16, ServerNonce(cb.nID, impl.server.nID)));
-	const std::map<uint32, Impl::SServerWait>::const_iterator it = impl.serverWaits.find(cb.nID);
-	if (it != impl.serverWaits.end()) {
-		CNatdSocketLayer *pLayer = it->second.pLayer;
-		DropWait(cb.nID, 0);
-		pLayer->m_dwIP = cb.dwIP;
-		pLayer->m_nPort = cb.nPort;
-		if (thePrefs.GetVerbose())
-			AddDebugLogLine(false, _T("NAT traversal: ID %u answered our request through the server, endpoint %s:%u"), cb.nID, (LPCTSTR)ipstr(cb.dwIP), cb.nPort);
-		if (pLayer->GetLayerState() != connecting) {
-			if (thePrefs.GetVerbose())
-				AddDebugLogLine(false, _T("NAT traversal: punch with ID %u not started: our socket is no longer connecting"), cb.nID);
-			pLayer->RaiseEvent(FD_CONNECT, WSAECONNREFUSED);
-		} else if (!OpenSession(cb.dwIP, cb.nPort, token.data(), bConnect, pLayer, NATD_VIA_SERVER, cb.nID))
-			pLayer->RaiseEvent(FD_CONNECT, WSAECONNREFUSED);
+	if (Answered(NATD_VIA_SERVER, cb.nID, cb, token.data(), bConnect))
 		return;
-	}
 	// The request back goes before our first punch packet, which the next Process() sends: the
 	// endpoint the server sees is then our newest mapping, and the one towards the peer comes
-	// right after it, as a NAT with sequential ports gives them (89nj)
-	if (OpenSession(cb.dwIP, cb.nPort, token.data(), bConnect, NULL, NATD_VIA_SERVER, cb.nID) && impl.ServerRequest(cb.nID, _T("back, so that it learns our endpoint")))
-		impl.serverAgain.emplace_back(cb.nID, dwNow);
+	// right after it, as a NAT with sequential ports gives them
+	if (OpenSession(cb.dwIP, cb.nPort, token.data(), bConnect, NULL, NATD_VIA_SERVER, cb.nID) && impl.ServerRequest(cb.nID, _T("back, so that it learns our endpoint"))) {
+		const uint32 nID = cb.nID;
+		impl.again.push_back(Impl::SAgain{dwNow, NATD_VIA_SERVER, [&impl, nID]() { impl.ServerRequest(nID, _T("back, again")); }});
+	}
 }
 
 void CNatTraversal::ForgetLayer(CNatdSocketLayer *pLayer)
 {
-	const std::map<uint32, Impl::SServerWait>::iterator it = m_pImpl->serverWaits.find(pLayer->m_nServerTarget);
-	if (it != m_pImpl->serverWaits.end() && it->second.pLayer == pLayer)
-		m_pImpl->serverWaits.erase(it);
-	pLayer->m_nServerTarget = 0;
-	const std::map<uint64, Impl::SServerWait>::iterator itBuddy = m_pImpl->buddyWaits.find(pLayer->m_nBuddyNonce);
-	if (itBuddy != m_pImpl->buddyWaits.end() && itBuddy->second.pLayer == pLayer)
-		m_pImpl->buddyWaits.erase(itBuddy);
-	pLayer->m_nBuddyNonce = 0;
+	const std::map<Impl::WaitKey, Impl::SWait>::iterator it = m_pImpl->waits.find(Impl::WaitKey(pLayer->GetVia(), pLayer->m_nWait));
+	if (it != m_pImpl->waits.end() && it->second.pLayer == pLayer)
+		m_pImpl->waits.erase(it);
+	pLayer->m_nWait = 0;
 }
 
-// 89nn, as ServerTimer: our requests through the buddies not answered yet go once more, then
-// time out; the requests back go once more
-void CNatTraversal::BuddyTimer()
+// Our requests through a relay not answered yet go once more, then time out; the requests back
+// go once more
+void CNatTraversal::RelayTimer()
 {
 	Impl &impl = *m_pImpl;
 	const DWORD dwNow = ::GetTickCount();
-	std::vector<uint64> expired;
-	for (std::pair<const uint64, Impl::SServerWait> &w : impl.buddyWaits) {
-		CNatdSocketLayer *pLayer = w.second.pLayer;
-		if (dwNow - w.second.dwSent >= NATD_SERVER_WAIT)
+	std::vector<Impl::WaitKey> expired;
+	for (std::pair<const Impl::WaitKey, Impl::SWait> &w : impl.waits)
+		if (dwNow - w.second.dwSent >= NATD_RELAY_WAIT)
 			expired.push_back(w.first);
-		else if (!w.second.bResent && dwNow - w.second.dwSent >= NATD_SERVER_RESEND) {
-			impl.BuddyRequest(pLayer->GetRelayID(), pLayer->GetRelayIP(), pLayer->GetRelayPort(), pLayer->GetFile(), NATD_MARKER_PUNCH, w.first, _T("ours, again: no answer yet"));
+		else if (!w.second.bResent && dwNow - w.second.dwSent >= NATD_RELAY_RESEND) {
+			impl.Ask(*w.second.pLayer, w.first.second, _T("ours, again: no answer yet"));
 			w.second.bResent = true;
 		}
-	}
-	for (const uint64 nNonce : expired) {
+	for (const Impl::WaitKey &key : expired) {
 		if (thePrefs.GetVerbose())
-			AddDebugLogLine(false, _T("NAT traversal: no answer through the buddies from %s"), (LPCTSTR)ipstr(impl.buddyWaits[nNonce].pLayer->GetRelayIP()));
-		DropBuddyWait(nNonce, WSAETIMEDOUT);
+			AddDebugLogLine(false, _T("NAT traversal: no answer %s to our punch request"), ViaStr(key.first));
+		DropWait(key.first, key.second, WSAETIMEDOUT);
 	}
-	while (!impl.buddyAgain.empty() && dwNow - impl.buddyAgain.front().dwSent >= NATD_SERVER_RESEND) {
-		const Impl::SBuddyBack &b = impl.buddyAgain.front();
-		impl.BuddyRequest(b.abyBuddyID, b.dwIP, b.nPort, b.abyFile, NATD_MARKER_BACK, b.nNonce, _T("back, again"));
-		impl.buddyAgain.pop_front();
+	while (!impl.again.empty() && dwNow - impl.again.front().dwSent >= NATD_RELAY_RESEND) {
+		impl.again.front().send();
+		impl.again.pop_front();
 	}
 }
 
-void CNatTraversal::DropBuddyWait(uint64 nNonce, int nError)
-{
-	const std::map<uint64, Impl::SServerWait>::iterator it = m_pImpl->buddyWaits.find(nNonce);
-	if (it == m_pImpl->buddyWaits.end())
-		return;
-	CNatdSocketLayer *pLayer = it->second.pLayer;
-	m_pImpl->buddyWaits.erase(it);
-	pLayer->m_nBuddyNonce = 0;
-	if (nError != 0)
-		pLayer->RaiseEvent(FD_CONNECT, nError);
-}
-
-// The source's request back, with its endpoint as our buddy saw it: the punch of our socket
-// that waits for it starts now, towards that endpoint (as OnServerPeer)
+// The source's request back, through our buddy (as OnServerPeer)
 void CNatTraversal::OnBuddyBack(const SNatCallback &cb, uint64 nNonce)
 {
-	const std::map<uint64, Impl::SServerWait>::const_iterator it = m_pImpl->buddyWaits.find(nNonce);
-	if (it == m_pImpl->buddyWaits.end()) {
-		if (thePrefs.GetVerbose())
-			AddDebugLogLine(false, _T("NAT traversal: request back through our buddy from %s:%u not taken: no request of ours waits for it (a copy, or too late)"), (LPCTSTR)ipstr(cb.dwIP), cb.nPort);
-		return;
-	}
-	CNatdSocketLayer *pLayer = it->second.pLayer;
-	DropBuddyWait(nNonce, 0);
-	pLayer->m_dwIP = cb.dwIP;
-	pLayer->m_nPort = cb.nPort;
-	if (thePrefs.GetVerbose())
-		AddDebugLogLine(false, _T("NAT traversal: the source answered our request through the buddies, endpoint %s:%u"), (LPCTSTR)ipstr(cb.dwIP), cb.nPort);
-	if (pLayer->GetLayerState() != connecting) {
-		if (thePrefs.GetVerbose())
-			AddDebugLogLine(false, _T("NAT traversal: punch with %s:%u not started: our socket is no longer connecting"), (LPCTSTR)ipstr(cb.dwIP), cb.nPort);
-		pLayer->RaiseEvent(FD_CONNECT, WSAECONNREFUSED);
-	} else if (!OpenSession(cb.dwIP, cb.nPort, pLayer->GetToken(), true, pLayer, NATD_VIA_BUDDY, 0, true))
-		pLayer->RaiseEvent(FD_CONNECT, WSAECONNREFUSED);
+	if (!Answered(NATD_VIA_BUDDY, nNonce, cb, NULL, true) && thePrefs.GetVerbose())
+		AddDebugLogLine(false, _T("NAT traversal: request back through our buddy from %s:%u not taken: no request of ours waits for it (a copy, or too late)"), (LPCTSTR)ipstr(cb.dwIP), cb.nPort);
 }
 
 bool CNatTraversal::IsPunchable() const
@@ -1406,32 +1356,28 @@ uint8 CNatTraversal::PunchVia(const CUpDownClient &client) const
 {
 	if (!m_pImpl->pAgent->punchable() || client.GetRequestFile() == NULL || thePrefs.GetUDPPort() == 0)
 		return NATD_VIA_NONE;
-	// a source that published in Kad that it can be punched to: directly, or through its buddy.
-	// The address is checked, whatever TryToConnect checked (it looks at GetIP() first).
-	if (client.IsNatdSource() && Kademlia::CKademlia::IsConnected() && Kademlia::CKademlia::IsFirewalled()
-		&& client.GetConnectIP() != 0 && !theApp.ipfilter->IsFiltered(client.GetConnectIP()) && !theApp.clientlist->IsBannedClient(client.GetConnectIP()))
-	{
-		// with an open UDP port: we punch the endpoint it published, and the source the one the
-		// request came from, which needs an endpoint-independent mapping of ours
+	// a source that published in Kad that it can be punched to: directly, with an open UDP port
+	// (we punch the endpoint it published, it the one our request came from, which needs an
+	// endpoint-independent mapping of ours), or through its buddy and ours, which do what the
+	// server does. The addresses are checked when they are punched to.
+	if (client.IsNatdSource() && Kademlia::CKademlia::IsConnected() && Kademlia::CKademlia::IsFirewalled()) {
 		uchar abyBuddyID[16];
 		uint32 dwBuddyIP = 0;
 		uint16 nBuddyPort = 0;
 		if (client.SupportsDirectUDPCallback()) {
-			if (m_pImpl->pAgent->directPunchable() && client.GetKadPort() != 0)
+			if (m_pImpl->pAgent->directPunchable() && client.GetConnectIP() != 0 && client.GetKadPort() != 0 && !IsFilteredOrBanned(client.GetConnectIP()))
 				return NATD_VIA_DIRECT;
-		// behind a buddy, and we behind ours: the two buddies do what the server does, each
-		// brings the other's endpoint fresh (89nn)
 		} else if (client.HasValidBuddyID() && client.GetBuddyIP() != 0 && client.GetBuddyPort() != 0 && OurBuddy(abyBuddyID, dwBuddyIP, nBuddyPort))
 			return NATD_VIA_BUDDY;
 	}
-	// a LowID logged in to our server, which coordinates the punch (89ng). Its address comes
+	// a LowID logged in to our server, which coordinates the punch. Its address comes
 	// with the server's answer.
 	if (client.HasLowID() && ServerCanPunch(client.GetUserIDHybrid(), client.GetServerIP(), client.GetServerPort()))
 		return NATD_VIA_SERVER;
 	return NATD_VIA_NONE;
 }
 
-// 89nm: the login normally comes after the discovery (DelayConnection)
+// the login normally comes after the discovery (DelayConnection)
 bool CNatTraversal::AnnounceServerPunch() const
 {
 	return !m_pImpl->pAgent->profileReady() || m_pImpl->pAgent->punchable();
@@ -1448,49 +1394,19 @@ bool CNatTraversal::ServerCanPunch(uint32 nID, uint32 dwServerIP, uint16 nServer
 // request carries, and the marker's nonce. Directly, the punch goes to the endpoint the index
 // node saw the source publish from (its Kad port), while the source punches to the endpoint the
 // request came from. Through the buddies each side punches the endpoint the other's buddy saw,
-// the source's with its request back (OnBuddyBack, 89nn). Through the server the endpoint and
+// the source's with its request back (OnBuddyBack). Through the server the endpoint and
 // the token come with the server's answer (OnServerPeer).
 bool CNatTraversal::AttachOutgoing(CClientReqSocket *pSocket, CUpDownClient &client, uint8 byVia)
 {
 	if (byVia == NATD_VIA_NONE)
 		return false;
-	const uint32 nTargetID = (byVia == NATD_VIA_SERVER) ? client.GetUserIDHybrid() : 0;
 	const uint64 nNonce = RandomUInt64();
-	CSafeMemFile data(64);
-	if (byVia == NATD_VIA_BUDDY) {
-		// through the source's buddy, which checks the buddy ID and forwards the rest as it is,
-		// with our buddy in it: the source's request back comes through ours with its endpoint,
-		// and the punch starts then (OnBuddyBack, 89nn)
-		CNatdSocketLayer *pLayer = new CNatdSocketLayer(0, 0, natd::tokenFrom(thePrefs.GetUserHash(), 16, nNonce).data(), byVia);
-		pLayer->m_bBuddyRoute = true;
-		pLayer->m_dwRelayIP = client.GetBuddyIP();
-		pLayer->m_nRelayPort = client.GetBuddyPort();
-		md4cpy(pLayer->m_abyRelayID, client.GetBuddyID());
-		md4cpy(pLayer->m_abyFile, client.GetRequestFile()->GetFileHash());
-		if (!m_pImpl->BuddyRequest(pLayer->m_abyRelayID, pLayer->m_dwRelayIP, pLayer->m_nRelayPort, pLayer->m_abyFile, NATD_MARKER_PUNCH, nNonce, _T("ours"))) {
-			delete pLayer;
-			return false;
-		}
-		pLayer->m_nBuddyNonce = nNonce;
-		pLayer->m_dwAsked = ::GetTickCount();
-		m_pImpl->buddyWaits[nNonce] = Impl::SServerWait{pLayer, ::GetTickCount(), false};
-		pSocket->AttachNatdLayer(pLayer);
-	} else if (byVia == NATD_VIA_SERVER) {
-		if (!m_pImpl->ServerRequest(nTargetID, _T("ours")))
-			return false;
-		m_pImpl->serverSeen.erase(nTargetID);
-		// one request at a time to a target: an older one gives way
-		DropWait(nTargetID, WSAECONNREFUSED);
-		CNatdSocketLayer *pLayer = new CNatdSocketLayer(0, 0, NULL, byVia);
-		pLayer->m_nServerTarget = nTargetID;
-		pLayer->m_nServerPeer = nTargetID;
-		pLayer->m_dwAsked = ::GetTickCount();
-		m_pImpl->serverWaits[nTargetID] = Impl::SServerWait{pLayer, ::GetTickCount(), false};
-		pSocket->AttachNatdLayer(pLayer);
-	} else {
+	CNatdSocketLayer *pLayer;
+	if (byVia == NATD_VIA_DIRECT) {
 		// a source with an open UDP port: the three fields of OP_DIRECTCALLBACKREQ, which is all
 		// an unpatched client reads, are the request's (the port, the user hash, the crypt
 		// settings) and its endpoint is the one the datagram comes from
+		CSafeMemFile data(64);
 		data.WriteUInt16(thePrefs.GetPort());
 		data.WriteHash16(thePrefs.GetUserHash());
 		data.WriteUInt8(GetMyConnectOptions(true, false));
@@ -1499,9 +1415,34 @@ bool CNatTraversal::AttachOutgoing(CClientReqSocket *pSocket, CUpDownClient &cli
 		packet->opcode = OP_DIRECTCALLBACKREQ;
 		theStats.AddUpDataOverheadOther(packet->size);
 		theApp.clientudp->SendPacket(packet, client.GetConnectIP(), client.GetKadPort(), client.ShouldReceiveCryptUDPPackets(), client.GetUserHash(), false, 0);
+		pLayer = new CNatdSocketLayer(client.GetConnectIP(), client.GetKadPort(), natd::tokenFrom(thePrefs.GetUserHash(), 16, nNonce).data(), byVia);
+	} else {
+		// through a relay: the server, keyed by the target's ID there, or the source's buddy,
+		// which checks the buddy ID and forwards the rest as it is, with our buddy in it, keyed
+		// by the nonce. The punch starts when the target's request back brings its endpoint.
+		const bool bServer = byVia == NATD_VIA_SERVER;
+		const uint64 nKey = bServer ? client.GetUserIDHybrid() : nNonce;
+		pLayer = new CNatdSocketLayer(0, 0, bServer ? NULL : natd::tokenFrom(thePrefs.GetUserHash(), 16, nNonce).data(), byVia);
+		if (bServer)
+			pLayer->m_nServerPeer = client.GetUserIDHybrid();
+		else {
+			pLayer->m_dwRelayIP = client.GetBuddyIP();
+			pLayer->m_nRelayPort = client.GetBuddyPort();
+			md4cpy(pLayer->m_abyRelayID, client.GetBuddyID());
+			md4cpy(pLayer->m_abyFile, client.GetRequestFile()->GetFileHash());
+		}
+		if (!m_pImpl->Ask(*pLayer, nKey, _T("ours"))) {
+			delete pLayer;
+			return false;
+		}
+		if (bServer)
+			m_pImpl->serverSeen.erase(pLayer->m_nServerPeer);
+		DropWait(byVia, nKey, WSAECONNREFUSED);	// one request at a time to a target: an older one gives way
+		pLayer->m_nWait = nKey;
+		pLayer->m_dwAsked = ::GetTickCount();
+		m_pImpl->waits[Impl::WaitKey(byVia, nKey)] = Impl::SWait{pLayer, pLayer->m_dwAsked, false};
 	}
-	if (byVia == NATD_VIA_DIRECT)
-		pSocket->AttachNatdLayer(new CNatdSocketLayer(client.GetConnectIP(), client.GetKadPort(), natd::tokenFrom(thePrefs.GetUserHash(), 16, nNonce).data(), byVia));
+	pSocket->AttachNatdLayer(pLayer);
 	if (thePrefs.GetVerbose())
 		AddDebugLogLine(false, _T("NAT traversal: punch requested %s, %s"), ViaStr(byVia), (LPCTSTR)client.DbgGetClientInfo());
 	return true;
@@ -1535,7 +1476,7 @@ bool CNatTraversal::ReadCallback(CSafeMemFile &data, uint32 dwIP, uint16 nPort, 
 	if ((byCrypt & NATD_CALLBACK_HASH) == 0 || data.GetLength() - data.GetPosition() < MDX_DIGEST_SIZE)
 		return false;
 	data.ReadHash16(cb.abyHash);
-	// 89nn: the requester's buddy, for the request back
+	// the requester's buddy, for the request back
 	cb.bBuddy = (byCrypt & NATD_CALLBACK_BUDDY) != 0 && data.GetLength() - data.GetPosition() >= 16 + 4 + 2;
 	if (cb.bBuddy) {
 		data.ReadHash16(cb.abyBuddyID);
@@ -1548,8 +1489,8 @@ bool CNatTraversal::ReadCallback(CSafeMemFile &data, uint32 dwIP, uint16 nPort, 
 
 // Through the buddies the request back goes before our first punch packet, which the next
 // Process() sends, as through the server: the endpoint the requester's buddy sees is then our
-// newest mapping, and the one towards the requester comes right after it (89nj, 89nn). A request
-// without the requester's buddy is not taken (89no): the requester would punch the endpoint we
+// newest mapping, and the one towards the requester comes right after it. A request
+// without the requester's buddy is not taken: the requester would punch the endpoint we
 // published, which nobody keeps fresh, while the buddies bring each side the other's.
 // The requester's endpoint is the one its buddy saw a UDP datagram come from, which a forged
 // source address can make up, as it can for eMule's own callback: the punch towards it then
@@ -1563,17 +1504,18 @@ bool CNatTraversal::StartIncoming(const SNatCallback &cb, uint64 nNonce, uint8 b
 		return false;
 	}
 	const bool bBack = byVia == NATD_VIA_BUDDY;
-	if (!OpenSession(cb.dwIP, cb.nPort, natd::tokenFrom(cb.abyHash, 16, nNonce).data(), false, NULL, byVia, 0, bBack))
+	if (!OpenSession(cb.dwIP, cb.nPort, natd::tokenFrom(cb.abyHash, 16, nNonce).data(), false, NULL, byVia))
 		return false;
 	if (bBack && m_pImpl->BuddyRequest(cb.abyBuddyID, cb.dwBuddyIP, cb.nBuddyPort, pFileHash, NATD_MARKER_BACK, nNonce, _T("back, so that the requester learns our endpoint"))) {
-		Impl::SBuddyBack b;
-		md4cpy(b.abyBuddyID, cb.abyBuddyID);
-		b.dwIP = cb.dwBuddyIP;
-		b.nPort = cb.nBuddyPort;
-		md4cpy(b.abyFile, pFileHash);
-		b.nNonce = nNonce;
-		b.dwSent = ::GetTickCount();
-		m_pImpl->buddyAgain.push_back(b);
+		std::array<uchar, 16> abyBuddyID, abyFile;
+		md4cpy(abyBuddyID.data(), cb.abyBuddyID);
+		md4cpy(abyFile.data(), pFileHash);
+		Impl &impl = *m_pImpl;
+		const uint32 dwIP = cb.dwBuddyIP;
+		const uint16 nPort = cb.nBuddyPort;
+		impl.again.push_back(Impl::SAgain{::GetTickCount(), NATD_VIA_BUDDY, [&impl, abyBuddyID, dwIP, nPort, abyFile, nNonce]() {
+			impl.BuddyRequest(abyBuddyID.data(), dwIP, nPort, abyFile.data(), NATD_MARKER_BACK, nNonce, _T("back, again"));
+		}});
 	}
 	return true;
 }
@@ -1581,14 +1523,12 @@ bool CNatTraversal::StartIncoming(const SNatCallback &cb, uint64 nNonce, uint8 b
 bool CNatTraversal::Connect(CNatdSocketLayer *pLayer)
 {
 	// through the server or the buddies, the punch starts when the target's endpoint arrives
-	if (pLayer->m_nServerTarget != 0)
-		return m_pImpl->serverWaits.find(pLayer->m_nServerTarget) != m_pImpl->serverWaits.end();
-	if (pLayer->m_nBuddyNonce != 0)
-		return m_pImpl->buddyWaits.find(pLayer->m_nBuddyNonce) != m_pImpl->buddyWaits.end();
+	if (pLayer->m_nWait != 0)
+		return m_pImpl->waits.find(Impl::WaitKey(pLayer->GetVia(), pLayer->m_nWait)) != m_pImpl->waits.end();
 	return OpenSession(pLayer->GetIP(), pLayer->GetPort(), pLayer->GetToken(), true, pLayer, pLayer->m_byVia);
 }
 
-bool CNatTraversal::OpenSession(uint32 dwIP, uint16 nPort, const BYTE *pToken12, bool bConnect, CNatdSocketLayer *pLayer, uint8 byVia, uint32 nServerPeer, bool bRelayed)
+bool CNatTraversal::OpenSession(uint32 dwIP, uint16 nPort, const BYTE *pToken12, bool bConnect, CNatdSocketLayer *pLayer, uint8 byVia, uint32 nServerPeer)
 {
 	CSingleLock lock(&m_pImpl->cs, TRUE);
 	// the IP filter, as for anything we would send to or read from that address: a request
@@ -1598,9 +1538,9 @@ bool CNatTraversal::OpenSession(uint32 dwIP, uint16 nPort, const BYTE *pToken12,
 	// Through the server nothing says whether the peer's mapping is endpoint-independent,
 	// random in a block of ports (a mobile CGN) or sequential: natd punches the endpoint the
 	// server saw and, should nobody answer there, the ports nearest to it, more each round, with
-	// no block size assumed (PeerNat::Unknown, 89nh, 89nj, 89nk). The same through the two
-	// buddies, which bring both endpoints fresh as the server does (89nn).
-	const bool bFresh = byVia == NATD_VIA_SERVER || bRelayed;
+	// no block size assumed (PeerNat::Unknown). The same through the two
+	// buddies, which bring both endpoints fresh as the server does.
+	const bool bFresh = byVia != NATD_VIA_DIRECT;
 	LPCTSTR pszNot = NULL;
 	if (bFresh ? !m_pImpl->pAgent->punchable() : !m_pImpl->pAgent->directPunchable())
 		pszNot = _T("we cannot be punched to");
@@ -1699,12 +1639,10 @@ void CNatTraversal::Detach(uint32 nSession)
 
 CNatdSocketLayer::CNatdSocketLayer(uint32 dwIP, uint16 nPort, const BYTE *pToken12, uint8 byVia)
 	: m_nSession()
-	, m_nServerTarget()
+	, m_nWait()
 	, m_nServerPeer()
 	, m_dwAsked()
 	, m_nTries(1)
-	, m_nBuddyNonce()
-	, m_bBuddyRoute()
 	, m_dwRelayIP()
 	, m_nRelayPort()
 	, m_abyRelayID()
@@ -1728,15 +1666,16 @@ void CNatdSocketLayer::Unhook()
 	if (m_nSession != 0 && theApp.nattraversal != NULL)
 		theApp.nattraversal->Detach(m_nSession);
 	m_nSession = 0;
-	if ((m_nServerTarget != 0 || m_nBuddyNonce != 0) && theApp.nattraversal != NULL)
+	if (m_nWait != 0 && theApp.nattraversal != NULL)
 		theApp.nattraversal->ForgetLayer(this);
 }
 
-void CNatdSocketLayer::BuddyRetry(uint64 nNonce, const BYTE *pToken12)
+void CNatdSocketLayer::Retry(uint64 nWait, const BYTE *pToken12)
 {
 	m_nSession = 0;
-	m_nBuddyNonce = nNonce;
-	memcpy(m_abyToken, pToken12, sizeof m_abyToken);
+	m_nWait = nWait;
+	if (pToken12 != NULL)
+		memcpy(m_abyToken, pToken12, sizeof m_abyToken);
 	++m_nTries;
 }
 

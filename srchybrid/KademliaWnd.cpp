@@ -359,7 +359,7 @@ void CKademliaWnd::UpdateControlsState()
 	else
 		uid = IDS_MAIN_BTN_CONNECT;
 	SetDlgItemText(IDC_KADCONNECT, GetResNoAmp(uid));
-	GetDlgItem(IDC_KADCONNECT)->EnableWindow(theApp.IsRunning() && !theApp.emuledlg->IsStartupNetCheck());	// 89nm
+	GetDlgItem(IDC_KADCONNECT)->EnableWindow(theApp.IsRunning() && !theApp.emuledlg->IsStartupNetCheck());
 	GetDlgItem(IDC_FIREWALLCHECKBUTTON)->EnableWindow(Kademlia::CKademlia::IsConnected());
 
 	CString strBootstrapIP;

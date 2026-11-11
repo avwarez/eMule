@@ -2268,7 +2268,7 @@ uint32 CPartFile::Process(uint32 factor, UINT icounter)
 				// To Mods, please stop instantly removing these sources.
 				// This causes sources to pop in and out creating extra overhead!
 				//Make sure this source is still a LowID Client, and we still cannot callback to this Client.
-				// and we cannot punch to it either (89nc): if we can, it goes back on queue and is asked again at its re-ask time
+				// and we cannot punch to it either: if we can, it goes back on queue and is asked again at its re-ask time
 				if (cur_src->HasLowID() && !theApp.CanDoCallback(cur_src) && !theApp.nattraversal->CanPunchTo(*cur_src)) {
 					//If we are almost maxed on sources, slowly remove these clients to see if we can find a better source.
 					if ((curTick >= m_lastpurgetime + SEC2MS(30)) && (GetSourceCount() >= GetMaxSources() * 4 / 5)) {
@@ -2414,7 +2414,7 @@ bool CPartFile::CanAddSource(uint32 userid, uint16 port, uint32 serverip, uint16
 		return false;
 	}
 	//This allows *.*.*.0 clients to not be removed if Ed2kID == false
-	// - but a LowID on our server, which coordinates a punch with it (89ng)
+	// - but a LowID on our server, which coordinates a punch with it
 	if (::IsLowID(hybridID) && theApp.IsFirewalled() && !theApp.nattraversal->ServerCanPunch(hybridID, serverip, serverport)) {
 		if (pdebug_lowiddropped)
 			++(*pdebug_lowiddropped);

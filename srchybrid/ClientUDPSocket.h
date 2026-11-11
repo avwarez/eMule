@@ -46,7 +46,7 @@ public:
 	uint16	GetConnectedPort() const	{ return m_port; }
 	bool	SendPacket(Packet *packet, uint32 dwIP, uint16 nPort, bool bEncrypt, const uchar *pachTargetClientHashORKadID, bool bKad, uint32 nReceiverVerifyKey);
 	SocketSentBytes  SendControlData(uint32 maxNumberOfBytesToSend, uint32 /*minFragSize*/); // ZZ:UploadBandWithThrottler (UDP)
-	// the eD2K server's UDP obfuscation, for the punch requests (89ng), which leave from this
+	// the eD2K server's UDP obfuscation, for the punch requests, which leave from this
 	// socket so that the server sees the endpoint to punch to
 	static int		ServerOverheadSize()	{ return EncryptOverheadSize(false); }
 	static uint32	EncryptForServer(uchar *pbyBuf, uint32 nBufLen, uint32 dwBaseKey)	{ return EncryptSendServer(pbyBuf, nBufLen, dwBaseKey); }

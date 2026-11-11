@@ -197,7 +197,7 @@ bool CUpDownClient::AskForDownload()
 				return true;
 			}
 			// if we are lowid <-> lowid but contacted the source before already, keep it in the hope that we might turn highid again
-			// - unless we can punch to it (89nc): the re-ask then goes over a punch, as it goes over TCP to a HighID
+			// - unless we can punch to it: the re-ask then goes over a punch, as it goes over TCP to a HighID
 			if (!theApp.CanDoCallback(this) && !theApp.nattraversal->CanPunchTo(*this)) {
 				if (GetDownloadState() != DS_LOWTOLOWIP)
 					SetDownloadState(DS_LOWTOLOWIP);

@@ -190,7 +190,7 @@ void CServerConnect::ConnectionEstablished(CServerSocket *sender)
 		if (thePrefs.IsCryptLayerRequired())
 			dwCryptFlags |= SRVCAP_REQUIRECRYPT;
 
-		// Lugdunum's NAT callback (89ng): a LowID then gets an odd ID and can be asked to punch,
+		// Lugdunum's NAT callback: a LowID then gets an odd ID and can be asked to punch,
 		// through requests obfuscated with the server's UDP key
 		if (thePrefs.IsCryptLayerEnabled() && theApp.nattraversal->AnnounceServerPunch())
 			dwCryptFlags |= SRVCAP_NATTRAVERSAL;

@@ -22,53 +22,46 @@
 // client UDP port (the one Kad uses), with public STUN servers only - no server of our own:
 // natd's list, or the user's in stun.dat (config directory).
 //
-// Two LowIDs learn each other's public endpoint only through a relay that sees both of them:
-// the eD2K server, or their two Kad buddies (89nn), as the server does. A source with an open
-// UDP port is its own relay (OP_DIRECTCALLBACKREQ), and needs the requester's NAT to map
-// endpoint-independently (natd Predictability::Stable). Through a relay a NAT that maps it to
-// random ports inside a block of ports (Predictability::Bounded, mobile CGNs, 89nh) or to
-// sequential ports (Predictable, 89nj) can be punched to as well: nothing tells either side the
-// other's NAT there, so an endpoint-independent side punches the endpoint the relay saw and, should nobody answer
-// there, the ports nearest to it, more each round, whatever the size of the block (natd::PeerNat::
-// Unknown, 89nk); the other side punches the endpoint from the client UDP port.
+// A punch is used only where TCP cannot work: between a LowID downloader and a LowID source.
+// Two LowIDs learn each other's public endpoint only through a relay that sees both of them, the
+// eD2K server or their two Kad buddies, the same way on both:
+// - the requester sends its request from the client UDP port to the relay, which forwards it
+//   with the endpoint it saw it come from;
+// - the source starts its punch towards that endpoint, and first sends its own request back,
+//   which brings its endpoint to the requester the same way; the requester punches it then;
+// - a request goes once more when unanswered (UDP), and a punch that times out is asked for once
+//   more while the socket has been connecting for less than eMule's connection timeout, as TCP
+//   sends its SYN again: the peer's NAT opens a new mapping, whose endpoint the relay brings.
+// Both endpoints being fresh, a NAT that maps the port endpoint-independently (natd
+// Predictability::Stable), to random ports inside a block of ports (Bounded, mobile CGNs) or to
+// sequential ports (Predictable) can be punched to: nothing tells either side the other's NAT,
+// so an endpoint-independent side punches the endpoint the relay saw and, should nobody answer
+// there, the ports nearest to it, more each round, whatever the size of the block (natd::
+// PeerNat::Unknown); the other side punches the endpoint from the client UDP port.
 //
-// A punch is used only where TCP cannot work: a LowID downloader and a LowID source that
-// carries TAG_NATDCLIENT. The downloader asks the source through the source's buddy
-// (OP_REASKCALLBACKUDP, which the buddy forwards as OP_REASKCALLBACKTCP with the endpoint it
-// saw the request come from) or directly (OP_DIRECTCALLBACKREQ), with the natd marker at the
-// end of the packet: both punch at once. natd hands over the punched path (the socket, the
-// peer's endpoint, how often to send to keep it open), and the eD2K stream then runs over it
-// in eMule's own datagrams (KCP) on the client UDP port, under a CClientReqSocket that knows
-// nothing of it.
-//
-// The request is the same on every channel, the one the eD2K servers forward between two
-// LowIDs (Lugdunum's NAT callback, SNatCallback): the requester's endpoint as the relay saw
-// it, its ID on the server (0 off a server), its crypt settings and its user hash. The
-// session token comes from that user hash and the nonce of the request.
-//
-// Through the server (89ng) - two LowIDs logged in to the same server that coordinates
-// punches (Lugdunum's NAT callback, SRVCAP_NATTRAVERSAL; the Rust ed2k-server takes it too),
-// whether or not they are in Kad: the requester sends OP_NAT_CALLBACK_REQUEST from the client
-// UDP port, obfuscated with the server's UDP key; the server forwards it with the endpoint it
-// saw (OP_NAT_CALLBACK_TCP/UDP). The source sends its own request back, which brings its
-// endpoint to the requester the same way. No marker fits there, so both sides derive the
-// session from what both know: the lower of the two IDs starts the punch, and the token comes
-// from its user hash and the two IDs. Two LowIDs asking each other at once then still meet in
-// one punch. Which side starts the punch does not say which side has the eD2K socket: the one
-// that asked. A punch through the server that times out is asked for once more while the socket
-// has been connecting for less than eMule's connection timeout, as TCP sends its SYN again
-// within it: the peer's NAT opens a new mapping, whose endpoint the server brings fresh (89nl).
+// The request is the one the eD2K servers forward between two LowIDs (Lugdunum's NAT callback,
+// SNatCallback): the requester's endpoint as the relay saw it, its ID on the server (0 off a
+// server), its crypt settings and its user hash.
+// - Through the server (SRVCAP_NATTRAVERSAL; the Rust ed2k-server takes it too), whether or not
+//   the two are in Kad: OP_NAT_CALLBACK_REQUEST, obfuscated with the server's UDP key, which the
+//   server forwards as OP_NAT_CALLBACK_TCP/UDP. No marker fits there, so both sides derive the
+//   session from what both know: the lower of the two IDs starts the punch, and the token comes
+//   from its user hash and the two IDs. Two LowIDs asking each other at once then still meet in
+//   one punch.
+// - Through the buddies: OP_REASKCALLBACKUDP to the source's buddy, which forwards it as
+//   OP_REASKCALLBACKTCP, with the natd marker (the nonce) and the requester's own buddy; the
+//   source's request back goes through that buddy (NATD_MARKER_BACK, the same nonce). The token
+//   comes from the requester's user hash and the nonce.
+// - A source with an open UDP port is its own relay (OP_DIRECTCALLBACKREQ, with the marker): we
+//   punch the endpoint it published, which needs our NAT to map endpoint-independently.
+// Which side starts the punch does not say which side has the eD2K socket: the one that asked.
+// natd hands over the punched path (the socket, the peer's endpoint, how often to send to keep it
+// open), and the eD2K stream then runs over it in eMule's own datagrams (KCP) on the client UDP
+// port, under a CClientReqSocket that knows nothing of it.
 //
 // The discovery runs before the connection to the server and to Kad, after UPnP, whatever the
-// ID the client will get (89nm): the login then announces what it found, and its mappings do
-// not mix with those of the connection.
-//
-// Through the buddies (89nn) the two buddies do what the server does: the requester's request
-// carries its own buddy, and the source, as it starts its punch, sends its request back through
-// that buddy (NATD_MARKER_BACK, the same nonce), which brings the source's endpoint fresh to the
-// requester. Both then punch endpoints seen a moment ago, as through the server: a NAT with port
-// blocks or sequential ports can be punched to through Kad too, the punch that times out is
-// asked for once more, and the endpoint the source published in Kad is not used.
+// ID the client will get: the login then announces what it found, and its mappings do not mix
+// with those of the connection.
 //
 // The natd headers stay inside NatTraversal.cpp. Every method is called on the main thread,
 // but Write(), which the upload throttler calls too.
@@ -80,19 +73,19 @@ class CUpDownClient;
 
 // The natd marker, at the end of a callback request: "NATD", version, type, nonce.
 #define NATD_MARKER_PUNCH		1
-#define NATD_MARKER_BACK		2	// the source's request back, through the requester's buddy (89nn)
+#define NATD_MARKER_BACK		2	// the source's request back, through the requester's buddy
 
 // The channels a punch request goes through
 #define NATD_VIA_NONE			0
 #define NATD_VIA_BUDDY			1	// OP_REASKCALLBACKUDP to the source's buddy
 #define NATD_VIA_DIRECT			2	// OP_DIRECTCALLBACKREQ to a source with an open UDP port
-#define NATD_VIA_SERVER			3	// through the server both are logged in to (89ng)
+#define NATD_VIA_SERVER			3	// through the server both are logged in to
 
 // The punch request: <ID 4><crypt 1>[<user hash 16> if crypt & NATD_CALLBACK_HASH] after the
 // endpoint the relay adds, as Lugdunum forwards it (OP_NAT_CALLBACK_*). crypt is the requester's
 // crypt layer support, request and require in bits 0-2, as GetMyConnectOptions puts them; the
 // punch needs only the user hash (the stream's crypt layer negotiates as over TCP).
-// Through the buddies the requester's buddy follows the user hash (NATD_CALLBACK_BUDDY, 89nn):
+// Through the buddies the requester's buddy follows the user hash (NATD_CALLBACK_BUDDY):
 // <buddy ID 16><IP 4><UDP port 2>, as the requester publishes it in its Kad sources.
 #define NATD_CALLBACK_HASH		0x80
 #define NATD_CALLBACK_BUDDY		0x40
@@ -102,7 +95,7 @@ struct SNatCallback
 	uint16	nPort;			// the requester's UDP port
 	uint32	nID;			// the requester's ID on the server, 0 for a request that came through no server
 	uchar	abyHash[16];	// the requester's user hash
-	bool	bBuddy = false;	// 89nn: the requester's buddy, for the request back
+	bool	bBuddy = false;	// the requester's buddy, for the request back
 	uchar	abyBuddyID[16] = {};
 	uint32	dwBuddyIP = 0;	// network order
 	uint16	nBuddyPort = 0;
@@ -124,18 +117,17 @@ public:
 	// every 100 ms, from the upload timer
 	void	Process();
 	// At startup, and when the connection to the server and to Kad is about to start: true when
-	// it should wait for the NAT discovery, which this starts (after UPnP; 89nm). The dialog is then told when the
-	// discovery has a result (CemuleDlg::OnNatDiscoveryOver), or when it gave up waiting. Once
+	// it should wait for the NAT discovery, which this starts (after UPnP). The dialog is then
+	// told when the discovery has a result (CemuleDlg::OnNatDiscoveryOver), or when it gave up waiting. Once
 	// only: after the wait it is false whatever the discovery.
 	bool	DelayConnection();
 	// eMule closes, before the client UDP socket goes: every punched stream still open ends with
 	// its FINs at once, as a TCP connection gets its FIN, so that the peer does not wait for the
-	// path to go silent (89ni)
+	// path to go silent
 	void	Shutdown();
 
-	// The discovery found a mapping of the client UDP port that can be punched to through the
-	// server or the buddies: endpoint-independent, or random in a block of ports, or sequential
-	// (89nh, 89nj, 89nn). A source with an open UDP port takes an endpoint-independent one only.
+	// The discovery found a mapping of the client UDP port that can be punched to through a
+	// relay: endpoint-independent, or random in a block of ports, or sequential.
 	bool	IsPunchable() const;
 	// Endpoint-independent: a source with an open UDP port can be punched to as well.
 	bool	IsDirectPunchable() const;
@@ -159,13 +151,13 @@ public:
 	static bool ReadCallback(CSafeMemFile &data, uint32 dwIP, uint16 nPort, SNatCallback &cb);
 	// Source side. A request arrived through byVia: punch towards the requester's endpoint, with
 	// the token from its user hash and the nonce. Through the buddies, the request back goes
-	// first, for the same file (pFileHash, 89nn). False when the punch was not started.
+	// first, for the same file (pFileHash). False when the punch was not started.
 	bool	StartIncoming(const SNatCallback &cb, uint64 nNonce, uint8 byVia, const uchar *pFileHash = NULL);
-	// Downloader side, 89nn: the source's request back, which our buddy forwarded with the
+	// Downloader side: the source's request back, which our buddy forwarded with the
 	// endpoint it saw it come from. Our socket waiting for it gets the punch.
 	void	OnBuddyBack(const SNatCallback &cb, uint64 nNonce);
 
-	// 89ng, the server. A LowID on our server can be punched to through it: the server
+	// The server. A LowID on our server can be punched to through it: the server
 	// coordinates punches for us, and the ID is odd (the client announced the NAT callback).
 	bool	ServerCanPunch(uint32 nID, uint32 dwServerIP, uint16 nServerPort) const;
 	// Whether the login announces the NAT callback (SRVCAP_NATTRAVERSAL): not once the discovery
@@ -189,16 +181,18 @@ public:
 private:
 	// A punch session towards dwIP:nPort (network order IP): natd connects when bConnect, else
 	// accepts. pLayer: the socket's, NULL for a socket made when the stream opens.
-	// nServerPeer: through the server, the peer's ID there (89nl). bRelayed: both endpoints come
-	// fresh through a relay, the server or the two buddies (89nn).
-	bool	OpenSession(uint32 dwIP, uint16 nPort, const BYTE *pToken12, bool bConnect, CNatdSocketLayer *pLayer, uint8 byVia, uint32 nServerPeer = 0, bool bRelayed = false);
+	// nServerPeer: through the server, the peer's ID there. Through a relay (the server, the
+	// buddies) both endpoints are fresh; directly, the source's is the one it published.
+	bool	OpenSession(uint32 dwIP, uint16 nPort, const BYTE *pToken12, bool bConnect, CNatdSocketLayer *pLayer, uint8 byVia, uint32 nServerPeer = 0);
 	void	ServerTimer();
 	void	OnServerPeer(const SNatCallback &cb);
-	// our request to that target, waiting for its endpoint, is over (nError 0: no event)
-	void	DropWait(uint32 nTargetID, int nError);
-	// 89nn: the same through the buddies, our requests by their nonce
-	void	BuddyTimer();
-	void	DropBuddyWait(uint64 nNonce, int nError);
+	// Our requests through a relay: byVia and nKey (the target's ID on the server, the nonce
+	// through the buddies) name one. The timer sends them once more and times them out; a wait
+	// is over (nError 0: no event); the peer's request back arrived (pToken12 NULL: the
+	// socket's), false when nothing waited for it.
+	void	RelayTimer();
+	void	DropWait(uint8 byVia, uint64 nKey, int nError);
+	bool	Answered(uint8 byVia, uint64 nKey, const SNatCallback &cb, const BYTE *pToken12, bool bConnect);
 
 	struct Impl;
 	std::unique_ptr<Impl> m_pImpl;
@@ -223,20 +217,18 @@ public:
 	const BYTE* GetToken() const					{ return m_abyToken; }
 	uint8	GetVia() const							{ return m_byVia; }
 	bool	IsConnecting() const					{ return GetLayerState() == connecting; }
-	// 89nl, through the server: the target, when the first request went, the punches asked for
+	// Through a relay: the target's ID on the server, the source's buddy and the file, when the
+	// first request went, the punches asked for
 	uint32	GetServerPeer() const					{ return m_nServerPeer; }
-	DWORD	GetAskedAt() const						{ return m_dwAsked; }
-	uint8	GetTries() const						{ return m_nTries; }
-	// the punch timed out and a new request went: waiting for the target's endpoint again
-	void	ServerRetry()							{ m_nSession = 0; m_nServerTarget = m_nServerPeer; ++m_nTries; }
-	// 89nn, through the buddies: whether the request went with our buddy (the source answers
-	// back through it); the same after a timed-out punch, with the new request's nonce and token
-	bool	HasBuddyRoute() const					{ return m_bBuddyRoute; }
 	const uchar* GetRelayID() const					{ return m_abyRelayID; }
 	uint32	GetRelayIP() const						{ return m_dwRelayIP; }
 	uint16	GetRelayPort() const					{ return m_nRelayPort; }
 	const uchar* GetFile() const					{ return m_abyFile; }
-	void	BuddyRetry(uint64 nNonce, const BYTE *pToken12);
+	DWORD	GetAskedAt() const						{ return m_dwAsked; }
+	uint8	GetTries() const						{ return m_nTries; }
+	// the punch timed out and a new request went: waiting for the target's endpoint again, by
+	// the request's key, with the new token through the buddies (pToken12 NULL: the same)
+	void	Retry(uint64 nWait, const BYTE *pToken12);
 
 protected:
 	// Events of the socket handle under this layer: there is no connection on it, so there
@@ -257,18 +249,14 @@ protected:
 	virtual BOOL ShutDown(int nHow = CAsyncSocket::sends);
 
 private:
-	void	Unhook();		// the session goes, and the wait for the server's answer (89ng)
+	void	Unhook();		// the session goes, and the wait for the relay's answer
 
 	uint32	m_nSession;		// 0: none (not connected yet, or gone)
-	uint32	m_nServerTarget;	// 89ng: the ID of the target whose endpoint the server is to bring, 0 when known
-	uint32	m_nServerPeer;	// 89nl: that target, kept once its endpoint is known
-	DWORD	m_dwAsked;		// 89nl: when the first request to it went
-	uint8	m_nTries;		// 89nl: punches asked for, the first included
-	// 89nn, through the buddies: the nonce of the request waiting for the source's request back
-	// (0 when none), and the source's buddy and file, for the request once more
-	uint64	m_nBuddyNonce;
-	bool	m_bBuddyRoute;
-	uint32	m_dwRelayIP;	// the source's buddy, network order
+	uint64	m_nWait;		// the key of our request waiting for the target's endpoint, 0 when none
+	uint32	m_nServerPeer;	// through the server: the target's ID there
+	DWORD	m_dwAsked;		// when the first request to it went
+	uint8	m_nTries;		// punches asked for, the first included
+	uint32	m_dwRelayIP;	// through the buddies: the source's buddy, network order
 	uint16	m_nRelayPort;
 	uchar	m_abyRelayID[16];
 	uchar	m_abyFile[16];

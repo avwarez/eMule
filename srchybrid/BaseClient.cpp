@@ -1342,7 +1342,7 @@ bool CUpDownClient::TryToConnect(bool bIgnoreMaxCon, bool bNoCallbacks, CRuntime
 	}
 
 	// LowID->LowID, both of us can be punched to: the source is asked to punch towards us and
-	// the stream goes over the punched path (89nc); nothing else differs from a TCP connection
+	// the stream goes over the punched path; nothing else differs from a TCP connection
 	const uint8 byPunchVia = (HasLowID() && GetKadState() != KS_CONNECTING_FWCHECK && pClassSocket == NULL && !bNoCallbacks
 		&& !theApp.CanDoCallback(this)) ? theApp.nattraversal->PunchVia(*this) : NATD_VIA_NONE;
 	const bool bPunch = byPunchVia != NATD_VIA_NONE;

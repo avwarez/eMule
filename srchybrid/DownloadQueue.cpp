@@ -1521,8 +1521,8 @@ bool CDownloadQueue::DoKademliaFileRequest() const
 	return ::GetTickCount() >= m_lastkademliafilerequest + KADEMLIAASKTIME;
 }
 
-// A LowID Kad source is of use to a LowID only when both of them can be punched to (89nb); one
-// with an open UDP port (bDirect) only when our NAT maps endpoint-independently (89no)
+// A LowID Kad source is of use to a LowID only when both of them can be punched to; one
+// with an open UDP port (bDirect) only when our NAT maps endpoint-independently
 static bool KeepFirewalledSource(bool bNatd, bool bDirect, uint32 dwIP, const CPartFile &file)
 {
 	if (!theApp.IsFirewalled())
@@ -1608,11 +1608,7 @@ void CDownloadQueue::KademliaSearchFile(uint32 nSearchID, const Kademlia::CUInt1
 			ctemp->SetBuddyID(cID);
 			ctemp->SetBuddyIP(dwBuddyIP);
 			ctemp->SetBuddyPort(dwBuddyPort);
-			if (bNatd) {
-				// the punch goes to the endpoint the index node saw publishing
-				ctemp->SetConnectIP(ED2Kip);
-				ctemp->SetNatdSource(true);
-			}
+			ctemp->SetNatdSource(bNatd);
 		}
 		break;
 	case 6:
