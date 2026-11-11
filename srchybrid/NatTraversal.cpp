@@ -76,7 +76,6 @@ static char THIS_FILE[] = __FILE__;
 #define NATD_RELAY_TRIES		3
 #define NATD_SERVER_PINGS		5		// status requests for the server's UDP key, 20 s apart
 #define NATD_SERVER_PING_RETRY	((DWORD)SEC2MS(20))
-#define NATD_SERVER_SEEN		((DWORD)SEC2MS(30))	// a peer the server brought again within this is a copy
 // The connection waits for the discovery at most this long. natd's discovery ends within
 // about 40 s even when no STUN server answers: the rest is for resolving their names.
 #define NATD_CONNECT_WAIT		((DWORD)SEC2MS(60))
@@ -427,6 +426,13 @@ struct CNatTraversal::Impl
 	void StartDiscovery(natd::TimePoint now);
 	void Poll(natd::TimePoint now);
 	void HandleEvents(natd::TimePoint now);
+	// the user's log: whether downloads between LowIDs can go through UDP hole punching here
+	void LogVerdict(LPCTSTR pszWhat)
+	{
+		nLoggedVerdict = Verdict();
+		AddLogLine(false, _T("NAT traversal: public endpoint %s%s - downloads between LowIDs through UDP hole punching %s")
+			, pszWhat, (LPCTSTR)EndpointStr(pAgent->publicEndpoint()), VerdictStr(nLoggedVerdict));
+	}
 	void Punched(natd::SessionId id, SSession &s, const natd::PunchResult &r, natd::TimePoint now, uint32 nPackets, uint16 nRounds);
 	void Accept(natd::SessionId id, SSession &s);
 	bool OnPath(const natd::Endpoint &from, const BYTE *pData, size_t nLen, natd::TimePoint now);
@@ -469,7 +475,6 @@ struct CNatTraversal::Impl
 		bool	bGaveUp = false;		// the last status request went unanswered: logged
 		bool	Ready() const		{ return dwKey != 0; }
 	} server;
-	std::map<uint32, DWORD> serverSeen;	// the peers the server brought lately: ID, when
 	void ServerPing(DWORD dwNow);
 	// pszWhy: for the log
 	bool ServerRequest(uint32 nTargetID, LPCTSTR pszWhy);
@@ -552,11 +557,8 @@ void CNatTraversal::Impl::Poll(natd::TimePoint now)
 	pAgent->poll(now);
 	HandleEvents(now);
 	// the first verdict can come from a provisional result of the discovery: the final one may differ
-	if (pAgent->profileReady() && Verdict() != nLoggedVerdict) {
-		nLoggedVerdict = Verdict();
-		AddLogLine(false, _T("NAT traversal: public endpoint %s - downloads between LowIDs through UDP hole punching now %s")
-			, (LPCTSTR)EndpointStr(pAgent->publicEndpoint()), VerdictStr(nLoggedVerdict));
-	}
+	if (pAgent->profileReady() && Verdict() != nLoggedVerdict)
+		LogVerdict(_T("now "));
 }
 
 // cs held
@@ -565,11 +567,8 @@ void CNatTraversal::Impl::HandleEvents(natd::TimePoint now)
 	natd::AgentEvent e;
 	while (pAgent->nextEvent(e)) {
 		if (e.type == natd::AgentEventType::ProfileReady) {
-			// the user's log: whether downloads between LowIDs can go through UDP hole punching here
 			const natd::NatProfile &profile = pAgent->profile();
-			AddLogLine(false, _T("NAT traversal: public endpoint %s on UDP port %u - downloads between LowIDs through UDP hole punching %s")
-				, (LPCTSTR)EndpointStr(profile.publicEndpoint), thePrefs.GetUDPPort(), VerdictStr(Verdict()));
-			nLoggedVerdict = Verdict();
+			LogVerdict(_T(""));
 			if (thePrefs.GetVerbose())
 				AddDebugLogLine(false, _T("NAT traversal: %hs, mapping %hs, filtering %hs"), natd::toString(profile.predictability)
 					, natd::toString(profile.details.mapping), natd::toString(profile.details.filtering));
@@ -579,8 +578,7 @@ void CNatTraversal::Impl::HandleEvents(natd::TimePoint now)
 			// the paths went with the old endpoint: their streams end as the TCP connections of a
 			// client whose address changed. The sources are not published again: nobody punches the
 			// endpoint they carry, a relay brings each peer the other's.
-			AddLogLine(false, _T("NAT traversal: public endpoint changed to %s - downloads between LowIDs through UDP hole punching %s"), (LPCTSTR)EndpointStr(pAgent->publicEndpoint())
-				, VerdictStr(Verdict()));
+			LogVerdict(_T("changed to "));
 			for (std::map<natd::SessionId, SSession>::iterator it = sessions.begin(); it != sessions.end(); ++it)
 				if (it->second.pKcp && !it->second.bOver) {
 					++nPathsAddressChanged;
@@ -626,8 +624,6 @@ void CNatTraversal::Impl::HandleEvents(natd::TimePoint now)
 				const uint64 nKey = bServer ? pLayer->GetServerPeer() : RandomUInt64();
 				if (waits.find(WaitKey(byVia, nKey)) == waits.end() && Ask(*pLayer, nKey, _T("ours, once more: the punch timed out"))) {
 					sessions.erase(it);
-					if (bServer)
-						serverSeen.erase(pLayer->GetServerPeer());
 					pLayer->Retry(nKey, bServer ? NULL : natd::tokenFrom(thePrefs.GetUserHash(), 16, nKey).data());
 					waits[WaitKey(byVia, nKey)] = SWait{pLayer, dwNow, false};
 					continue;
@@ -1004,7 +1000,7 @@ void CNatTraversal::Process()
 	}
 	lock.Unlock();
 	if (bConnect)	// it may log in at once, which asks AnnounceServerPunch()
-		theApp.emuledlg->OnNatDiscoveryOver();
+		theApp.emuledlg->EndStartupNetCheck();
 }
 
 // As UPnP before it: the login then announces what the discovery found (AnnounceServerPunch),
@@ -1028,7 +1024,7 @@ bool CNatTraversal::DelayConnection()
 }
 
 // The server we are logged in to: whether it coordinates punches for us (a LowID there, with
-// the crypt layer for its obfuscated requests), its UDP key, the peers it brought lately.
+// the crypt layer for its obfuscated requests), and its UDP key.
 void CNatTraversal::ServerTimer()
 {
 	Impl &impl = *m_pImpl;
@@ -1046,7 +1042,6 @@ void CNatTraversal::ServerTimer()
 				DropWait(key.first, key.second, WSAECONNREFUSED);
 		}
 		impl.again.erase(std::remove_if(impl.again.begin(), impl.again.end(), [](const Impl::SAgain &a) { return a.byVia == NATD_VIA_SERVER; }), impl.again.end());
-		impl.serverSeen.clear();
 		sv = Impl::SServer();
 		sv.dwIP = dwIP;
 		sv.nPort = nPort;
@@ -1065,10 +1060,6 @@ void CNatTraversal::ServerTimer()
 			AddDebugLogLine(false, _T("NAT traversal: the server %s:%u did not answer %u status requests on UDP port %u: no punches through it until the next login, and its requests to us are dropped")
 				, (LPCTSTR)ipstr(sv.dwIP), sv.nPort, sv.nPings, (unsigned)(uint16)(sv.nPort + 12));
 	}
-	if (!sv.Ready())
-		return;
-	for (std::map<uint32, DWORD>::iterator it = impl.serverSeen.begin(); it != impl.serverSeen.end();)
-		it = (dwNow - it->second >= NATD_SERVER_SEEN) ? impl.serverSeen.erase(it) : std::next(it);
 }
 
 // The obfuscated status request, from the client UDP port: the server answers with the UDP key
@@ -1257,24 +1248,18 @@ void CNatTraversal::OnServerPeer(const SNatCallback &cb)
 	Impl &impl = *m_pImpl;
 	const bool bConnect = impl.server.nID < cb.nID;
 	const DWORD dwNow = ::GetTickCount();
-	// a copy while the punch it asked for is on; once that punch is over, the peer asks once more
-	const std::map<uint32, DWORD>::const_iterator itSeen = impl.serverSeen.find(cb.nID);
-	if (itSeen != impl.serverSeen.end() && dwNow - itSeen->second < NATD_SERVER_SEEN) {
-		const DWORD dwSeen = itSeen->second;	// the poll may erase it
+	// a copy (each request goes twice) while the punch it asked for is on; once that punch is
+	// over, the peer asks once more
+	{
 		CSingleLock lock(&impl.cs, TRUE);
 		impl.Poll(natd::Clock::now());	// a punch whose time is up by now is over
-		bool bOn = false;
 		for (const std::pair<const natd::SessionId, SSession> &se : impl.sessions)
-			bOn |= se.second.nServerPeer == cb.nID && !se.second.bOver;
-		if (bOn) {
-			if (thePrefs.GetVerbose())
-				AddDebugLogLine(false, _T("NAT traversal: punch request from ID %u already taken %u s ago"), cb.nID, (unsigned)((dwNow - dwSeen) / SEC2MS(1)));
-			return;
-		}
-		if (thePrefs.GetVerbose())
-			AddDebugLogLine(false, _T("NAT traversal: punch request from ID %u once more, the last punch with it is over"), cb.nID);
+			if (se.second.nServerPeer == cb.nID && !se.second.bOver) {
+				if (thePrefs.GetVerbose())
+					AddDebugLogLine(false, _T("NAT traversal: punch request from ID %u already taken"), cb.nID);
+				return;
+			}
 	}
-	impl.serverSeen[cb.nID] = dwNow;
 	// what both sides know: the user hash of the one that starts and both IDs, its own first
 	const natd::TxId token(bConnect ? natd::tokenFrom(thePrefs.GetUserHash(), 16, ServerNonce(impl.server.nID, cb.nID))
 		: natd::tokenFrom(cb.abyHash, 16, ServerNonce(cb.nID, impl.server.nID)));
@@ -1435,8 +1420,6 @@ bool CNatTraversal::AttachOutgoing(CClientReqSocket *pSocket, CUpDownClient &cli
 			delete pLayer;
 			return false;
 		}
-		if (bServer)
-			m_pImpl->serverSeen.erase(pLayer->m_nServerPeer);
 		DropWait(byVia, nKey, WSAECONNREFUSED);	// one request at a time to a target: an older one gives way
 		pLayer->m_nWait = nKey;
 		pLayer->m_dwAsked = ::GetTickCount();

@@ -235,7 +235,6 @@ CemuleDlg::CemuleDlg(CWnd *pParent /*=NULL*/)
 	, m_bStartMinimized()
 	, m_bMsgBlinkState()
 	, m_bConnectRequestDelayedForUPnP()
-	, m_bConnectRequestDelayedForNatd()
 	, m_bStartupNetCheck()
 	, m_bKadSuspendDisconnect()
 	, m_bEd2kSuspendDisconnect()
@@ -1955,11 +1954,6 @@ void CemuleDlg::StartConnection()
 			VERIFY(::KillTimer(NULL, m_hUPnPTimeOutTimer));
 			m_hUPnPTimeOutTimer = 0;
 		}
-		// then the NAT discovery, so that the login announces what it found: the
-		// connection starts only when it is over (OnNatDiscoveryOver)
-		m_bConnectRequestDelayedForNatd = theApp.nattraversal->DelayConnection();
-		if (m_bConnectRequestDelayedForNatd)
-			return;
 		AddLogLine(true, GetResString(IDS_CONNECTING));
 
 		// ed2k
@@ -1976,17 +1970,10 @@ void CemuleDlg::StartConnection()
 	m_bKadSuspendDisconnect = false;
 }
 
-void CemuleDlg::OnNatDiscoveryOver()
-{
-	if (m_bStartupNetCheck)
-		EndStartupNetCheck();
-	else if (theApp.IsRunning() && m_bConnectRequestDelayedForNatd)
-		StartConnection();
-}
-
 void CemuleDlg::EndStartupNetCheck()
 {
-	// UPnP first (OnUPnPResult comes back here), then the NAT discovery (OnNatDiscoveryOver)
+	// UPnP first (OnUPnPResult comes back here), then the NAT discovery, so that the login
+	// announces what it found (CNatTraversal::Process comes back here)
 	if (!m_bStartupNetCheck || m_hUPnPTimeOutTimer != 0 || theApp.nattraversal->DelayConnection())
 		return;
 	m_bStartupNetCheck = false;
@@ -2000,7 +1987,6 @@ void CemuleDlg::EndStartupNetCheck()
 
 void CemuleDlg::CloseConnection()
 {
-	m_bConnectRequestDelayedForNatd = false;	// no connection once the discovery is over
 	theApp.serverconnect->StopConnectionTry();
 	theApp.serverconnect->Disconnect();
 

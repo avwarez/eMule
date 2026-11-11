@@ -116,10 +116,10 @@ public:
 	bool	OnDatagram(const BYTE *pData, int nLen, uint32 dwIP, uint16 nPort);
 	// every 100 ms, from the upload timer
 	void	Process();
-	// At startup, and when the connection to the server and to Kad is about to start: true when
-	// it should wait for the NAT discovery, which this starts (after UPnP). The dialog is then
-	// told when the discovery has a result (CemuleDlg::OnNatDiscoveryOver), or when it gave up waiting. Once
-	// only: after the wait it is false whatever the discovery.
+	// At startup, before the connection to the server and to Kad: true while it should wait for
+	// the NAT discovery, which this starts (after UPnP). The dialog is told when the discovery
+	// has a result, or when the wait (at most NATD_CONNECT_WAIT) is over
+	// (CemuleDlg::EndStartupNetCheck); after it, false whatever the discovery.
 	bool	DelayConnection();
 	// eMule closes, before the client UDP socket goes: every punched stream still open ends with
 	// its FINs at once, as a TCP connection gets its FIN, so that the peer does not wait for the
