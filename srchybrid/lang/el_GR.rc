@@ -1430,6 +1430,9 @@ BEGIN
     IDS_KAD_RECHECKFW       "Επανέλεγχος Firewall"
     IDS_SHAREDTITLE         "eD2K|Kad (Κοινόχρηστο)"
     IDS_FIREWALLED          "Firewalled" //!
+    IDS_FIREWALLBAR_TEXT    "Το Τείχος προστασίας των Windows αποκλείει τις εισερχόμενες συνδέσεις"
+    IDS_FIREWALLBAR_ALLOW   "Να επιτρέπεται"
+    IDS_FIREWALLBAR_IGNORE  "Παράβλεψη"
     IDS_KADEMLIA            "Kad" //!
     IDS_KADCONTACTLAB       "Σύνδεση"
     IDS_KADDISTANCE         "Απόσταση"

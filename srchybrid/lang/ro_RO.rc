@@ -1489,6 +1489,9 @@ BEGIN
     IDS_KAD_RECHECKFW       "Reverifică Firewall"
     IDS_SHAREDTITLE         "Share eD2k|Kad"
     IDS_FIREWALLED          "cu Firewall"
+    IDS_FIREWALLBAR_TEXT    "Firewall-ul Windows blochează conexiunile de intrare"
+    IDS_FIREWALLBAR_ALLOW   "Permite"
+    IDS_FIREWALLBAR_IGNORE  "Ignoră"
     IDS_KADEMLIA            "Kad" //!
     IDS_KADCONTACTLAB       "Contacte"
     IDS_KADDISTANCE         "Distanţă"

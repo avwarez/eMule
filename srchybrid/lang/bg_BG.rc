@@ -1527,6 +1527,9 @@ BEGIN
     IDS_KAD_RECHECKFW       "Провери защ. стена"
     IDS_SHAREDTITLE         "Споделени в eD2K|Kad"
     IDS_FIREWALLED          "Зад защитна стена"
+    IDS_FIREWALLBAR_TEXT    "Защитната стена на Windows блокира входящите връзки"
+    IDS_FIREWALLBAR_ALLOW   "Разреши"
+    IDS_FIREWALLBAR_IGNORE  "Игнорирай"
     IDS_KADEMLIA            "Kad" //!
     IDS_KADCONTACTLAB       "Контакти"
     IDS_KADDISTANCE         "Отдалеченост"

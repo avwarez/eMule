@@ -1463,6 +1463,9 @@ BEGIN
     IDS_KAD_RECHECKFW       "Comprovar el Tallafocs"
     IDS_SHAREDTITLE         "Compartit eD2K/KAD"
     IDS_FIREWALLED          "Tallafocs"
+    IDS_FIREWALLBAR_TEXT    "El tallafocs del Windows està bloquejant les connexions entrants"
+    IDS_FIREWALLBAR_ALLOW   "Permet"
+    IDS_FIREWALLBAR_IGNORE  "Ignora"
     IDS_KADEMLIA            "Kad"//!
     IDS_KADCONTACTLAB       "Contactes"
     IDS_KADDISTANCE         "Distància"

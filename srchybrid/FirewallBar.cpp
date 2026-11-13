@@ -19,6 +19,7 @@
 #include "emule.h"
 #include "emuledlg.h"
 #include "FirewallCheck.h"
+#include "OtherFunctions.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -30,7 +31,6 @@ namespace
 {
 	const UINT MP_FIREWALL_ALLOW = 1;
 	const UINT MP_FIREWALL_IGNORE = 2;
-	LPCTSTR const s_pszText = _T("Windows Firewall is blocking your inbound connections");
 }
 
 BEGIN_MESSAGE_MAP(CFirewallBar, CWnd)
@@ -50,7 +50,7 @@ bool CFirewallBar::CreateBar(CWnd *pParent)
 	const int iIconSize = ::GetSystemMetrics(SM_CXSMICON);
 	m_hIcon = (HICON)::LoadImage(NULL, IDI_WARNING, IMAGE_ICON, iIconSize, iIconSize, LR_SHARED);
 	LPCTSTR pszClass = AfxRegisterWndClass(CS_HREDRAW | CS_VREDRAW, ::LoadCursor(NULL, IDC_HAND));
-	if (!CreateEx(0, pszClass, s_pszText, WS_CHILD | WS_CLIPSIBLINGS, CRect(), pParent, 0))
+	if (!CreateEx(0, pszClass, GetResString(IDS_FIREWALLBAR_TEXT), WS_CHILD | WS_CLIPSIBLINGS, CRect(), pParent, 0))
 		return false;
 	SetFont(pParent->GetFont(), FALSE);
 	return true;
@@ -84,7 +84,7 @@ void CFirewallBar::OnPaint()
 	dc.SetBkMode(TRANSPARENT);
 	dc.SetTextColor(::GetSysColor(COLOR_INFOTEXT));
 	rc.left += iMargin + iIconSize + iMargin;
-	dc.DrawText(s_pszText, -1, &rc, DT_SINGLELINE | DT_VCENTER | DT_END_ELLIPSIS | DT_NOPREFIX);
+	dc.DrawText(GetResString(IDS_FIREWALLBAR_TEXT), &rc, DT_SINGLELINE | DT_VCENTER | DT_END_ELLIPSIS | DT_NOPREFIX);
 	dc.SelectObject(pOldFont);
 }
 
@@ -93,8 +93,8 @@ void CFirewallBar::OnLButtonUp(UINT /*nFlags*/, CPoint point)
 	CMenu menu;
 	if (!menu.CreatePopupMenu())
 		return;
-	menu.AppendMenu(MF_STRING | (m_bCanAllow ? 0 : MF_GRAYED), MP_FIREWALL_ALLOW, _T("Allow"));
-	menu.AppendMenu(MF_STRING, MP_FIREWALL_IGNORE, _T("Ignore"));
+	menu.AppendMenu(MF_STRING | (m_bCanAllow ? 0 : MF_GRAYED), MP_FIREWALL_ALLOW, GetResString(IDS_FIREWALLBAR_ALLOW));
+	menu.AppendMenu(MF_STRING, MP_FIREWALL_IGNORE, GetResString(IDS_FIREWALLBAR_IGNORE));
 	ClientToScreen(&point);
 	switch (menu.TrackPopupMenu(TPM_LEFTALIGN | TPM_TOPALIGN | TPM_RETURNCMD | TPM_NONOTIFY, point.x, point.y, this)) {
 	case MP_FIREWALL_ALLOW:

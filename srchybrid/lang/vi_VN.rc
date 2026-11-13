@@ -1543,6 +1543,9 @@ BEGIN
     IDS_KAD_RECHECKFW       "Kiểm tra lại Tường lửa"
     IDS_SHAREDTITLE         "Chia sẻ eD2K|Kad"
     IDS_FIREWALLED          "Tường lửa"
+    IDS_FIREWALLBAR_TEXT    "Tường lửa Windows đang chặn các kết nối đến"
+    IDS_FIREWALLBAR_ALLOW   "Cho phép"
+    IDS_FIREWALLBAR_IGNORE  "Bỏ qua"
     IDS_KADEMLIA            "Kad" //!
     IDS_KADCONTACTLAB       "Nút"
     IDS_KADDISTANCE         "Khoảng cách"

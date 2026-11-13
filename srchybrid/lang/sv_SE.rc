@@ -1459,6 +1459,9 @@ BEGIN
     IDS_KAD_RECHECKFW       "Kontrollera brandvägg"
     IDS_SHAREDTITLE         "Utdelade ED2K|Kad"
     IDS_FIREWALLED          "Bakom brandvägg"
+    IDS_FIREWALLBAR_TEXT    "Windows-brandväggen blockerar inkommande anslutningar"
+    IDS_FIREWALLBAR_ALLOW   "Tillåt"
+    IDS_FIREWALLBAR_IGNORE  "Ignorera"
     IDS_KADEMLIA            "Kad" //!
     IDS_KADCONTACTLAB       "Kontakter"
     IDS_KADDISTANCE         "Distans"

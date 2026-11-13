@@ -1468,6 +1468,9 @@ BEGIN
     IDS_KAD_RECHECKFW       "Comprobar Cortafuegos"
     IDS_SHAREDTITLE         "Compartido eD2K|Kad"
     IDS_FIREWALLED          "Tras cortafuegos"
+    IDS_FIREWALLBAR_TEXT    "El cortafuegos de Windows está bloqueando las conexiones entrantes"
+    IDS_FIREWALLBAR_ALLOW   "Permitir"
+    IDS_FIREWALLBAR_IGNORE  "Ignorar"
     IDS_KADEMLIA            "Kad"//!
     IDS_KADCONTACTLAB       "Contactos"
     IDS_KADDISTANCE         "Distancia"

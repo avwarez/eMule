@@ -1486,6 +1486,9 @@ BEGIN
     IDS_KAD_RECHECKFW       "Güvenlik Duvarı Kontrolü"
     IDS_SHAREDTITLE         "ED2K|Kad Paylaşılmış"
     IDS_FIREWALLED          "Güvenlik Duvarı"
+    IDS_FIREWALLBAR_TEXT    "Windows Güvenlik Duvarı gelen bağlantıları engelliyor"
+    IDS_FIREWALLBAR_ALLOW   "İzin ver"
+    IDS_FIREWALLBAR_IGNORE  "Yoksay"
     IDS_KADEMLIA            "Kad" //!
     IDS_KADCONTACTLAB       "Bağlantılar"
     IDS_KADDISTANCE         "Mesafe"

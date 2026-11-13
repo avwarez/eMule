@@ -1537,6 +1537,9 @@ BEGIN
     IDS_KAD_RECHECKFW       "چک کردن مجدد ديوار آتش"
     IDS_SHAREDTITLE         "به اشتراک گذاشته شده eD2K|Kad"
     IDS_FIREWALLED          "حفاظت شده توسط ديوار آتش يا فايروال"
+    IDS_FIREWALLBAR_TEXT    "دیوار آتش ویندوز اتصال‌های ورودی را مسدود می‌کند"
+    IDS_FIREWALLBAR_ALLOW   "اجازه بده"
+    IDS_FIREWALLBAR_IGNORE  "نادیده بگیر"
     IDS_KADEMLIA            "Kad" //!
     IDS_KADCONTACTLAB       "تماس ها"
     IDS_KADDISTANCE         "فاصله"

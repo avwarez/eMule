@@ -1460,6 +1460,9 @@ BEGIN
     IDS_KAD_RECHECKFW       "Revérifier le pare-feu"
     IDS_SHAREDTITLE         "Partages eD2K|Kad"
     IDS_FIREWALLED          "Derrière un pare-feu"
+    IDS_FIREWALLBAR_TEXT    "Le Pare-feu Windows bloque vos connexions entrantes"
+    IDS_FIREWALLBAR_ALLOW   "Autoriser"
+    IDS_FIREWALLBAR_IGNORE  "Ignorer"
     IDS_KADEMLIA            "Kad "
     IDS_KADCONTACTLAB       "Contacts" //!
     IDS_KADDISTANCE         "Distance" //!

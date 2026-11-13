@@ -1541,6 +1541,9 @@ BEGIN
     IDS_KAD_RECHECKFW       "Sprawdź firewall"
     IDS_SHAREDTITLE         "Udostępniane eD2K|Kad"
     IDS_FIREWALLED          "Firewalled" //!
+    IDS_FIREWALLBAR_TEXT    "Zapora systemu Windows blokuje połączenia przychodzące"
+    IDS_FIREWALLBAR_ALLOW   "Zezwól"
+    IDS_FIREWALLBAR_IGNORE  "Ignoruj"
     IDS_KADEMLIA            "Kad" //!
     IDS_KADCONTACTLAB       "Kontakty"
     IDS_KADDISTANCE         "Dystans"

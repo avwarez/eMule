@@ -1467,6 +1467,9 @@ BEGIN
     IDS_KAD_RECHECKFW       "Comprobar Cortalumes"
     IDS_SHAREDTITLE         "Compartido ED2K|Kad"
     IDS_FIREWALLED          "Tras un cortalumes"
+    IDS_FIREWALLBAR_TEXT    "O cortalumes de Windows está a bloquear as conexións entrantes"
+    IDS_FIREWALLBAR_ALLOW   "Permitir"
+    IDS_FIREWALLBAR_IGNORE  "Ignorar"
     IDS_KADEMLIA            "Kad"//!
     IDS_KADCONTACTLAB       "Contactos"
     IDS_KADDISTANCE         "Distancia"

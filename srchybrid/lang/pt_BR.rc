@@ -1444,6 +1444,9 @@ BEGIN
     IDS_KAD_RECHECKFW       "Verificar Firewall"
     IDS_SHAREDTITLE         "eD2K|Kad"
     IDS_FIREWALLED          "Sob Firewall"
+    IDS_FIREWALLBAR_TEXT    "O Firewall do Windows está bloqueando as conexões de entrada"
+    IDS_FIREWALLBAR_ALLOW   "Permitir"
+    IDS_FIREWALLBAR_IGNORE  "Ignorar"
     IDS_KADEMLIA            "Kad"//!
     IDS_KADCONTACTLAB       "Contatos"
     IDS_KADDISTANCE         "Distância"

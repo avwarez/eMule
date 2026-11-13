@@ -1437,6 +1437,9 @@ BEGIN
     IDS_KAD_RECHECKFW       "重新檢查防火牆"
     IDS_SHAREDTITLE         "分享 eD2K|Kad"
     IDS_FIREWALLED          "防火牆內"
+    IDS_FIREWALLBAR_TEXT    "Windows 防火牆正在封鎖連入連線"
+    IDS_FIREWALLBAR_ALLOW   "允許"
+    IDS_FIREWALLBAR_IGNORE  "忽略"
     IDS_KADEMLIA            "Kad"//!
     IDS_KADCONTACTLAB       "聯繫"
     IDS_KADDISTANCE         "距離"

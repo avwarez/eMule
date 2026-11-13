@@ -1132,6 +1132,9 @@
 #define IDS_KAD_RECHECKFW               1188
 #define IDS_SHAREDTITLE                 1189
 #define IDS_FIREWALLED                  1190
+#define IDS_FIREWALLBAR_TEXT            1611
+#define IDS_FIREWALLBAR_ALLOW           1612
+#define IDS_FIREWALLBAR_IGNORE          1613
 #define IDS_KADEMLIA                    1191
 #define IDS_KADCONTACTLAB               1192
 #define IDS_KADDISTANCE                 1193

@@ -1463,6 +1463,9 @@ BEGIN
     IDS_KAD_RECHECKFW       "Překontrolujte firewall"
     IDS_SHAREDTITLE         "Sdílené ED2K|Kad"
     IDS_FIREWALLED          "Za firewallem"
+    IDS_FIREWALLBAR_TEXT    "Brána Windows Firewall blokuje příchozí připojení"
+    IDS_FIREWALLBAR_ALLOW   "Povolit"
+    IDS_FIREWALLBAR_IGNORE  "Ignorovat"
     IDS_KADEMLIA            "Kad" //!
     IDS_KADCONTACTLAB       "Kontakty"
     IDS_KADDISTANCE         "Vzdálenost"

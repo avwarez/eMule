@@ -1471,6 +1471,9 @@ BEGIN
     IDS_KAD_RECHECKFW       "Kontroller brannmur"
     IDS_SHAREDTITLE         "Delt ED2K|Kad"
     IDS_FIREWALLED          "Bak brannmur"
+    IDS_FIREWALLBAR_TEXT    "Windows-brannmuren blokkerer innkommende tilkoblinger"
+    IDS_FIREWALLBAR_ALLOW   "Tillat"
+    IDS_FIREWALLBAR_IGNORE  "Ignorer"
     IDS_KADEMLIA            "Kad"//!
     IDS_KADCONTACTLAB       "Kontakter"
     IDS_KADDISTANCE         "Distanse"
