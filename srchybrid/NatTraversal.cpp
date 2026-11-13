@@ -224,8 +224,9 @@ namespace
 namespace
 {
 	// The transport of an eD2K stream over a punched path: KCP (kcp/, MIT) in stream mode,
-	// normal mode (congestion control on), segments of at most NATD_PATH_SEGMENT bytes sent
-	// through output. Both peers run it (NATD_TRANSPORT_KCP, in every datagram of the path).
+	// normal mode (congestion control on) with fast retransmission (a segment skipped by two
+	// ACKs goes again, without waiting for its RTO), segments of at most NATD_PATH_SEGMENT bytes
+	// sent through output. Both peers run it (NATD_TRANSPORT_KCP, in every datagram of the path).
 	class CNatdKcpTransport
 	{
 	public:
@@ -239,7 +240,7 @@ namespace
 			m_pKcp->stream = 1;
 			ikcp_setmtu(m_pKcp, NATD_PATH_SEGMENT);
 			ikcp_wndsize(m_pKcp, kWindow, kWindow);
-			ikcp_nodelay(m_pKcp, 0, 20, 0, 0);
+			ikcp_nodelay(m_pKcp, 0, 20, 2, 0);
 		}
 		~CNatdKcpTransport()
 		{
@@ -252,6 +253,10 @@ namespace
 		{
 			ikcp_input(m_pKcp, reinterpret_cast<const char*>(pData), (long)nLen);
 			Drain();
+			// the ACKs of what came, at once: KCP sends them only when it flushes, and poll() comes
+			// at eMule's timer, up to 100 ms later, which the peer would count in its RTT. The flush
+			// also sends what the ACKs let into the window, and a window opened by Drain().
+			ikcp_flush(m_pKcp);
 		}
 
 		size_t write(const uint8_t *pData, size_t nLen)
