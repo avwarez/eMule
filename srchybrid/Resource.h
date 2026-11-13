@@ -1556,6 +1556,7 @@
 #define IDS_IMPORTPARTS_IMPORTSTART     1607
 #define IDS_IMPORTPARTS                 1608
 #define IDS_IMPORTPARTS_STOP            1609
+#define IDS_NATTRAVERSAL                1610
 #define IDC_ANIMATE1                    2000
 #define IDC_STATUS                      2001
 #define IDC_FILESTATUS                  2002
@@ -2377,6 +2378,7 @@
 #define IDC_CONNECTEDTXT                3045
 #define IDC_COMPLTXT                    3046
 #define IDC_SPACETXT                    3047
+#define IDC_PREF_NATTRAVERSAL           3048
 #define IDA_ENTER                       32771
 
 // Next default values for new objects
@@ -2385,7 +2387,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        1568
 #define _APS_NEXT_COMMAND_VALUE         32773
-#define _APS_NEXT_CONTROL_VALUE         3048
-#define _APS_NEXT_SYMED_VALUE           1610
+#define _APS_NEXT_CONTROL_VALUE         3049
+#define _APS_NEXT_SYMED_VALUE           1611
 #endif
 #endif

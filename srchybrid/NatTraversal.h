@@ -109,6 +109,9 @@ public:
 	CNatTraversal(const CNatTraversal&) = delete;
 	CNatTraversal& operator=(const CNatTraversal&) = delete;
 
+	// The preference, as it was at startup: off, there is no discovery and no punch, nothing
+	// is announced or published, and eMule is the plain eMule (a user with forwarded ports).
+	bool	IsEnabled() const	{ return m_bEnabled; }
 	// A datagram received on the client UDP socket, before the IP filter and before eMule
 	// decrypts or parses it: true when it was NAT traversal's (and is then done with). natd
 	// takes its own only from the endpoints it addressed, the STUN servers among them, which
@@ -196,6 +199,7 @@ private:
 
 	struct Impl;
 	std::unique_ptr<Impl> m_pImpl;
+	const bool m_bEnabled;
 };
 
 // Under a CClientReqSocket whose eD2K stream goes over a punched UDP path. The socket handle

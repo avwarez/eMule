@@ -632,6 +632,9 @@ public:
 	static bool		m_bCloseUPnPOnExit;
 	static int		m_nLastWorkingImpl;
 
+	// NAT traversal between LowIDs (CNatTraversal reads it once, at startup)
+	static bool		m_bNatTraversal;
+
 	// Spam
 	static bool		m_bEnableSearchResultFilter;
 
@@ -1384,6 +1387,8 @@ public:
 	static bool		CloseUPnPOnExit()					{ return m_bCloseUPnPOnExit; }
 	static int		GetLastWorkingUPnPImpl()			{ return m_nLastWorkingImpl; }
 	static void		SetLastWorkingUPnPImpl(int val)		{ m_nLastWorkingImpl = val; }
+
+	static bool		IsNatTraversalEnabled()				{ return m_bNatTraversal; }
 
 	// Spam filter
 	static bool		IsSearchSpamFilterEnabled()			{ return m_bEnableSearchResultFilter; }

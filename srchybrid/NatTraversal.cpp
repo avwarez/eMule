@@ -895,7 +895,10 @@ void CNatTraversal::Impl::RaiseEvents()
 
 CNatTraversal::CNatTraversal()
 	: m_pImpl(std::make_unique<Impl>())
+	, m_bEnabled(thePrefs.IsNatTraversalEnabled())
 {
+	if (!m_bEnabled)
+		theApp.QueueLogLine(false, _T("NAT traversal: off in the preferences, no NAT discovery and no punch"));	// before the window
 }
 
 // The natd counters, for an investigation: once an hour.
@@ -943,6 +946,8 @@ CNatTraversal::~CNatTraversal()
 // all the rest of the client UDP traffic (Kad, eD2K) goes on at once, without the lock
 bool CNatTraversal::OnDatagram(const BYTE *pData, int nLen, uint32 dwIP, uint16 nPort)
 {
+	if (!m_bEnabled)
+		return false;
 	const bool bNatd = nLen > 0 && (natd::proto::isNatdPacket(pData, (size_t)nLen) || natd::stun::isStunPacket(pData, (size_t)nLen));
 	if (!bNatd && (nLen <= 0 || pData[0] != OP_UDPRESERVEDPROT1))
 		return false;
@@ -963,6 +968,8 @@ bool CNatTraversal::OnDatagram(const BYTE *pData, int nLen, uint32 dwIP, uint16 
 
 void CNatTraversal::Process()
 {
+	if (!m_bEnabled)
+		return;
 	Impl &impl = *m_pImpl;
 	const natd::TimePoint now = natd::Clock::now();
 	CSingleLock lock(&impl.cs, TRUE);
@@ -1009,6 +1016,8 @@ void CNatTraversal::Process()
 // same block.
 bool CNatTraversal::DelayConnection()
 {
+	if (!m_bEnabled)
+		return false;
 	Impl &impl = *m_pImpl;
 	CSingleLock lock(&impl.cs, TRUE);
 	if (impl.pAgent->profileReady() || theApp.clientudp == NULL || theApp.clientudp->m_hSocket == INVALID_SOCKET)
@@ -1177,6 +1186,8 @@ bool CNatTraversal::OnServerDatagram(BYTE *pData, int nLen, const SOCKADDR_IN &f
 // Lugdunum's NAT callback: <IP 4><UDP port 2> as the server saw them, then the request
 void CNatTraversal::OnServerCallback(const BYTE *pData, uint32 nSize, bool bUdp)
 {
+	if (!m_bEnabled)
+		return;
 	LPCTSTR pszHow = bUdp ? _T("UDP") : _T("TCP");
 	if (nSize < 6) {
 		if (thePrefs.GetVerbose())
@@ -1366,7 +1377,7 @@ uint8 CNatTraversal::PunchVia(const CUpDownClient &client) const
 // the login normally comes after the discovery (DelayConnection)
 bool CNatTraversal::AnnounceServerPunch() const
 {
-	return !m_pImpl->pAgent->profileReady() || m_pImpl->pAgent->punchable();
+	return m_bEnabled && (!m_pImpl->pAgent->profileReady() || m_pImpl->pAgent->punchable());
 }
 
 bool CNatTraversal::ServerCanPunch(uint32 nID, uint32 dwServerIP, uint16 nServerPort) const
@@ -1482,6 +1493,8 @@ bool CNatTraversal::ReadCallback(CSafeMemFile &data, uint32 dwIP, uint16 nPort, 
 // in its 20 s, a few punches at once).
 bool CNatTraversal::StartIncoming(const SNatCallback &cb, uint64 nNonce, uint8 byVia, const uchar *pFileHash)
 {
+	if (!m_bEnabled)
+		return false;
 	if (byVia == NATD_VIA_BUDDY && (!cb.bBuddy || pFileHash == NULL)) {
 		if (thePrefs.GetVerbose())
 			AddDebugLogLine(false, _T("NAT traversal: punch request through our buddy from %s:%u not taken: no buddy of the requester to answer through"), (LPCTSTR)ipstr(cb.dwIP), cb.nPort);

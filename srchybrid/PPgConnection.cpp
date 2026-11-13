@@ -62,6 +62,7 @@ BEGIN_MESSAGE_MAP(CPPgConnection, CPropertyPage)
 	ON_BN_CLICKED(IDC_ULIMIT_LBL, OnLimiterChange)
 	ON_BN_CLICKED(IDC_DLIMIT_LBL, OnLimiterChange)
 	ON_WM_HSCROLL()
+	ON_BN_CLICKED(IDC_PREF_NATTRAVERSAL, OnSettingsChange)
 	ON_BN_CLICKED(IDC_NETWORK_KADEMLIA, OnSettingsChange)
 	ON_WM_HELPINFO()
 	ON_BN_CLICKED(IDC_PREF_UPNPONSTART, OnSettingsChange)
@@ -195,6 +196,7 @@ void CPPgConnection::LoadSettings()
 		CheckDlgButton(IDC_NETWORK_ED2K, static_cast<UINT>(thePrefs.networked2k));
 
 		CheckDlgButton(IDC_PREF_UPNPONSTART, static_cast<UINT>(thePrefs.IsUPnPEnabled()));
+		CheckDlgButton(IDC_PREF_NATTRAVERSAL, static_cast<UINT>(thePrefs.IsNatTraversalEnabled()));
 
 		//ShowLimitValues(); - will be called in OnLimiterChange()
 		OnLimiterChange();
@@ -324,6 +326,9 @@ BOOL CPPgConnection::OnApply()
 			theApp.emuledlg->preferenceswnd->m_wndWebServer.SetUPnPState();
 	}
 
+	// read at startup only (CNatTraversal): the login announces it, before any check could change
+	thePrefs.m_bNatTraversal = IsDlgButtonChecked(IDC_PREF_NATTRAVERSAL) != 0;
+
 	theApp.scheduler->SaveOriginals();
 
 	SetModified(FALSE);
@@ -364,6 +369,7 @@ void CPPgConnection::Localize()
 		SetDlgItemText(IDC_UDPDISABLE, GetResString(IDS_UDPDISABLED));
 		SetDlgItemText(IDC_STARTTEST, GetResString(IDS_STARTTEST));
 		SetDlgItemText(IDC_PREF_UPNPONSTART, GetResString(IDS_UPNPSTART));
+		SetDlgItemText(IDC_PREF_NATTRAVERSAL, GetResString(IDS_NATTRAVERSAL));
 		ShowLimitValues();
 	}
 }

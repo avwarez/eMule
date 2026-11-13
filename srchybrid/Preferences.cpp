@@ -462,6 +462,7 @@ uint32	CPreferences::m_dwKadUDPKey;
 uint8	CPreferences::m_byCryptTCPPaddingLength;
 
 bool	CPreferences::m_bEnableUPnP;
+bool	CPreferences::m_bNatTraversal;
 bool	CPreferences::m_bCloseUPnPOnExit;
 int		CPreferences::m_nLastWorkingImpl;
 
@@ -1812,6 +1813,11 @@ void CPreferences::SavePreferences()
 	ini.WriteBool(_T("CloseUPnPOnExit"), m_bCloseUPnPOnExit);
 	ini.WriteInt(_T("LastWorkingImplementation"), m_nLastWorkingImpl);
 
+	///////////////////////////////////////////////////////////////////////////
+	// Section: "NatTraversal"
+	//
+	ini.WriteBool(_T("Enabled"), m_bNatTraversal, _T("NatTraversal"));
+
 	ini.Store();
 }
 
@@ -2379,6 +2385,11 @@ void CPreferences::LoadPreferences()
 	m_bEnableUPnP = ini.GetBool(_T("EnableUPnP"), false, _T("UPnP"));
 	m_bCloseUPnPOnExit = ini.GetBool(_T("CloseUPnPOnExit"), true);
 	m_nLastWorkingImpl = ini.GetInt(_T("LastWorkingImplementation"), 1 /*UPNP_IMPL_LIBPLUM*/);
+
+	///////////////////////////////////////////////////////////////////////////
+	// Section: "NatTraversal"
+	//
+	m_bNatTraversal = ini.GetBool(_T("Enabled"), true, _T("NatTraversal"));
 
 	LoadCats();
 	SetLanguage();

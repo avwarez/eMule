@@ -336,7 +336,7 @@ BEGIN
     PUSHBUTTON      "Add UNC path...",IDC_UNCADD,10,218,88,14,BS_CENTER
 END
 
-IDD_PPG_CONNECTION DIALOGEX 0, 0, 231, 228
+IDD_PPG_CONNECTION DIALOGEX 0, 0, 231, 238
 STYLE DS_SHELLFONT | WS_CHILD | WS_DISABLED | WS_CAPTION
 CAPTION "Connection"
 FONT 8, "MS Shell Dlg", 0, 0, 0x0
@@ -351,17 +351,17 @@ BEGIN
     EDITTEXT        IDC_UDPPORT,29,100,38,12,ES_AUTOHSCROLL | ES_NUMBER
     CONTROL         "disable",IDC_UDPDISABLE,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,71,102,51,9
     PUSHBUTTON      "Test Ports",IDC_STARTTEST,149,99,71,14
-    EDITTEXT        IDC_MAXSOURCEPERFILE,11,153,38,12,ES_AUTOHSCROLL | ES_NUMBER
-    EDITTEXT        IDC_MAXCON,117,153,38,12,ES_AUTOHSCROLL | ES_NUMBER
-    CONTROL         "Autoconnect on startup",IDC_AUTOCONNECT,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,4,178,138,10
-    CONTROL         "Reconnect on loss",IDC_RECONN,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,4,188,140,10
-    CONTROL         "Show overhead bandwidth",IDC_SHOWOVERHEAD,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,4,198,139,10
-    PUSHBUTTON      "Wizard...",IDC_WIZARD,4,211,50,14
-    CONTROL         "Kad",IDC_NETWORK_KADEMLIA,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,160,184,57,10
-    CONTROL         "eD2K",IDC_NETWORK_ED2K,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,160,194,58,10
-    GROUPBOX        "Client Port:",IDC_CLIENTPORT_FRM,4,74,223,57
-    GROUPBOX        "Max. Sources/File",IDC_MAXSRC_FRM,4,132,100,40
-    GROUPBOX        "Max. connections:",IDC_MAXCONN_FRM,110,132,117,40
+    EDITTEXT        IDC_MAXSOURCEPERFILE,11,163,38,12,ES_AUTOHSCROLL | ES_NUMBER
+    EDITTEXT        IDC_MAXCON,117,163,38,12,ES_AUTOHSCROLL | ES_NUMBER
+    CONTROL         "Autoconnect on startup",IDC_AUTOCONNECT,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,4,188,138,10
+    CONTROL         "Reconnect on loss",IDC_RECONN,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,4,198,140,10
+    CONTROL         "Show overhead bandwidth",IDC_SHOWOVERHEAD,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,4,208,139,10
+    PUSHBUTTON      "Wizard...",IDC_WIZARD,4,221,50,14
+    CONTROL         "Kad",IDC_NETWORK_KADEMLIA,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,160,194,57,10
+    CONTROL         "eD2K",IDC_NETWORK_ED2K,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,160,204,58,10
+    GROUPBOX        "Client Port:",IDC_CLIENTPORT_FRM,4,74,223,67
+    GROUPBOX        "Max. Sources/File",IDC_MAXSRC_FRM,4,142,100,40
+    GROUPBOX        "Max. connections:",IDC_MAXCONN_FRM,110,142,117,40
     GROUPBOX        "Capacities:",IDC_CAPACITIES_FRM,4,2,67,70
     CONTROL         "Download",IDC_DCAP_LBL,"Static",SS_LEFTNOWORDWRAP | WS_GROUP,11,13,58,8
     LTEXT           "KB/s",IDC_KBS2,45,25,22,8
@@ -370,13 +370,15 @@ BEGIN
     GROUPBOX        "Limits:",IDC_LIMITS_FRM,77,2,149,70
     RTEXT           "KB/s",IDC_KBS1,176,13,44,8
     RTEXT           "KB/s",IDC_KBS4,176,43,44,8
-    LTEXT           "Hard limit",IDC_MAXSRCHARD_LBL,11,143,82,8
+    LTEXT           "Hard limit",IDC_MAXSRCHARD_LBL,11,153,82,8
     LTEXT           "UDP",IDC_UDPPORTLABEL,11,103,16,8
-    LTEXT           "Static",IDC_MAXCONLABEL,117,143,86,8
+    LTEXT           "Static",IDC_MAXCONLABEL,117,153,86,8
     LTEXT           "TCP",IDC_STATIC,11,86,17,8
-    GROUPBOX        "Network",IDC_CONNECTION_NETWORK,153,174,74,34
+    GROUPBOX        "Network",IDC_CONNECTION_NETWORK,153,184,74,34
     CONTROL         "Use UPnP to set up Port Forwarding",IDC_PREF_UPNPONSTART,
                     "Button",BS_AUTOCHECKBOX | WS_TABSTOP,11,116,208,10
+    CONTROL         "Use NAT traversal between LowIDs (on restart)",IDC_PREF_NATTRAVERSAL,
+                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,11,127,208,10
 END
 
 IDD_WIZARD DIALOGEX 0, 0, 257, 223
@@ -3652,6 +3654,7 @@ END
 STRINGTABLE
 BEGIN
     IDS_UPNPSTART           "Use UPnP to set up ports"
+    IDS_NATTRAVERSAL        "Use NAT traversal between LowIDs (on restart)"
     IDS_UPNPSETUP           "Trying to set up port forwarding with UPnP..."
     IDS_UPNPFAILED          "UPnP failed to set up port forwarding, please forward those ports manually if necessary!"
     IDS_UPNPSUCCESS         "UPnP successfully set up forwarding for ports %u (TCP) and %u (UDP)"

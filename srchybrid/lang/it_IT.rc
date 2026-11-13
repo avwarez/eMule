@@ -1884,6 +1884,7 @@ END
 STRINGTABLE
 BEGIN
     IDS_UPNPSTART           "Usa l'UPnP per configurare il router"
+    IDS_NATTRAVERSAL        "Usa il NAT traversal tra LowID (al riavvio)"
     IDS_UPNPSETUP           "Sto provando a configurare automaticamente il router con l'UPnP..."
     IDS_UPNPFAILED          "L'UPnP non è riuscito a configurare automaticamente il router per eMule, provare a configurarlo manualmente se necessario!"
     IDS_UPNPSUCCESS         "L'UPnP ha configurato il router con le porte %u (TCP) e %u (UDP)"
