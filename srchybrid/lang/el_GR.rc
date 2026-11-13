@@ -1840,6 +1840,7 @@ END
 STRINGTABLE
 BEGIN
     IDS_UPNPSTART           "Ρύθμιση των ports με το UPnP"
+    IDS_NATTRAVERSAL        "Χρήση NAT traversal μεταξύ LowID (μετά από επανεκκίνηση)"
     IDS_UPNPSETUP           "Προσπάθεια ρύθμισης της προώθησης των ports με UPnP..."
     IDS_UPNPFAILED          "Το UPnP απέτυχε να ρυθμίσει την προώθηση των ports, παρακαλώ προωθήστε αυτά τα ports χειροκίνητα αν είναι απαραίτητο!"
     IDS_UPNPSUCCESS         "Το UPnP ρύθμισε την προώθηση επιτυχώς, των ports %u (TCP) και %u (UDP)"

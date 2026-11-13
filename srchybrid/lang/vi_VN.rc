@@ -1890,6 +1890,7 @@ END
 STRINGTABLE
 BEGIN
     IDS_UPNPSTART           "Sử dụng UPnP để thiết lập cổng"
+    IDS_NATTRAVERSAL        "Sử dụng NAT traversal giữa các LowID (khi khởi động lại)"
     IDS_UPNPSETUP           "Cố gắng thiết lập cổng chuyển tiếp với UPnP..."
     IDS_UPNPFAILED          "UPnP không thể thiết lập cổng chuyển tiếp, vui lòng tự chuyển tiếp các cổng này nếu cần!"
     IDS_UPNPSUCCESS         "UPnP đã thiết lập cổng chuyển tiếp thành công cho các cổng %u (TCP) và %u (UDP)"

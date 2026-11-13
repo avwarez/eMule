@@ -1896,6 +1896,7 @@ END
 STRINGTABLE
 BEGIN
     IDS_UPNPSTART           "Bruk UPnP til å sette opp porter"
+    IDS_NATTRAVERSAL        "Bruk NAT traversal mellom lave ID-er (ved omstart)"
     IDS_UPNPSETUP           "Prøver å sette opp videresending av port med UPnP..."
     IDS_UPNPFAILED          "UPnP klarte ikke å sette opp videresending av port, vennligst videresend disse portene manuelt hvis nødvendig!"
     IDS_UPNPSUCCESS         "UPnP klarte å sette opp videresending for portene %u (TCP) og %u (UDP)"

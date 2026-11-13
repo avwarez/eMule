@@ -1887,6 +1887,7 @@ END
 STRINGTABLE
 BEGIN
     IDS_UPNPSTART           "استعمل UPnP لتنصيب البروتات"
+    IDS_NATTRAVERSAL        "استعمل NAT traversal بين الهويات المنخفضة (بعد إعادة التشغيل)"
     IDS_UPNPSETUP           "تنصيب البورتات مع UPnP..."
     IDS_UPNPFAILED          "UPnP فضل في تنصيب البورتات, الرجاء تفعيل هذه البروتات يدويا اذا لزم!"
     IDS_UPNPSUCCESS         "UPnP نجح في تنصيب البروتات %u (TCP) و %u (UDP)"

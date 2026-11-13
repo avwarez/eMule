@@ -1896,6 +1896,7 @@ END
 STRINGTABLE
 BEGIN
     IDS_UPNPSTART           "Använd UPnP för att ställa in portar"
+    IDS_NATTRAVERSAL        "Använd NAT traversal mellan Låg-ID (vid omstart)"
     IDS_UPNPSETUP           "Försöker att ställa in portar med hjälp av UPNP..."
     IDS_UPNPFAILED          "UPnP misslyckades att ställa in port-vidarebefordring, du måste vidarebefordra dessa portar manuellt!"
     IDS_UPNPSUCCESS         "UPnP lyckades med att vidarebefodra portarna %u (TCP) och %u (UDP)"

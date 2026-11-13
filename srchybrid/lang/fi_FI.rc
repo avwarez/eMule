@@ -1862,6 +1862,7 @@ END
 STRINGTABLE
 BEGIN
     IDS_UPNPSTART           "Aseta portit uPnP:n avulla"
+    IDS_NATTRAVERSAL        "Käytä NAT traversalia matalien tunnisteiden välillä (uudelleenkäynnistyksen jälkeen)"
     IDS_UPNPSETUP           "Yritetään asettaa portit käyttäen uPnP:tä..."
     IDS_UPNPFAILED          "En pystynyt asettamaan portteja uPnP:n avulla, ole hyvä ja salli porttien liikenne manuaalisesti jos tarpeen!"
     IDS_UPNPSUCCESS         "UPnP on avannut portit %u (TCP) ja %u (UDP) onnistuneesti"

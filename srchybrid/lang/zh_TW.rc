@@ -1870,6 +1870,7 @@ END
 STRINGTABLE
 BEGIN
     IDS_UPNPSTART           "使用 UPnP 來設定連接埠"
+    IDS_NATTRAVERSAL        "在 低-ID 之間使用 NAT 穿透 (重新啟動後生效)"
     IDS_UPNPSETUP           "嘗試以 UPnP 設定連接埠轉向..."
     IDS_UPNPFAILED          "UPnP 連接埠轉向設定失敗, 假如需要請手動轉向那些連接埠!"
     IDS_UPNPSUCCESS         "UPnP 設定連接埠 %u (TCP) 及 %u (UDP) 轉向成功"

@@ -1859,6 +1859,7 @@ END
 STRINGTABLE
 BEGIN
     IDS_UPNPSTART           "포트를 설정하기 위해 UPnP 사용"
+    IDS_NATTRAVERSAL        "로우 ID 간 NAT 통과 사용 (재시작 후)"
     IDS_UPNPSETUP           "UPnP를 사용하여 포트 전송 설정 시도 중..."
     IDS_UPNPFAILED          "UPnP 포트 전송 설정 실패. 필요하다면 수동으로 이 포트들을 전송하십시오!"
     IDS_UPNPSUCCESS         "UPnP가 성공적으로 %u (TCP) 및 %u (UDP) 포트의 전송 설정을 완료했습니다."

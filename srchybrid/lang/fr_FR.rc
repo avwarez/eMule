@@ -1894,6 +1894,7 @@ END
 STRINGTABLE
 BEGIN
     IDS_UPNPSTART           "Configurer les ports grâce à l'UPnP"
+    IDS_NATTRAVERSAL        "Utiliser la traversée NAT entre LowID (au redémarrage)"
     IDS_UPNPSETUP           "Tentative de mappage des ports avec l'UPnP..."
     IDS_UPNPFAILED          "Echec du mappage des ports avec l'UPnP, veuillez paramétrer le mappage manuellement !"
     IDS_UPNPSUCCESS         "L'UPnP a effectué avec succès le mappage des ports %u (TCP) et %u (UDP)"

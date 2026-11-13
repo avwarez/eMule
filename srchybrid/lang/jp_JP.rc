@@ -1899,6 +1899,7 @@ END
 STRINGTABLE
 BEGIN
     IDS_UPNPSTART           "UPnPを使用してポート設定を行う"
+    IDS_NATTRAVERSAL        "LowID間でNATトラバーサルを使用する (再起動後)"
     IDS_UPNPSETUP           "UPnPを使用してポート設定を行っています..."
     IDS_UPNPFAILED          "UPnPを利用したポート設定に失敗しました。必要ならこれらのポートを手動で設定してください!"
     IDS_UPNPSUCCESS         "UPnPはポート %u (TCP) と %u (UDP) の設定に成功しました"

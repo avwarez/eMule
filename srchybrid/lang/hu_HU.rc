@@ -1899,6 +1899,7 @@ END
 STRINGTABLE
 BEGIN
     IDS_UPNPSTART           "Use UPnP to setup ports"
+    IDS_NATTRAVERSAL        "NAT traversal használata alacsony azonosítók között (újraindítás után)"
     IDS_UPNPSETUP           "Trying to setup port forwardings with UPnP..."
     IDS_UPNPFAILED          "UPnP failed to setup port forwardings, please forward those ports manually if necessary!"
     IDS_UPNPSUCCESS         "UPnP successfully set up forwardings for ports %u (TCP) and %u (UDP)"

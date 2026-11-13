@@ -1902,6 +1902,7 @@ END
 STRINGTABLE
 BEGIN
     IDS_UPNPSTART           "Utilizar UPnP para redirixir portos"
+    IDS_NATTRAVERSAL        "Utilizar o NAT traversal entre LowID (ao reiniciar)"
     IDS_UPNPSETUP           "Intentando redirixir os portos mediante UPnP..."
     IDS_UPNPFAILED          "Non se puideron redirixir os portos mediante UPnP, por favor, abre estes portos manualmente se é necesario!"
     IDS_UPNPSUCCESS         "Redirixíronse correctamente os portos %u (TCP) e %u (UDP) mediante UPnP"

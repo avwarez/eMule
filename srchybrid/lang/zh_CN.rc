@@ -1870,6 +1870,7 @@ END
 STRINGTABLE
 BEGIN
     IDS_UPNPSTART           "使用UPnP来设置端口"  //"Use UPnP to setup ports"
+    IDS_NATTRAVERSAL        "在 LowID 之间使用 NAT 穿透 (重启后生效)"
     IDS_UPNPSETUP           "正在尝试通过UPnP建立端口映射..."  //"Trying to setup port forwardings with UPnP..."
     IDS_UPNPFAILED          "UPnP端口映射设置,如果需要的话请自行设置这些端口映射!"  //"UPnP failed to setup port forwardings, please forward those ports manually if necessary!"
     IDS_UPNPSUCCESS         "UPnP成功建立了端口%u(TCP) 和 %u(UDP)的端口映射"  //"UPnP successfully set up forwardings for ports %u (TCP) and %u (UDP)"

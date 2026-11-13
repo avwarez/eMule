@@ -1887,6 +1887,7 @@ END
 STRINGTABLE
 BEGIN
     IDS_UPNPSTART           "UPnP настройка портов"
+    IDS_NATTRAVERSAL        "Использовать NAT traversal между LowID (после перезапуска)"
     IDS_UPNPSETUP           "Попытка UPnP настроить перенаправление портов..."
     IDS_UPNPFAILED          "UPnP не удалось перенаправление. Пожалуйста, перенаправьте порты вручную!"
     IDS_UPNPSUCCESS         "UPnP успешно настроил перенаправление портов %u (TCP) и %u (UDP)"

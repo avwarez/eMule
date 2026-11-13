@@ -1871,6 +1871,7 @@ END
 STRINGTABLE
 BEGIN
     IDS_UPNPSTART           "Benutze UPnP zur Porteinstellung"
+    IDS_NATTRAVERSAL        "NAT-Traversal zwischen LowIDs verwenden (nach Neustart)"
     IDS_UPNPSETUP           "Versuche Port-Weiterleitungen via UPnP einzustellen..."
     IDS_UPNPFAILED          "UPnP konnte die Portweiterleitung nicht konfigurieren. Bitte führe die Portweiterleitung manuell durch!"
     IDS_UPNPSUCCESS         "UPnP hat erfolgreich Portweiterleitungen für die Ports %u (TCP) und %u (UDP) durchgeführt."

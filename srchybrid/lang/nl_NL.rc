@@ -1892,6 +1892,7 @@ END
 STRINGTABLE
 BEGIN
     IDS_UPNPSTART           "UPnP gebruiken om poorten in te stellen"
+    IDS_NATTRAVERSAL        "NAT-traversal tussen lage ID's gebruiken (na herstart)"
     IDS_UPNPSETUP           "Probeert om poortdoorverwijzingen met UPnP in te stellen..."
     IDS_UPNPFAILED          "UPnP heeft gefaald met het instellen van poortdoorverwijzingen, verwijs deze poorten a.u.b. zelf door als dit nodig is!"
     IDS_UPNPSUCCESS         "UPnP heeft de doorverwijzingen voor de poorten %u (TCP) en %u (UDP) succesvol ingesteld"

@@ -1899,6 +1899,7 @@ END
 STRINGTABLE
 BEGIN
     IDS_UPNPSTART           "Emprar UPnP per a configurar els ports"
+    IDS_NATTRAVERSAL        "Emprar el NAT traversal entre ID Baixes (en reiniciar)"
     IDS_UPNPSETUP           "Intentant configurar redireccions de ports amb UPnP..."
     IDS_UPNPFAILED          "UPnP no ha pogut configurar les redireccions de ports, si us plau redirigiu aquests ports manualment si cal!"
     IDS_UPNPSUCCESS         "UPnP ha configurat amb èxit les redireccions pels ports %u (TCP) i %u (UDP)"

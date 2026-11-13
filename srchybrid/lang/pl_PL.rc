@@ -1866,6 +1866,7 @@ END
 STRINGTABLE
 BEGIN
     IDS_UPNPSTART           "Użyj UPnP do konfiguracji portów"
+    IDS_NATTRAVERSAL        "Używaj NAT traversal między niskimi ID (po restarcie)"
     IDS_UPNPSETUP           "Próbuj przekierowywać porty za pomocą UPnP..."
     IDS_UPNPFAILED          "Błąd UPnP przy przekierowywaniu portów, wymagane jest ich ręczne przekierowanie!"
     IDS_UPNPSUCCESS         "UPnP szczęśliwie przekierowało porty %u (TCP) i %u (UDP)"

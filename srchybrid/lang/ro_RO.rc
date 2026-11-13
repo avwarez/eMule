@@ -1898,6 +1898,7 @@ END
 STRINGTABLE
 BEGIN
     IDS_UPNPSTART           "Setare porturi folosind UPnP"
+    IDS_NATTRAVERSAL        "Folosire NAT traversal între ID-uri mici (la repornire)"
     IDS_UPNPSETUP           "Încerc să setez porturile (forwarding) folosind UPnP..."
     IDS_UPNPFAILED          "UPnP a eşuat la setarea porturilor (forwarding), efectuaţi manual această operaţiune, la nevoie!"
     IDS_UPNPSUCCESS         "UPnP a efectuat cu succes forwarding la porturile %u (TCP) şi %u (UDP)"

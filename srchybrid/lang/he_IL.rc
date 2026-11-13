@@ -1885,6 +1885,7 @@ END
 STRINGTABLE
 BEGIN
     IDS_UPNPSTART           "השתמש ב-UPnP להגדרת פורטים"
+    IDS_NATTRAVERSAL        "השתמש ב-NAT traversal בין מזהים נמוכים (לאחר הפעלה מחדש)"
     IDS_UPNPSETUP           "מנסה לפתוח פורטים באמצעות UPnP..."
     IDS_UPNPFAILED          "UPnP נכשל בפתיחת פורטים, אנא פתח את הפורטים ידנית אם צריך!"
     IDS_UPNPSUCCESS         "UPnP פתח בהצלחה את הפורטים %u (TCP) ו-%u (UDP)"

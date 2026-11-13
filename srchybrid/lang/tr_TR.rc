@@ -1895,6 +1895,7 @@ END
 STRINGTABLE
 BEGIN
     IDS_UPNPSTART           "Bağlantı noktalarını ayarlamak için UPnP kullan"
+    IDS_NATTRAVERSAL        "DüşükID'ler arasında NAT geçişini kullan (yeniden başlatınca)"
     IDS_UPNPSETUP           "UPnP ile bağlantı noktası yönlendirme ayarlamaları deneniyor..."
     IDS_UPNPFAILED          "Bağlantı noktası yönlendirme ayarlaması için UPnP başarısız oldu, eğer gerekliyse lütfen bağlantı noktalarını elle yönlendirin!"
     IDS_UPNPSUCCESS         "UPnP, %u (TCP) ve %u (UDP) nolu bağlantı noktaları için yönlendirmeyi başarılı olarak ayarladı"
