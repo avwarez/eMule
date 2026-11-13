@@ -90,6 +90,7 @@
 #include "MiniMule.h"
 #include "UserMsgs.h"
 #include "TextToSpeech.h"
+#include "NatTraversal.h"
 #include "Collection.h"
 #include "CollectionViewDialog.h"
 #include "UPnPImpl.h"
@@ -99,7 +100,6 @@
 #include "ExitBox.h"
 #include "UploadDiskIOThread.h"
 #include "PartFileWriteThread.h"
-#include "NatTraversal.h"
 #include "ImportParts.h"
 #include "ClientCredits.h"
 
@@ -730,10 +730,15 @@ void CALLBACK CemuleDlg::StartupTimer(HWND /*hwnd*/, UINT /*uiMsg*/, UINT_PTR /*
 					AddLogLine(true, GetResString(IDS_MAIN_READY), (LPCTSTR)theApp.m_strCurVersionLong);
 
 				theApp.m_app_state = APP_STATE_RUNNING; //initialization completed
-				// the connect buttons and the automatic connection wait for UPnP and the NAT discovery
+				// the connect buttons and the automatic connection wait for UPnP and the NAT discovery:
+				// over at once, the connection below goes; else it does nothing (StartConnection), and
+				// EndStartupNetCheck connects when they end
 				theApp.emuledlg->m_bStartupNetCheck = true;
+				theApp.emuledlg->EndStartupNetCheck(false);
 				theApp.emuledlg->kademliawnd->UpdateControlsState(); //application state change is not tracked - force update
-				theApp.emuledlg->EndStartupNetCheck();
+
+				if (thePrefs.DoAutoConnect())
+					theApp.emuledlg->OnBnClickedConnect();
 
 				theApp.emuledlg->UpdateStatusBarProgress();
 			}
@@ -1038,10 +1043,10 @@ void CemuleDlg::ShowConnectionState()
 			toolbar->SetButtonInfo(TBBTN_CONNECT, &tbbi);
 			strPane.Remove(_T('&'));
 			theApp.emuledlg->m_SysMenuOptions.ModifyMenu(MP_DISCONNECT, MF_STRING, MP_CONNECT, strPane);
+			if (m_bStartupNetCheck)	// ModifyMenu enabled it
+				m_SysMenuOptions.EnableMenuItem(MP_CONNECT, MF_GRAYED);
 		}
 	}
-	if (m_bStartupNetCheck)	// ModifyMenu enabled it
-		m_SysMenuOptions.EnableMenuItem(MP_CONNECT, MF_GRAYED);
 	ShowUserCount();
 	UpdateThumbBarButtons();
 }
@@ -1970,7 +1975,7 @@ void CemuleDlg::StartConnection()
 	m_bKadSuspendDisconnect = false;
 }
 
-void CemuleDlg::EndStartupNetCheck()
+void CemuleDlg::EndStartupNetCheck(bool bAutoConnect)
 {
 	// UPnP first (OnUPnPResult comes back here), then the NAT discovery, so that the login
 	// announces what it found (CNatTraversal::Process comes back here)
@@ -1981,7 +1986,7 @@ void CemuleDlg::EndStartupNetCheck()
 	m_SysMenuOptions.EnableMenuItem(MP_CONNECT, MF_ENABLED);
 	serverwnd->GetDlgItem(IDC_ED2KCONNECT)->EnableWindow();
 	kademliawnd->UpdateControlsState();
-	if (thePrefs.DoAutoConnect())
+	if (bAutoConnect && thePrefs.DoAutoConnect())
 		OnBnClickedConnect();
 }
 

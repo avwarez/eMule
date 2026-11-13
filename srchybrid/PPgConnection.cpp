@@ -59,10 +59,10 @@ BEGIN_MESSAGE_MAP(CPPgConnection, CPropertyPage)
 	ON_BN_CLICKED(IDC_WIZARD, OnBnClickedWizard)
 	ON_BN_CLICKED(IDC_NETWORK_ED2K, OnSettingsChange)
 	ON_BN_CLICKED(IDC_SHOWOVERHEAD, OnSettingsChange)
+	ON_BN_CLICKED(IDC_PREF_NATTRAVERSAL, OnSettingsChange)
 	ON_BN_CLICKED(IDC_ULIMIT_LBL, OnLimiterChange)
 	ON_BN_CLICKED(IDC_DLIMIT_LBL, OnLimiterChange)
 	ON_WM_HSCROLL()
-	ON_BN_CLICKED(IDC_PREF_NATTRAVERSAL, OnSettingsChange)
 	ON_BN_CLICKED(IDC_NETWORK_KADEMLIA, OnSettingsChange)
 	ON_WM_HELPINFO()
 	ON_BN_CLICKED(IDC_PREF_UPNPONSTART, OnSettingsChange)
@@ -191,12 +191,12 @@ void CPPgConnection::LoadSettings()
 		CheckDlgButton(IDC_RECONN, static_cast<UINT>(thePrefs.reconnect));
 		CheckDlgButton(IDC_SHOWOVERHEAD, static_cast<UINT>(thePrefs.m_bshowoverhead));
 		CheckDlgButton(IDC_AUTOCONNECT, static_cast<UINT>(thePrefs.autoconnect));
+		CheckDlgButton(IDC_PREF_NATTRAVERSAL, static_cast<UINT>(thePrefs.IsNatTraversalEnabled()));
 		CheckDlgButton(IDC_NETWORK_KADEMLIA, static_cast<UINT>(thePrefs.GetNetworkKademlia()));
 		GetDlgItem(IDC_NETWORK_KADEMLIA)->EnableWindow(thePrefs.GetUDPPort() > 0);
 		CheckDlgButton(IDC_NETWORK_ED2K, static_cast<UINT>(thePrefs.networked2k));
 
 		CheckDlgButton(IDC_PREF_UPNPONSTART, static_cast<UINT>(thePrefs.IsUPnPEnabled()));
-		CheckDlgButton(IDC_PREF_NATTRAVERSAL, static_cast<UINT>(thePrefs.IsNatTraversalEnabled()));
 
 		//ShowLimitValues(); - will be called in OnLimiterChange()
 		OnLimiterChange();
@@ -364,12 +364,12 @@ void CPPgConnection::Localize()
 		SetDlgItemText(IDC_MAXSRC_FRM, GetResString(IDS_PW_MAXSOURCES));
 		SetDlgItemText(IDC_AUTOCONNECT, GetResString(IDS_PW_AUTOCON));
 		SetDlgItemText(IDC_RECONN, GetResString(IDS_PW_RECON));
+		SetDlgItemText(IDC_PREF_NATTRAVERSAL, GetResString(IDS_NATTRAVERSAL));
 		SetDlgItemText(IDC_MAXSRCHARD_LBL, GetResString(IDS_HARDLIMIT));
 		SetDlgItemText(IDC_WIZARD, GetResString(IDS_WIZARD) + _T("..."));
 		SetDlgItemText(IDC_UDPDISABLE, GetResString(IDS_UDPDISABLED));
 		SetDlgItemText(IDC_STARTTEST, GetResString(IDS_STARTTEST));
 		SetDlgItemText(IDC_PREF_UPNPONSTART, GetResString(IDS_UPNPSTART));
-		SetDlgItemText(IDC_PREF_NATTRAVERSAL, GetResString(IDS_NATTRAVERSAL));
 		ShowLimitValues();
 	}
 }

@@ -40,6 +40,7 @@ class CServerConnect;
 class CServerList;
 class CSharedFileList;
 class CClientCreditsList;
+class CNatTraversal;
 class CFriendList;
 class CClientUDPSocket;
 class CIPFilter;
@@ -50,7 +51,6 @@ class CUPnPImplWrapper;
 class CFirewallCheck;
 class CUploadDiskIOThread;
 class CPartFileWriteThread;
-class CNatTraversal;
 
 struct SLogItem;
 
@@ -88,6 +88,7 @@ public:
 	CClientCreditsList	*clientcredits;
 	CFriendList			*friendlist;
 	CClientUDPSocket	*clientudp;
+	CNatTraversal		*nattraversal;
 	CIPFilter			*ipfilter;
 	CWebServer			*webserver;
 	CScheduler			*scheduler;
@@ -95,7 +96,6 @@ public:
 	CFirewallCheck		*m_pFirewallCheck;
 	CUploadDiskIOThread	*m_pUploadDiskIOThread;
 	CPartFileWriteThread *m_pPartFileWriteThread;
-	CNatTraversal		*nattraversal;
 
 
 	static const UINT	m_nVersionMjr;

@@ -51,6 +51,7 @@
 #include "ServerConnect.h"
 #include "ListenSocket.h"
 #include "ClientCredits.h"
+#include "NatTraversal.h"
 #include "KnownFileList.h"
 #include "Server.h"
 #include "ED2KLink.h"
@@ -65,7 +66,6 @@
 #include "FirewallCheck.h"
 #include "UploadDiskIOThread.h"
 #include "PartFileWriteThread.h"
-#include "NatTraversal.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW

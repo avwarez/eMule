@@ -80,7 +80,7 @@ public:
 	void ShowConnectionState();
 	// At startup, once UPnP (when enabled) and the NAT discovery are over, the connect buttons
 	// are enabled and the automatic connection starts; called again by both when they end
-	void EndStartupNetCheck();
+	void EndStartupNetCheck(bool bAutoConnect = true);
 	// At startup, until UPnP and the NAT discovery are over: the connect buttons are disabled
 	bool IsStartupNetCheck() const					{ return m_bStartupNetCheck; }
 	void ShowNotifier(LPCTSTR pszText, TbnMsg nMsgType, LPCTSTR pszLink = NULL, bool bForceSoundOFF = false);
