@@ -1609,6 +1609,10 @@ void CDownloadQueue::KademliaSearchFile(uint32 nSearchID, const Kademlia::CUInt1
 			ctemp->SetBuddyIP(dwBuddyIP);
 			ctemp->SetBuddyPort(dwBuddyPort);
 			ctemp->SetNatdSource(bNatd);
+			// a punch through its buddy goes towards the endpoint the index node saw it publish
+			// from (TAG_SOURCEIP, and the UDP port as Kad gives it), which is all we learn of it
+			if (bNatd && theApp.IsFirewalled())
+				ctemp->SetConnectIP(ED2Kip);
 		}
 		break;
 	case 6:
