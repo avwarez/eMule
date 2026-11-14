@@ -196,7 +196,7 @@ protected:
 	bool			m_bStartMinimized;
 	bool			m_bMsgBlinkState;
 	bool			m_bConnectRequestDelayedForUPnP;
-	bool			m_bStartupNetCheck;					// IsStartupNetCheck
+	bool			m_bStartupNetCheck;
 	bool			m_bKadSuspendDisconnect;
 	bool			m_bEd2kSuspendDisconnect;
 	bool			m_bInitedCOM;

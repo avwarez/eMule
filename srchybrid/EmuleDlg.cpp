@@ -730,9 +730,7 @@ void CALLBACK CemuleDlg::StartupTimer(HWND /*hwnd*/, UINT /*uiMsg*/, UINT_PTR /*
 					AddLogLine(true, GetResString(IDS_MAIN_READY), (LPCTSTR)theApp.m_strCurVersionLong);
 
 				theApp.m_app_state = APP_STATE_RUNNING; //initialization completed
-				// the connect buttons and the automatic connection wait for UPnP and the NAT discovery:
-				// over at once, the connection below goes; else it does nothing (StartConnection), and
-				// EndStartupNetCheck connects when they end
+				// the connection waits for UPnP and the NAT discovery (EndStartupNetCheck)
 				theApp.emuledlg->m_bStartupNetCheck = true;
 				theApp.emuledlg->EndStartupNetCheck(false);
 				theApp.emuledlg->kademliawnd->UpdateControlsState(); //application state change is not tracked - force update

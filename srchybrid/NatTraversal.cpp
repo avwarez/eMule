@@ -417,7 +417,7 @@ struct CNatTraversal::Impl
 		return nVerdict == 2 ? _T("possible") : nVerdict == 1 ? _T("possible through the server and the buddies only") : _T("not possible");
 	}
 
-	CCriticalSection cs;	// pAgent and the sessions; Write() comes from the upload throttler thread too
+	CCriticalSection cs;	// pAgent and the sessions
 	std::map<natd::SessionId, SSession> sessions;
 	uint64 nPathsDead = 0;
 	uint64 nPathsAddressChanged = 0;
@@ -481,7 +481,6 @@ struct CNatTraversal::Impl
 		bool	Ready() const		{ return dwKey != 0; }
 	} server;
 	void ServerPing(DWORD dwNow);
-	// pszWhy: for the log
 	bool ServerRequest(uint32 nTargetID, LPCTSTR pszWhy);
 
 
@@ -503,12 +502,10 @@ struct CNatTraversal::Impl
 		std::function<void()> send;
 	};
 	std::deque<SAgain> again;
-	// our request of that socket once more, with that key
 	bool Ask(const CNatdSocketLayer &layer, uint64 nKey, LPCTSTR pszWhy);
 	// OP_REASKCALLBACKUDP to a buddy, from the client UDP port, at once (the punch packets that
 	// follow go at once too): <buddy ID 16><file 16>, the marker of byKind with nNonce, and our
-	// request, with our buddy on a request of ours (NATD_MARKER_PUNCH). The buddy forwards it
-	// with the endpoint it saw it come from. pszWhy: for the log
+	// request, with our buddy on a request of ours (NATD_MARKER_PUNCH). pszWhy: for the log
 	bool BuddyRequest(const uchar *pBuddyID, uint32 dwIP, uint16 nPort, const uchar *pFile, uint8 byKind, uint64 nNonce, LPCTSTR pszWhy);
 };
 
@@ -615,10 +612,8 @@ void CNatTraversal::Impl::HandleEvents(natd::TimePoint now)
 				sessions.erase(it);	// a punch we were asked for, or a socket already gone
 				continue;
 			}
-			// through a relay, timed out: once more with a new request while the socket has been
-			// connecting for less than eMule's connection timeout, as TCP sends its SYN again. The
-			// peer's NAT opens a new mapping, whose endpoint its request back brings; through the
-			// buddies with a new nonce, so a new token.
+			// through a relay, timed out: once more with a new request (NATD_RELAY_TRIES), through
+			// the buddies with a new nonce, so a new token
 			CNatdSocketLayer *pLayer = s.pLayer;
 			const DWORD dwNow = ::GetTickCount();
 			const uint8 byVia = pLayer->GetVia();
@@ -807,7 +802,6 @@ void CNatTraversal::Impl::SendPath(SSession &s, uint8 byFlags, const uint8_t *pS
 	if (nLen > NATD_PATH_SEGMENT)
 		return;
 	SendDatagram(s.path.socket, s.path.remote, s.path.token, byFlags, pSegment, nLen);
-	// the stream is counted by the socket above, as over TCP: the rest of the datagram is overhead
 	theStats.AddUpDataOverheadOther(NATD_PATH_HEADER + (nLen > 0 ? KcpOverhead(pSegment, nLen, s.snSentNext, &s.snSentNext) : 0));
 	const natd::Duration keepalive(s.path.keepalive);
 	s.tKeepalive = natd::Clock::now() + keepalive - natd::Duration(GetRandomUInt16() % (keepalive.count() / 10 + 1));
@@ -1015,10 +1009,8 @@ void CNatTraversal::Process()
 		theApp.emuledlg->EndStartupNetCheck();
 }
 
-// As UPnP before it: the login then announces what the discovery found (AnnounceServerPunch),
-// and the discovery's own mappings, about fifty, are made before those of the server, Kad and
-// the peers, not among them - on a NAT with a block of ports per subscriber they come from the
-// same block.
+// As UPnP before it (NatTraversal.h). The discovery's own mappings, about fifty, then do not
+// come from the block of ports of the connection's, on a NAT with blocks per subscriber.
 bool CNatTraversal::DelayConnection()
 {
 	if (!m_bEnabled)
@@ -1252,13 +1244,10 @@ bool CNatTraversal::Answered(uint8 byVia, uint64 nKey, const SNatCallback &cb, c
 	return true;
 }
 
-// A request the server forwarded. The target we asked, asking back: our socket gets the punch.
-// Anyone else asks us to punch: we do, the socket is made when the stream opens, and we ask back
-// so that it learns where we are. Each request goes twice (UDP): a peer counts once. The lower
-// ID starts the punch. Two LowIDs that asked each other at once take each other's request for the
-// answer: both sockets then get the one punch and both send their hello, which eMule answers as
-// a repeated one. Should both crypt layers start the handshake, that connection fails, and the
-// next ask, no longer at once, gets through.
+// A request the server forwarded: the answer to ours, or a new one, which we punch and ask back.
+// Two LowIDs that asked each other at once both get the one punch and both send their hello,
+// which eMule answers as a repeated one; should both crypt layers start the handshake, that
+// connection fails, and the next ask, no longer at once, gets through.
 void CNatTraversal::OnServerPeer(const SNatCallback &cb)
 {
 	Impl &impl = *m_pImpl;
@@ -1281,9 +1270,8 @@ void CNatTraversal::OnServerPeer(const SNatCallback &cb)
 		: natd::tokenFrom(cb.abyHash, 16, ServerNonce(cb.nID, impl.server.nID)));
 	if (Answered(NATD_VIA_SERVER, cb.nID, cb, token.data(), bConnect))
 		return;
-	// The request back goes before our first punch packet, which the next Process() sends: the
-	// endpoint the server sees is then our newest mapping, and the one towards the peer comes
-	// right after it, as a NAT with sequential ports gives them
+	// the request back before our first punch packet, which the next Process() sends: the
+	// mapping towards the peer then comes right after the one the server sees (sequential ports)
 	if (OpenSession(cb.dwIP, cb.nPort, token.data(), bConnect, NULL, NATD_VIA_SERVER, cb.nID) && impl.ServerRequest(cb.nID, _T("back, so that it learns our endpoint"))) {
 		const uint32 nID = cb.nID;
 		impl.again.push_back(Impl::SAgain{dwNow, NATD_VIA_SERVER, [&impl, nID]() { impl.ServerRequest(nID, _T("back, again")); }});
@@ -1323,7 +1311,6 @@ void CNatTraversal::RelayTimer()
 	}
 }
 
-// The source's request back, through our buddy (as OnServerPeer)
 void CNatTraversal::OnBuddyBack(const SNatCallback &cb, uint64 nNonce)
 {
 	if (!Answered(NATD_VIA_BUDDY, nNonce, cb, NULL, true) && thePrefs.GetVerbose())
@@ -1357,15 +1344,12 @@ uint8 CNatTraversal::PunchVia(const CUpDownClient &client) const
 {
 	if (!m_pImpl->pAgent->punchable() || client.GetRequestFile() == NULL || thePrefs.GetUDPPort() == 0)
 		return NATD_VIA_NONE;
-	// One channel a connection attempt, as eMule's callbacks, and in their order: the server
-	// first, for a LowID logged in to our server, which coordinates the punch (its address comes
-	// with the server's answer); Kad only when the server cannot reach the source.
+	// one channel a connection attempt, as eMule's callbacks, and in their order: the server
+	// first, Kad only when the server cannot reach the source
 	if (client.HasLowID() && ServerCanPunch(client.GetUserIDHybrid(), client.GetServerIP(), client.GetServerPort()))
 		return NATD_VIA_SERVER;
-	// A source that published in Kad that it can be punched to: directly, with an open UDP port
-	// (we punch the endpoint it published, it the one our request came from, which needs an
-	// endpoint-independent mapping of ours), or through its buddy and ours, which do what the
-	// server does. The addresses are checked when they are punched to.
+	// a source that published in Kad that it can be punched to: directly, with an open UDP
+	// port, or through its buddy and ours. The addresses are checked when they are punched to.
 	if (client.IsNatdSource() && Kademlia::CKademlia::IsConnected() && Kademlia::CKademlia::IsFirewalled()) {
 		uchar abyBuddyID[16];
 		uint32 dwBuddyIP = 0;
@@ -1392,12 +1376,8 @@ bool CNatTraversal::ServerCanPunch(uint32 nID, uint32 dwServerIP, uint16 nServer
 		&& theApp.serverconnect->IsLocalServer(dwServerIP, nServerPort);
 }
 
-// Through Kad the request carries the marker, and the token comes from our user hash, which the
-// request carries, and the marker's nonce. Directly, the punch goes to the endpoint the index
-// node saw the source publish from (its Kad port), while the source punches to the endpoint the
-// request came from. Through the buddies each side punches the endpoint the other's buddy saw,
-// the source's with its request back (OnBuddyBack). Through the server the endpoint and
-// the token come with the server's answer (OnServerPeer).
+// Through Kad the token comes from our user hash and the marker's nonce; through the server the
+// endpoint and the token come with the server's answer (OnServerPeer).
 bool CNatTraversal::AttachOutgoing(CClientReqSocket *pSocket, CUpDownClient &client, uint8 byVia)
 {
 	if (byVia == NATD_VIA_NONE)
@@ -1419,9 +1399,7 @@ bool CNatTraversal::AttachOutgoing(CClientReqSocket *pSocket, CUpDownClient &cli
 		theApp.clientudp->SendPacket(packet, client.GetConnectIP(), client.GetKadPort(), client.ShouldReceiveCryptUDPPackets(), client.GetUserHash(), false, 0);
 		pLayer = new CNatdSocketLayer(client.GetConnectIP(), client.GetKadPort(), natd::tokenFrom(thePrefs.GetUserHash(), 16, nNonce).data(), byVia);
 	} else {
-		// through a relay: the server, keyed by the target's ID there, or the source's buddy,
-		// which checks the buddy ID and forwards the rest as it is, with our buddy in it, keyed
-		// by the nonce. The punch starts when the target's request back brings its endpoint.
+		// through a relay, keyed by the target's ID on the server, by the nonce through the buddies
 		const bool bServer = byVia == NATD_VIA_SERVER;
 		const uint64 nKey = bServer ? client.GetUserIDHybrid() : nNonce;
 		pLayer = new CNatdSocketLayer(0, 0, bServer ? NULL : natd::tokenFrom(thePrefs.GetUserHash(), 16, nNonce).data(), byVia);
@@ -1487,11 +1465,9 @@ bool CNatTraversal::ReadCallback(CSafeMemFile &data, uint32 dwIP, uint16 nPort, 
 	return true;
 }
 
-// Through the buddies the request back goes before our first punch packet, which the next
-// Process() sends, as through the server: the endpoint the requester's buddy sees is then our
-// newest mapping, and the one towards the requester comes right after it. A request
-// without the requester's buddy is not taken: the requester would punch the endpoint we
-// published, which nobody keeps fresh, while the buddies bring each side the other's.
+// Through the buddies the request back goes before our first punch packet, as in OnServerPeer.
+// A request without the requester's buddy is not taken: the requester would punch the endpoint
+// we published, which nobody keeps fresh.
 // The requester's endpoint is the one its buddy saw a UDP datagram come from, which a forged
 // source address can make up, as it can for eMule's own callback: the punch towards it then
 // finds no one punching back, and ends within natd's caps (small datagrams, at most maxPackets
@@ -1537,11 +1513,7 @@ bool CNatTraversal::OpenSession(uint32 dwIP, uint16 nPort, const BYTE *pToken12,
 	// through a relay carries the endpoint the relay saw, which no filter has checked yet
 	if (IsFilteredOrBanned(dwIP))
 		return false;
-	// Through the server nothing says whether the peer's mapping is endpoint-independent,
-	// random in a block of ports (a mobile CGN) or sequential: natd punches the endpoint the
-	// server saw and, should nobody answer there, the ports nearest to it, more each round, with
-	// no block size assumed (PeerNat::Unknown). The same through the two
-	// buddies, which bring both endpoints fresh as the server does.
+	// through a relay the endpoints are fresh and the peer's NAT unknown (NatTraversal.h)
 	const bool bFresh = byVia != NATD_VIA_DIRECT;
 	LPCTSTR pszNot = NULL;
 	if (bFresh ? !m_pImpl->pAgent->punchable() : !m_pImpl->pAgent->directPunchable())

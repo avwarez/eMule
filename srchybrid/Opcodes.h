@@ -432,7 +432,7 @@
 #define TAG_SOURCETYPE			"\xFF"	// <uint8>
 // A string name, unlike the eMule tags above: a mod with tags of its own uses one-byte names.
 #define TAG_NATDCLIENT			"natd"	// <uint8> the stream transports the source runs over a punched path (NATD_TRANSPORT_*): it can be punched to
-#define NATD_TRANSPORT_KCP		0x01	// KCP
+#define NATD_TRANSPORT_KCP		0x01
 #define NATD_TRANSPORTS			NATD_TRANSPORT_KCP	// the ones we run
 
 #define	TAGTYPE_NONE			0x00

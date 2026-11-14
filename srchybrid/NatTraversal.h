@@ -30,14 +30,11 @@
 // - the source starts its punch towards that endpoint, and first sends its own request back,
 //   which brings its endpoint to the requester the same way; the requester punches it then;
 // - a request goes once more when unanswered (UDP), and a punch that times out is asked for once
-//   more while the socket has been connecting for less than eMule's connection timeout, as TCP
-//   sends its SYN again: the peer's NAT opens a new mapping, whose endpoint the relay brings.
-// Both endpoints being fresh, a NAT that maps the port endpoint-independently (natd
-// Predictability::Stable), to random ports inside a block of ports (Bounded, mobile CGNs) or to
-// sequential ports (Predictable) can be punched to: nothing tells either side the other's NAT,
-// so an endpoint-independent side punches the endpoint the relay saw and, should nobody answer
-// there, the ports nearest to it, more each round, whatever the size of the block (natd::
-// PeerNat::Unknown); the other side punches the endpoint from the client UDP port.
+//   more within eMule's connection timeout, as TCP sends its SYN again.
+// Both endpoints being fresh, a NAT that maps endpoint-independently (natd Stable), to random
+// ports in a block (Bounded, mobile CGNs) or to sequential ports (Predictable) can be punched to:
+// nothing tells either side the other's NAT, so natd punches the endpoint the relay saw and then
+// the ports nearest to it, more each round, whatever the size of the block (PeerNat::Unknown).
 //
 // The request is the one the eD2K servers forward between two LowIDs (Lugdunum's NAT callback,
 // SNatCallback): the requester's endpoint as the relay saw it, its ID on the server (0 off a
@@ -119,14 +116,10 @@ public:
 	bool	OnDatagram(const BYTE *pData, int nLen, uint32 dwIP, uint16 nPort);
 	// every 100 ms, from the upload timer
 	void	Process();
-	// At startup, before the connection to the server and to Kad: true while it should wait for
-	// the NAT discovery, which this starts (after UPnP). The dialog is told when the discovery
-	// has a result, or when the wait (at most NATD_CONNECT_WAIT) is over
-	// (CemuleDlg::EndStartupNetCheck); after it, false whatever the discovery.
+	// At startup, after UPnP: true while the connection should wait for the NAT discovery, which
+	// this starts; at most NATD_CONNECT_WAIT, then CemuleDlg::EndStartupNetCheck is called.
 	bool	DelayConnection();
-	// eMule closes, before the client UDP socket goes: every punched stream still open ends with
-	// its FINs at once, as a TCP connection gets its FIN, so that the peer does not wait for the
-	// path to go silent
+	// eMule closes, before the client UDP socket goes: the FINs of every punched stream, at once
 	void	Shutdown();
 
 	// The discovery found a mapping of the client UDP port that can be punched to through a
@@ -184,8 +177,7 @@ public:
 private:
 	// A punch session towards dwIP:nPort (network order IP): natd connects when bConnect, else
 	// accepts. pLayer: the socket's, NULL for a socket made when the stream opens.
-	// nServerPeer: through the server, the peer's ID there. Through a relay (the server, the
-	// buddies) both endpoints are fresh; directly, the source's is the one it published.
+	// nServerPeer: through the server, the peer's ID there.
 	bool	OpenSession(uint32 dwIP, uint16 nPort, const BYTE *pToken12, bool bConnect, CNatdSocketLayer *pLayer, uint8 byVia, uint32 nServerPeer = 0);
 	void	ServerTimer();
 	void	OnServerPeer(const SNatCallback &cb);
