@@ -434,7 +434,7 @@ void CMetaDataDlg::RefreshData()
 				lvi.iItem = iItem;
 
 				// intentionally left blank as it's not a real meta tag
-				lvi.pszText = _T("");
+				lvi.pszText = const_cast<LPTSTR>(_T(""));
 				lvi.iSubItem = META_DATA_COL_TYPE;
 				m_tags.SetItem(&lvi);
 

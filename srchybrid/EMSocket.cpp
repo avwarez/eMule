@@ -36,7 +36,7 @@ static char THIS_FILE[] = __FILE__;
 
 namespace
 {
-	inline void EMTrace(char *fmt, ...)
+	inline void EMTrace(const char *fmt, ...)
 	{
 #ifdef EMSOCKET_DEBUG
 		va_list argptr;
@@ -912,7 +912,7 @@ int CEMSocket::Receive(void *lpBuf, int nBufLen, int nFlags)
 		}
 		break;
 	case SOCKET_ERROR:
-		char *p = NULL;
+		const char *p = NULL;
 		switch (CAsyncSocket::GetLastError()) {
 		case WSANOTINITIALISED:
 			ASSERT(0);
