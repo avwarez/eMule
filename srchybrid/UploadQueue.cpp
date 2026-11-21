@@ -122,6 +122,15 @@ CUpDownClient* CUploadQueue::FindBestClientInQueue()
 			RemoveFromWaitingQueue(pos2, true);
 		} else {
 			// finished clearing
+			//A client whose session we ended ourselves is on this list on its behalf, without
+			//having asked for anything. Skip it while it still has the connection that carried
+			//OP_OUTOFPARTREQS: giving it a slot back on that connection is what the comment in
+			//SendOutOfPartReqsAndAddToWaitingQueue() warns about, and it does not work - no
+			//block request follows and the slot stays empty until the socket times out. The
+			//flag falls when the connection ends, and from then on this client asks for a slot
+			//the way every other client on this list did.
+			if (cur_client->HasSentOutOfPartReqs())
+				continue;
 			uint32 cur_score = cur_client->GetScore(false);
 
 			if (cur_score > bestscore) {
@@ -604,7 +613,8 @@ void CUploadQueue::AddClientToQueue(CUpDownClient *client, bool bIgnoreTimelimit
 
 	// emule collection will bypass the queue
 	if (reqfile != NULL && CCollection::HasCollectionExtention(reqfile->GetFileName()) && reqfile->GetFileSize() < (uint64)MAXPRIORITYCOLL_SIZE
-		&& !client->IsDownloading() && client->socket != NULL && client->socket->IsConnected())
+		&& !client->IsDownloading() && !client->HasSentOutOfPartReqs() //see FindBestClientInQueue()
+		&& client->socket != NULL && client->socket->IsConnected())
 	{
 		client->SetCollectionUploadSlot(true);
 		RemoveFromWaitingQueue(client, true);
@@ -640,7 +650,7 @@ void CUploadQueue::AddClientToQueue(CUpDownClient *client, bool bIgnoreTimelimit
 		client->SendPacket(packet);
 		return;
 	}
-	if (waitinglist.IsEmpty() && ForceNewClient(true)) {
+	if (waitinglist.IsEmpty() && ForceNewClient(true) && !client->HasSentOutOfPartReqs()) { //see FindBestClientInQueue()
 		client->SetWaitStartTime();
 		AddUpNextClient(_T("Direct add with empty queue."), client);
 	} else {

@@ -308,6 +308,10 @@ public:
 	void			ClearPendingBlockRequest(const Pending_Block_Struct *pending);
 	void			ClearDownloadBlockRequests();
 	void			SendOutOfPartReqsAndAddToWaitingQueue();
+	// True from the moment we told this client to stand down until the connection which
+	// carried that packet ends. The flag was already kept for exactly that span and had
+	// no reader; see CUploadQueue::FindBestClientInQueue().
+	bool			HasSentOutOfPartReqs() const					{ return m_fSentOutOfPartReqs != 0; }
 	UINT			CalculateDownloadRate();
 	uint16			GetAvailablePartCount() const;
 	bool			SwapToAnotherFile(LPCTSTR reason, bool bIgnoreNoNeeded, bool ignoreSuspensions, bool bRemoveCompletely, CPartFile *toFile = NULL, bool allowSame = true, bool isAboutToAsk = false, bool debug = false); // ZZ:DownloadManager
