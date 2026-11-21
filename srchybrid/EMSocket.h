@@ -82,6 +82,7 @@ public:
 	virtual SocketSentBytes SendFileAndControlData(uint32 maxNumberOfBytesToSend, uint32 minFragSize)	{ return SendEM(maxNumberOfBytesToSend, minFragSize, false); }
 
 	uint32	GetNeededBytes();
+	static void FreeFinishedAbandonedSends();
 #ifdef _DEBUG
 	// Diagnostic Support
 	virtual void AssertValid() const;
@@ -126,7 +127,7 @@ private:
 	char	*sendbuffer;
 	uint32	m_sendblen; //packet length in sendbuffer
 	uint32	m_sent;
-	WSAOVERLAPPED m_PendingSendOperation;
+	WSAOVERLAPPED *m_pPendingSendOperation; // 97o: on the heap, so that a send still in flight can keep it after the socket is gone
 	CArray<WSABUF> m_aBufferSend;
 
 	CTypedPtrList<CPtrList, Packet*> controlpacket_queue;	//use sendLocker!
