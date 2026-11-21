@@ -112,7 +112,7 @@ void CCaptchaGenerator::ReGenerateCaptcha(uint32 nLetterCount)
 	::DeleteDC(hdcMem);
 	::SelectObject(hdc, hBitmapOld);
 	::DeleteDC(hdc);
-#if TEST_FRAMEGRABBER //reusing macro from FrameGrabThread
+#ifdef TEST_FRAMEGRABBER //reusing macro from FrameGrabThread
 	CImage captcha;
 	captcha.Attach(m_hbmpCaptcha);
 	captcha.Save(_T("\\tmp\\CaptchaTest.bmp"), Gdiplus::ImageFormatBMP);

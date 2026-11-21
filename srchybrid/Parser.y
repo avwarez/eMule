@@ -15,6 +15,10 @@ static char THIS_FILE[] = __FILE__;
 
 extern CStringArray g_astrParserErrors;
 
+// bison tests YYLTYPE_IS_TRIVIAL with #if but only defines it when locations are
+// in use; this grammar has none, so give it the value it was read as anyway.
+#define YYLTYPE_IS_TRIVIAL 0
+
 void ParsedSearchExpression(const CSearchExpr &expr);
 int yyerror(LPCTSTR errstr);
 int yyerrorf(LPCTSTR errstr, ...);

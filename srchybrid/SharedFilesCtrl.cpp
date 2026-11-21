@@ -858,7 +858,7 @@ BOOL CSharedFilesCtrl::OnCommand(WPARAM wParam, LPARAM)
 #endif
 		// file operations
 		case MP_OPEN:
-#if TEST_FRAMEGRABBER //see also FrameGrabThread::GrabFrames
+#ifdef TEST_FRAMEGRABBER //see also FrameGrabThread::GrabFrames
 			if (file) {
 				CKnownFile *previewFile = theApp.sharedfiles->GetFileByID(file->GetFileHash());
 				if (previewFile != NULL)
