@@ -352,8 +352,6 @@ struct BGR //order of colours in bitmap and palette
 int			bestclr(const RGBQUAD *const palette, const BGR c);
 byte*		bmp2mem(HBITMAP hbmp, size_t &size, REFGUID imgfmt);
 HBITMAP		mem2bmp(const byte *inbuf, const size_t size);
-int			AddIconGreyedToImageList(CImageList &rList, HICON hIcon);
-HICON		ReplaceIconGreyedInImageList(CImageList &rList, int nPos);
 
 ///////////////////////////////////////////////////////////////////////////////
 // MD4/MD5 helpers

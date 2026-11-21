@@ -4085,94 +4085,6 @@ int bestclr(const RGBQUAD* const palette, const BGR c)
 	return best;
 }
 
-static HBITMAP GreyBitmap(const HBITMAP inbmp)
-{
-	BITMAP bm;
-	if (!inbmp || ::GetObject(inbmp, sizeof bm, &bm) != sizeof bm)
-		return 0;
-	ASSERT(bm.bmBitsPixel != 16); //not implemented
-
-#define BGR2GREY(b,g,r) (((b)*117+(g)*601+(r)*306)>>10)
-
-	HDC hdc = ::CreateCompatibleDC(NULL);
-	HBITMAP hbmPrev = (HBITMAP)::SelectObject(hdc, inbmp);
-	struct {
-		BITMAPINFOHEADER bmiHeader;
-		RGBQUAD bmiColors[256];
-	} bmiGrey = { {0} };
-	bmiGrey.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
-	bmiGrey.bmiHeader.biWidth = bm.bmWidth;
-	bmiGrey.bmiHeader.biHeight = bm.bmHeight;
-	bmiGrey.bmiHeader.biPlanes = bm.bmPlanes;
-	bmiGrey.bmiHeader.biBitCount = bm.bmBitsPixel;
-	bmiGrey.bmiHeader.biCompression = BI_RGB;
-	if (bm.bmBitsPixel <= 8) { //1, 2, 4, 8 bpp
-		DWORD i = ::GetDIBColorTable(hdc, 0, _countof(bmiGrey.bmiColors), bmiGrey.bmiColors);
-		bmiGrey.bmiHeader.biClrUsed = i;
-		while (i-- > 0) {
-			BYTE b = BGR2GREY(bmiGrey.bmiColors[i].rgbBlue, bmiGrey.bmiColors[i].rgbGreen, bmiGrey.bmiColors[i].rgbRed);
-			bmiGrey.bmiColors[i] = RGBQUAD{b, b, b, bmiGrey.bmiColors[i].rgbReserved};
-		}
-	}
-
-	BYTE *pBits;
-	HBITMAP outbmp = ::CreateDIBSection(NULL, (BITMAPINFO*)&bmiGrey, DIB_RGB_COLORS, (void**)&pBits, NULL, 0);
-	if (outbmp) {
-		HDC hdcMem = ::CreateCompatibleDC(NULL);
-		HBITMAP hBitmapOld = (HBITMAP)::SelectObject(hdcMem, outbmp);
-		::BitBlt(hdcMem, 0, 0, bm.bmWidth, bm.bmHeight, hdc, 0, 0, SRCCOPY);
-		::SelectObject(hdcMem, hBitmapOld);
-		::DeleteDC(hdcMem);
-		if (bm.bmBitsPixel >= 24) {
-			int step = bm.bmBitsPixel / 8;
-			for (int i = bm.bmHeight; --i >= 0;) {
-				BYTE *d = pBits;
-				for (int j = bm.bmWidth; --j >= 0;) {
-					BYTE g = (BYTE)BGR2GREY(d[0], d[1], d[2]);
-					d[0] = d[1] = d[2] = g;
-					d += step;
-				}
-				pBits += bm.bmWidthBytes;
-			}
-		}
-	}
-
-	::SelectObject(hdc, hbmPrev);
-	::DeleteDC(hdc);
-	return outbmp;
-}
-
-// Create grey-scaled icon for WinXP and lower
-static HICON GreyIcon(const HICON hIcon)
-{
-	HICON hGreyIcon = 0;
-	if (hIcon) {
-		ICONINFO iinfo;
-		if (::GetIconInfo(hIcon, &iinfo)) {
-			HBITMAP hGreyBmp = GreyBitmap(iinfo.hbmColor);
-			::DeleteObject(iinfo.hbmColor);
-			if (hGreyBmp) {
-				iinfo.hbmColor = hGreyBmp;
-				hGreyIcon = ::CreateIconIndirect(&iinfo);
-				::DeleteObject(hGreyBmp);
-			}
-			::DeleteObject(iinfo.hbmMask);
-		}
-	}
-	return hGreyIcon;
-}
-
-int AddIconGreyedToImageList(CImageList &rList, const HICON hIcon)
-{
-	int nPos = -1;
-	HICON hGreyBmp = GreyIcon(hIcon);
-	if (hGreyBmp) {
-		nPos = rList.Add(hGreyBmp);
-		::DeleteObject(hGreyBmp);
-	}
-	return nPos;
-}
-
 byte* bmp2mem(HBITMAP hbmp, size_t &size, REFGUID imgfmt)
 {
 	if (hbmp) {
@@ -4206,22 +4118,6 @@ HBITMAP mem2bmp(const byte *inbuf, const size_t size)
 		CImage img;
 		if (SUCCEEDED(img.Load(stream)))
 			return img.Detach();
-	}
-	return 0;
-}
-
-HICON ReplaceIconGreyedInImageList(CImageList &rList, int nPos)
-{
-	if (nPos >= 0 && nPos < rList.GetImageCount()) {
-		HICON hIcon = rList.ExtractIcon(nPos);
-		if (hIcon) {
-			HICON hGreyIcon = GreyIcon(hIcon);
-			if (hGreyIcon) {
-				VERIFY(rList.Replace(nPos, hGreyIcon) == nPos);
-				VERIFY(::DestroyIcon(hGreyIcon));
-			}
-		}
-		return hIcon;
 	}
 	return 0;
 }
