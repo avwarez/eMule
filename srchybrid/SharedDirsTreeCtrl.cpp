@@ -665,6 +665,7 @@ BOOL CSharedDirsTreeCtrl::OnCommand(WPARAM wParam, LPARAM)
 						break;
 					case MP_PRIOVERYHIGH:
 						pri = PR_VERYHIGH;
+						[[fallthrough]];
 					case MP_PRIOAUTO:
 						break;
 					default:
@@ -679,6 +680,7 @@ BOOL CSharedDirsTreeCtrl::OnCommand(WPARAM wParam, LPARAM)
 					}
 				}
 			}
+			[[fallthrough]];
 		default:
 			break;
 		}

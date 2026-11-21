@@ -453,6 +453,7 @@ void CTransferWnd::UpdateListCount(EWnd2 listindex, int iCount /*=-1*/)
 			strBuffer.Format(_T("%s (%i)"), (LPCTSTR)GetResString(IDS_DOWNLOADING), (iCount < 0) ? downloadclientsctrl.GetItemCount() : iCount);
 			m_btnWnd1.SetWindowText(strBuffer);
 		}
+		[[fallthrough]];
 	default:
 		/*ASSERT(0)*/;
 	}

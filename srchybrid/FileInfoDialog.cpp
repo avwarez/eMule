@@ -925,6 +925,7 @@ bool CGetMediaInfoThread::GetMediaInfo(HWND hWndOwner, const CShareableFile *pFi
 				case MPEGVERSION_1:
 					mi->strAudioFormat = _T("MPEG-1,");
 					mi->audio.wFormatTag = WAVE_FORMAT_MPEGLAYER3;
+					[[fallthrough]];
 				default:
 					break;
 				}
@@ -939,6 +940,7 @@ bool CGetMediaInfoThread::GetMediaInfo(HWND hWndOwner, const CShareableFile *pFi
 					break;
 				case MPEGLAYER_I:
 					mi->strAudioFormat += _T("Layer 1");
+					[[fallthrough]];
 				default:
 					break;
 				}

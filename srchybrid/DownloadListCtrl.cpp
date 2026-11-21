@@ -717,6 +717,7 @@ void CDownloadListCtrl::DrawItem(LPDRAWITEMSTRUCT lpDrawItemStruct)
 			rcItem.left += iTreeOffset;
 			tree_end = rcItem.left;
 			rcItem.right -= iTreeOffset - sm_iLabelOffset;
+			[[fallthrough]];
 		default:
 			rcItem.left += sm_iLabelOffset;
 			rcItem.right -= sm_iLabelOffset;
@@ -1290,6 +1291,7 @@ BOOL CDownloadListCtrl::OnCommand(WPARAM wParam, LPARAM)
 							default:
 								if (partfile->GetCategory())
 									theApp.downloadqueue->StartNextFileIfPrefs(partfile->GetCategory());
+								[[fallthrough]];
 							case PS_PAUSED:
 								partfile->DeletePartFile();
 							}

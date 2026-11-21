@@ -1291,6 +1291,7 @@ void CSearchListCtrl::DrawItem(LPDRAWITEMSTRUCT lpDrawItemStruct)
 			tree_start = rcItem.left + 1;
 			rcItem.left += min(8, iColumnWidth);
 			tree_end = rcItem.left;
+			[[fallthrough]];
 		default:
 			rcItem.left += sm_iLabelOffset;
 			if (rcItem.left < rcItem.right && HaveIntersection(rcClient, rcItem))
@@ -1417,8 +1418,10 @@ void CSearchListCtrl::DrawSourceChild(CDC &dc, int nColumn, LPRECT lpRect, UINT 
 		{
 			lpRect->left += 16;
 		}
+		[[fallthrough]];
 	default:
 		dc.DrawText(sItem, lpRect, MLC_DT_TEXT | uDrawTextAlignment);
+		[[fallthrough]];
 	case 4: // file type
 	case 5: // file hash
 		break;
@@ -1436,6 +1439,7 @@ void CSearchListCtrl::DrawSourceParent(CDC &dc, int nColumn, LPRECT lpRect, UINT
 		{
 			lpRect->left += 16;
 		}
+		[[fallthrough]];
 	default:
 		dc.DrawText(sItem, lpRect, MLC_DT_TEXT | uDrawTextAlignment);
 		break;
