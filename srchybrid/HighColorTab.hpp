@@ -14,11 +14,6 @@
 
 #include <memory>
 
-#if _MSC_VER>=1400
-#pragma warning(push)
-#pragma warning(disable:4350) // behavior change: 'std::auto_ptr<_Ty>::auto_ptr(std::auto_ptr_ref<_Ty>) noexcept' called instead of 'std::auto_ptr<_Ty>::auto_ptr(std::auto_ptr<_Ty> &) noexcept'
-#endif
-
 namespace HighColorTab
 {
 /*! \brief Policy class for creating image list.
@@ -107,7 +102,3 @@ namespace HighColorTab
 		return UpdateImageListFull<TSheet, HighColorTab::CHighColorListCreator>(rSheet);
 	};
 };
-
-#if _MSC_VER>=1400
-#pragma warning(pop)
-#endif

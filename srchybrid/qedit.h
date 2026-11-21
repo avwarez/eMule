@@ -5,9 +5,6 @@
 //
 //--------------------------------------------------------------------------
 
-#pragma warning(push)
-#pragma warning( disable: 4049 )  /* more than 64k source lines */
-
 /* this ALWAYS GENERATED file contains the definitions for the interfaces */
 
 
@@ -19879,4 +19876,3 @@ void                      __RPC_USER  VARIANT_UserFree(__RPC__in unsigned long *
 
 
 #endif    // DirectX 8.0 content
-#pragma warning(pop)

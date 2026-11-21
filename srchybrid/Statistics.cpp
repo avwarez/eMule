@@ -424,9 +424,6 @@ int AFX_CDECL AfxNewHandler(size_t /* nSize */)
 	return 0;
 }
 
-#pragma warning(push)
-#pragma warning(disable:4273)
-
 _PNH _afxNewHandler = &AfxNewHandler;
 
 _PNH AFXAPI AfxGetNewHandler()
@@ -495,5 +492,4 @@ void __cdecl operator delete[](void *p)
 	::operator delete(p);
 }
 
-#pragma warning(pop)
 #endif

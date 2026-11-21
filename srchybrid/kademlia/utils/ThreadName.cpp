@@ -44,8 +44,6 @@ namespace Kademlia
 #ifdef DEBUG
 		if (dwThreadID == NULL)
 			return;
-#pragma warning(push)
-#pragma warning(disable:6320 6322)
 		__try {
 			va_list args;
 			va_start(args, szThreadName);
@@ -71,7 +69,6 @@ namespace Kademlia
 			delete[] pcharBuffer;
 		} __except (EXCEPTION_CONTINUE_EXECUTION) {
 		}
-#pragma warning(pop)
 #else
 		UNREFERENCED_PARAMETER(dwThreadID);
 		UNREFERENCED_PARAMETER(szThreadName);
@@ -82,8 +79,6 @@ namespace Kademlia
 	void SetThreadName(LPCSTR szThreadName, ...)
 	{
 #ifdef DEBUG
-#pragma warning(push)
-#pragma warning(disable:6320 6322)
 		__try {
 			va_list args;
 			va_start(args, szThreadName);
@@ -109,7 +104,6 @@ namespace Kademlia
 			delete[] pcharBuffer;
 		} __except (EXCEPTION_CONTINUE_EXECUTION) {
 		}
-#pragma warning(pop)
 #else
 		UNREFERENCED_PARAMETER(szThreadName);
 #endif
