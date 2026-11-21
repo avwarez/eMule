@@ -359,12 +359,14 @@ bool ShellDeleteFile(LPCTSTR pszFilePath)
 	return ::DeleteFile(pszFilePath) != 0;
 }
 
-CString ShellGetFolderPath(int iCSIDL)
+CString ShellGetFolderPath(REFKNOWNFOLDERID rfid)
 {
-	TCHAR szPath[MAX_PATH];
-	if (SUCCEEDED(::SHGetFolderPath(NULL, iCSIDL, NULL, SHGFP_TYPE_CURRENT, szPath)))
-		return CString(szPath);
-	return CString();
+	CString strPath;
+	PWSTR pszPath = NULL;
+	if (SUCCEEDED(::SHGetKnownFolderPath(rfid, 0, NULL, &pszPath)))
+		strPath = pszPath;
+	::CoTaskMemFree(pszPath);
+	return strPath;
 }
 
 // Print the hash in a format which is similar to CertMgr's.
@@ -940,31 +942,27 @@ bool SelectDir(HWND hWnd, LPTSTR pszPath, LPCTSTR pszTitle, LPCTSTR pszDlgTitle)
 {
 	ASSERT(pszPath != NULL);
 	(void)::CoInitialize(NULL);
-	LPMALLOC pShlMalloc;
-	bool bResult = (SHGetMalloc(&pShlMalloc) == NOERROR);
-	if (bResult) {
-		BROWSEINFO BrsInfo = {};
-		BrsInfo.hwndOwner = hWnd;
-		BrsInfo.lpszTitle = (pszTitle != NULL) ? pszTitle : pszDlgTitle;
-		BrsInfo.ulFlags = BIF_VALIDATE | BIF_NEWDIALOGSTYLE | BIF_RETURNONLYFSDIRS | BIF_SHAREABLE | BIF_DONTGOBELOWDOMAIN;
+	bool bResult = true;
+	BROWSEINFO BrsInfo = {};
+	BrsInfo.hwndOwner = hWnd;
+	BrsInfo.lpszTitle = (pszTitle != NULL) ? pszTitle : pszDlgTitle;
+	BrsInfo.ulFlags = BIF_VALIDATE | BIF_NEWDIALOGSTYLE | BIF_RETURNONLYFSDIRS | BIF_SHAREABLE | BIF_DONTGOBELOWDOMAIN;
 
-		BROWSEINIT BrsInit = {};
-		if (pszTitle != NULL || pszDlgTitle != NULL) {
-			// Need the 'BrowseCallbackProc' to set those strings
-			BrsInfo.lpfn = BrowseCallbackProc;
-			BrsInfo.lParam = (LPARAM)&BrsInit;
-			BrsInit.pszDlgTitle = (pszDlgTitle != NULL) ? pszDlgTitle : NULL/*pszTitle*/;
-			BrsInit.pszInitialDir = pszPath;
-		}
-
-		LPITEMIDLIST pidlBrowse;
-		if ((pidlBrowse = ::SHBrowseForFolder(&BrsInfo)) != NULL) {
-			bResult = ::SHGetPathFromIDList(pidlBrowse, pszPath);
-			pShlMalloc->Free(pidlBrowse);
-		}
-		pShlMalloc->Release();
-		::PathAddBackslash(pszPath);
+	BROWSEINIT BrsInit = {};
+	if (pszTitle != NULL || pszDlgTitle != NULL) {
+		// Need the 'BrowseCallbackProc' to set those strings
+		BrsInfo.lpfn = BrowseCallbackProc;
+		BrsInfo.lParam = (LPARAM)&BrsInit;
+		BrsInit.pszDlgTitle = (pszDlgTitle != NULL) ? pszDlgTitle : NULL/*pszTitle*/;
+		BrsInit.pszInitialDir = pszPath;
 	}
+
+	LPITEMIDLIST pidlBrowse;
+	if ((pidlBrowse = ::SHBrowseForFolder(&BrsInfo)) != NULL) {
+		bResult = ::SHGetPathFromIDList(pidlBrowse, pszPath);
+		::CoTaskMemFree(pidlBrowse);
+	}
+	::PathAddBackslash(pszPath);
 	::CoUninitialize();
 	return bResult;
 }

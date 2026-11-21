@@ -90,7 +90,6 @@ protected:
 	HINTERNET		m_hHttpConnection;
 	HINTERNET		m_hHttpFile;
 	CWinThread		*m_pThread;
-	static ULONGLONG sm_ullWinInetVer;
 	DWORD			m_dwServiceType;
 	INTERNET_PORT	m_nPort;
 	volatile bool	m_bAbort;

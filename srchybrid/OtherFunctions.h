@@ -220,7 +220,7 @@ void ShellOpen(LPCTSTR lpName, LPCTSTR lpParameters);
 void ShellOpenFile(LPCTSTR lpName);
 void ShellDefaultVerb(LPCTSTR lpName);
 bool ShellDeleteFile(LPCTSTR pszFilePath);
-CString ShellGetFolderPath(int iCSIDL);
+CString ShellGetFolderPath(REFKNOWNFOLDERID rfid);
 bool SelectDir(HWND hWnd, LPTSTR pszPath, LPCTSTR pszTitle = NULL, LPCTSTR pszDlgTitle = NULL);
 BOOL DialogBrowseFile(CString &rstrPath, LPCTSTR pszFilters, LPCTSTR pszDefaultFileName = NULL, DWORD dwFlags = 0, bool openfilestyle = true);
 void AddBuddyButton(HWND hwndEdit, HWND hwndButton);

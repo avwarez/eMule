@@ -111,7 +111,7 @@ public:
 				}
 			}
 			if (m_hLib == NULL) {
-				const CString &strProgramFiles(ShellGetFolderPath(CSIDL_PROGRAM_FILES));
+				const CString &strProgramFiles(ShellGetFolderPath(FOLDERID_ProgramFiles));
 				if (!strProgramFiles.IsEmpty()) {
 					LPTSTR pszResult = ::PathCombine(strPath.GetBuffer(MAX_PATH), strProgramFiles, _T("MediaInfo\\MEDIAINFO.DLL"));
 					strPath.ReleaseBuffer();

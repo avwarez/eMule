@@ -418,7 +418,8 @@ BOOL CemuleApp::InitInstance()
 	///////////////////////////////////////////////////////////////////////////
 	// Common Controls initialization
 	//
-	::InitCommonControls();
+	const INITCOMMONCONTROLSEX icc = {sizeof icc, ICC_WIN95_CLASSES};
+	::InitCommonControlsEx(&icc);
 
 	m_sizSmallSystemIcon.SetSize(::GetSystemMetrics(SM_CXSMICON), ::GetSystemMetrics(SM_CYSMICON));
 	UpdateLargeIconSize();
