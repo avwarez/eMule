@@ -16,6 +16,7 @@
 //Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 #pragma once
 #include <atomic>
+#include "MapKey.h"
 
 class Packet;
 class CUpDownClient;
@@ -32,6 +33,7 @@ struct OverlappedRead_Struct
 	uint64					uEndOffset;
 	BYTE					*pBuffer;
 	POSITION				pos;
+	DWORD					dwStart; // 97p: tick when the read was started
 };
 
 class CUploadDiskIOThread : public CWinThread
@@ -46,10 +48,13 @@ public:
 	void		EndThread();	//completionkey == 0
 	void		WakeUpCall();	//completionkey == WAKEUP
 	static void	DissociateFile(CKnownFile *pFile);
+	void		LowerPriorityOfTroubledFiles(); // 97p: main thread only
 
 private:
 	static UINT AFX_CDECL RunProc(LPVOID pParam);
 	UINT		RunInternal();
+	BOOL		GetNextCompletion(DWORD &dwRead, ULONG_PTR &completionKey, OverlappedRead_Struct *&pCurIO, DWORD dwWait);
+	void		ReportTroubledFile(const CKnownFile *pFile);
 
 	bool		AssociateFile(CKnownFile *pFile);
 	static bool ShouldCompressBasedOnFilename(const CString &strFileName);
@@ -61,6 +66,9 @@ private:
 
 	CEvent		m_eventThreadEnded;
 	CTypedPtrList<CPtrList, OverlappedRead_Struct*>	m_listPendingIO;
+	// 97p: files a read failed or was slow on, for LowerPriorityOfTroubledFiles()
+	CMap<CSKey, const CSKey&, bool, bool> m_mapTroubledFiles;
+	CCriticalSection m_csTroubledFiles;
 
 	HANDLE		m_hPort;
 #ifdef _DEBUG

@@ -44,6 +44,7 @@
 #include "Kademlia/Kademlia/Prefs.h"
 #include "Log.h"
 #include "collection.h"
+#include "UploadDiskIOThread.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -293,6 +294,9 @@ void CUploadQueue::Process()
 {
 	const DWORD curTick = ::GetTickCount();
 	UpdateActiveClientsInfo(curTick);
+
+	if (theApp.m_pUploadDiskIOThread != NULL)
+		theApp.m_pUploadDiskIOThread->LowerPriorityOfTroubledFiles(); // 97p
 
 	if (ForceNewClient())
 		// There's not enough open uploads. Open another one.
