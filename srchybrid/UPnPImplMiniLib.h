@@ -15,6 +15,7 @@
 //along with this program; if not, write to the Free Software
 //Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 #pragma once
+#include <atomic>
 #include "UPnPImpl.h"
 
 struct UPNPUrls;
@@ -67,5 +68,5 @@ private:
 	char m_achWanIP[40];
 
 	bool m_bSucceededOnce;
-	volatile bool m_bAbortDiscovery;
+	std::atomic<bool> m_bAbortDiscovery;
 };
