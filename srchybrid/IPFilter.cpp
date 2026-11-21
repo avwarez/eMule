@@ -417,7 +417,7 @@ bool CIPFilter::IsFiltered(uint32 ip, uint32 level) /*const*/
 
 CString CIPFilter::GetLastHit() const
 {
-	return CString(m_pLastHit ? m_pLastHit->desc : "Not available");
+	return CString(m_pLastHit ? (LPCSTR)m_pLastHit->desc : "Not available");
 }
 
 bool CIPFilter::RemoveIPFilter(const SIPFilter *pFilter)

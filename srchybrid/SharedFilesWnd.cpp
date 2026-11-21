@@ -421,7 +421,7 @@ void CSharedFilesWnd::ShowSelectedFilesDetails(bool bForce)
 			}
 		}
 		static_cast<CStatic*>(GetDlgItem(IDC_SF_FICON))->SetIcon(pFile ? icon_files : NULL);
-		const CString &sName(pFile ? pFile->GetFileName() : _T(""));
+		const CString &sName(pFile ? pFile->GetFileName() : CString());
 		SetDlgItemText(IDC_SF_FNAME, sName);
 	}
 	if (bForce || nItems != (UINT)selectedList.GetCount())

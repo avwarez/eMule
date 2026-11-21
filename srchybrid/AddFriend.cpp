@@ -68,7 +68,7 @@ BOOL CAddFriend::OnInitDialog()
 		SetDlgItemInt(IDC_IP, m_pShowFriend->m_dwLastUsedIP, FALSE);
 		SetDlgItemInt(IDC_PORT, m_pShowFriend->m_nLastUsedPort, FALSE);
 		SetDlgItemText(IDC_USERNAME, m_pShowFriend->m_strName);
-		SetDlgItemText(IDC_USERHASH, (m_pShowFriend->HasUserhash() ? md4str(m_pShowFriend->m_abyUserhash) : _T("")));
+		SetDlgItemText(IDC_USERHASH, (m_pShowFriend->HasUserhash() ? (LPCTSTR)md4str(m_pShowFriend->m_abyUserhash) : _T("")));
 
 		if (m_pShowFriend->m_tLastSeen) {
 			CTime t(m_pShowFriend->m_tLastSeen);
