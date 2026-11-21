@@ -71,6 +71,7 @@ namespace Kademlia
 		static bool FindNodeSpecial(const CUInt128 &uID, CKadClientSearcher *pRequester);
 		static void CancelNodeSpecial(const CKadClientSearcher *pRequester);
 		static void JumpStart();
+		static void DeleteFailedSearch(CSearch *pSearch);
 		static uint32 m_uNextID;
 		static SearchMap m_mapSearches;
 	};

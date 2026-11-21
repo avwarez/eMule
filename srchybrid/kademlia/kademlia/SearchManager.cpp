@@ -157,12 +157,12 @@ CSearch* CSearchManager::PrepareFindKeywords(LPCWSTR szKeyword, UINT uSearchTerm
 		strError.Format(_T("Exception in %hs: %s"), __FUNCTION__, (LPCTSTR)CExceptionStr(*ex));
 		ex->Delete();
 	} catch (const CString&) {
-		delete pSearch;
+		DeleteFailedSearch(pSearch);
 		throw;
 	} catch (...) {
 		strError.Format(_T("Unknown exception in %hs"), __FUNCTION__);
 	}
-	delete pSearch;
+	DeleteFailedSearch(pSearch);
 	throw strError;
 	//return NULL;
 }
@@ -205,8 +205,18 @@ CSearch* CSearchManager::PrepareLookup(uint32 uType, bool bStart, const CUInt128
 	} catch (...) {
 		AddDebugLogLine(false, _T("Exception in CSearchManager::PrepareLookup"));
 	}
-	delete pSearch;
+	DeleteFailedSearch(pSearch);
 	return NULL;
+}
+
+// A search that failed to start may already be in the map, put there before Go() threw.
+// It must leave the map with its deletion, or StopAllSearches() would delete it again.
+void CSearchManager::DeleteFailedSearch(CSearch *pSearch)
+{
+	SearchMap::const_iterator itSearchMap = m_mapSearches.find(pSearch->m_uTarget);
+	if (itSearchMap != m_mapSearches.end() && itSearchMap->second == pSearch)
+		m_mapSearches.erase(itSearchMap);
+	delete pSearch;
 }
 
 void CSearchManager::FindNode(const CUInt128 &uID, bool bComplete)
