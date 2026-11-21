@@ -42,7 +42,7 @@ static char THIS_FILE[] = __FILE__;
 #endif
 
 #ifdef _DEBUG
-extern _CRT_ALLOC_HOOK g_pfnPrevCrtAllocHook;
+extern int (__cdecl *g_pfnPrevCrtAllocHook)(int, void*, size_t, int, long, const unsigned char*, int) noexcept;
 #endif
 
 

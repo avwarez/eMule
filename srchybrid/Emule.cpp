@@ -98,7 +98,11 @@ bool g_bLowColorDesktop = false;
 #ifdef _DEBUG
 static CMemoryState oldMemState, newMemState, diffMemState;
 
-_CRT_ALLOC_HOOK g_pfnPrevCrtAllocHook = NULL;
+// The CRT calls an allocation hook from C code, so a hook must never throw. The
+// previous hook is kept in a noexcept type that says so: it goes back to the
+// extern "C" _CrtSetAllocHook, and C5039 asks for exactly that guarantee.
+typedef int (__cdecl *NoThrowCrtAllocHook)(int, void*, size_t, int, long, const unsigned char*, int) noexcept;
+NoThrowCrtAllocHook g_pfnPrevCrtAllocHook = NULL;
 CMap<const unsigned char*, const unsigned char*, UINT, UINT> g_allocations;
 int eMuleAllocHook(int mode, void *pUserData, size_t nSize, int nBlockUse, long lRequest, const unsigned char *pszFileName, int nLine) noexcept;
 
@@ -389,7 +393,7 @@ BOOL CemuleApp::InitInstance()
 	oldMemState.Checkpoint();
 	// Installing that memory debug code works fine in Debug builds when running within VS Debugger,
 	// but some other test applications don't like that all....
-	//g_pfnPrevCrtAllocHook = _CrtSetAllocHook(&eMuleAllocHook);
+	//g_pfnPrevCrtAllocHook = (NoThrowCrtAllocHook)_CrtSetAllocHook(&eMuleAllocHook);
 #endif
 	//afxMemDF = allocMemDF | delayFreeMemDF;
 
