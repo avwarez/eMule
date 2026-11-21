@@ -930,14 +930,12 @@ void CUpDownClient::SendBlockRequests()
 */
 void CUpDownClient::ProcessBlockPacket(const uchar *packet, uint32 size, bool packed, bool bI64Offsets)
 {
-	if (!bI64Offsets) {
+	if (thePrefs.GetDebugClientTCPLevel() > 1 && !bI64Offsets && size >= 24) {
 		uint32 nDbgStartPos = *(uint32*)&packet[16];
-		if (thePrefs.GetDebugClientTCPLevel() > 1) {
-			if (packed)
-				Debug(_T("  Start=%u  BlockSize=%u  Size=%u  %s\n"), nDbgStartPos, *(uint32*)&packet[16 + 4], size - 24, (LPCTSTR)DbgGetFileInfo(packet));
-			else
-				Debug(_T("  Start=%u  End=%u  Size=%u  %s\n"), nDbgStartPos, *(uint32*)&packet[16 + 4], *(uint32*)&packet[16 + 4] - nDbgStartPos, (LPCTSTR)DbgGetFileInfo(packet));
-		}
+		if (packed)
+			Debug(_T("  Start=%u  BlockSize=%u  Size=%u  %s\n"), nDbgStartPos, *(uint32*)&packet[16 + 4], size - 24, (LPCTSTR)DbgGetFileInfo(packet));
+		else
+			Debug(_T("  Start=%u  End=%u  Size=%u  %s\n"), nDbgStartPos, *(uint32*)&packet[16 + 4], *(uint32*)&packet[16 + 4] - nDbgStartPos, (LPCTSTR)DbgGetFileInfo(packet));
 	}
 
 	// Ignore if no data required
