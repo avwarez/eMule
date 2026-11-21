@@ -293,8 +293,6 @@ bool IsEqualFOURCC(FOURCC fccA, FOURCC fccB)
 	return true;
 }
 
-#pragma warning(push)
-#pragma warning(disable:4701) //local variable 'fcc'
 static CString GetVideoFormatDisplayName(DWORD biCompression)
 {
 	CString sName;
@@ -321,9 +319,9 @@ static CString GetVideoFormatDisplayName(DWORD biCompression)
 	default:
 		{
 			sName = CStringA((LPCSTR)&biCompression, 4);
-			DWORD fcc;
+			DWORD fcc = 0;
 			for (unsigned i = 0; i < sizeof(DWORD); ++i)
-				((byte*)&fcc)[i] = (byte)toupper(((unsigned char*)&biCompression)[i]);
+				fcc |= (DWORD)(byte)toupper((int)((biCompression >> (8 * i)) & 0xFF)) << (8 * i);
 
 			switch (fcc) {
 			case MAKEFOURCC('D', 'I', 'V', '3'):
@@ -417,7 +415,6 @@ static CString GetVideoFormatDisplayName(DWORD biCompression)
 		sName += pFormat;
 	return sName;
 }
-#pragma warning(pop)
 
 CString GetVideoFormatName(DWORD biCompression)
 {

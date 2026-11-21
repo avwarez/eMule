@@ -539,8 +539,6 @@ void CSharedDirsTreeCtrl::OnRButtonDown(UINT, CPoint point)
 	}
 }
 
-#pragma warning(push)
-#pragma warning(disable:4701) //local variable 'pri'
 BOOL CSharedDirsTreeCtrl::OnCommand(WPARAM wParam, LPARAM)
 {
 	CTypedPtrList<CPtrList, CShareableFile*> selectedList;
@@ -649,7 +647,7 @@ BOOL CSharedDirsTreeCtrl::OnCommand(WPARAM wParam, LPARAM)
 			for (POSITION pos = selectedList.GetHeadPosition(); pos != NULL;) {
 				CKnownFile *file = static_cast<CKnownFile*>(selectedList.GetNext(pos));
 				if (file->IsKindOf(RUNTIME_CLASS(CKnownFile))) {
-					uint8 pri;
+					uint8 pri = PR_NORMAL;
 					switch (wParam) {
 					case MP_PRIOVERYLOW:
 						pri = PR_VERYLOW;
@@ -687,7 +685,6 @@ BOOL CSharedDirsTreeCtrl::OnCommand(WPARAM wParam, LPARAM)
 	}
 	return TRUE;
 }
-#pragma warning(pop)
 
 void CSharedDirsTreeCtrl::ShowFileDialog(CTypedPtrList<CPtrList, CShareableFile*> &aFiles, UINT uInvokePage)
 {

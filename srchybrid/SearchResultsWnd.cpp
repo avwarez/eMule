@@ -1389,13 +1389,11 @@ void CSearchResultsWnd::DeleteSelectedSearch()
 	}
 }
 
-#pragma warning(push)
-#pragma warning(disable:4701) //local variable 'ti'
 void CSearchResultsWnd::DeleteSearch(uint32 uSearchID)
 {
 	Kademlia::CSearchManager::StopSearch(uSearchID, false);
 
-	TCITEM ti;
+	TCITEM ti = {};
 	ti.mask = TCIF_PARAM;
 	int i = searchselect.GetItemCount();
 	while (--i >= 0 && !(searchselect.GetItem(i, &ti) && ti.lParam && reinterpret_cast<SSearchParams*>(ti.lParam)->dwSearchID == uSearchID));
@@ -1440,7 +1438,6 @@ void CSearchResultsWnd::DeleteSearch(uint32 uSearchID)
 	} else
 		NoTabItems();
 }
-#pragma warning(pop)
 
 void CSearchResultsWnd::DeleteAllSearches()
 {

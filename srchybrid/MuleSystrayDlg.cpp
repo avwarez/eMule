@@ -107,8 +107,6 @@ void CMuleSystrayDlg::OnMouseMove(UINT nFlags, CPoint point)
 	CDialog::OnMouseMove(nFlags, point);
 }
 
-#pragma warning(push)
-#pragma warning(disable:4701) //local variable 'lfStaticFont'
 BOOL CMuleSystrayDlg::OnInitDialog()
 {
 	CDialog::OnInitDialog();
@@ -119,7 +117,7 @@ BOOL CMuleSystrayDlg::OnInitDialog()
 	m_ctrlUpArrow.SetIcon(m_hUpArrow);
 	m_ctrlDownArrow.SetIcon(m_hDownArrow);
 
-	LOGFONT lfStaticFont;
+	LOGFONT lfStaticFont = {};
 
 	CWnd *p = GetDlgItem(IDC_SPEED);
 	bool bValidFont = (p != NULL);
@@ -302,7 +300,6 @@ BOOL CMuleSystrayDlg::OnInitDialog()
 	return TRUE;  // return TRUE unless you set the focus to the control
 				  // EXCEPTION: OCX Property Pages should return FALSE
 }
-#pragma warning(pop)
 
 void CMuleSystrayDlg::OnChangeDowntxt()
 {

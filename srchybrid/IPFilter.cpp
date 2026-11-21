@@ -74,8 +74,6 @@ INT_PTR	CIPFilter::LoadFromDefaultFile(bool bShowResponse)
 	return AddFromFile(GetDefaultFilePath(), bShowResponse);
 }
 
-#pragma warning(push)
-#pragma warning(disable:4701) //local variables 'level' 'end' 'start'
 INT_PTR CIPFilter::AddFromFile(LPCTSTR pszFilePath, bool bShowResponse)
 {
 	const DWORD dwStart = ::GetTickCount();
@@ -187,7 +185,7 @@ INT_PTR CIPFilter::AddFromFile(LPCTSTR pszFilePath, bool bShowResponse)
 					}
 
 					bool bValid;
-					uint32 start, end, level;
+					uint32 start = 0, end = 0, level = 0;
 					CStringA desc;
 					if (eFileType == FilterDat)
 						bValid = ParseFilterLine1(sbuffer, start, end, level, desc);
@@ -264,7 +262,6 @@ INT_PTR CIPFilter::AddFromFile(LPCTSTR pszFilePath, bool bShowResponse)
 	}
 	return m_iplist.GetCount();
 }
-#pragma warning(pop)
 
 
 void CIPFilter::SaveToDefaultFile()
