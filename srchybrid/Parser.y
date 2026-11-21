@@ -23,14 +23,6 @@ void ParsedSearchExpression(const CSearchExpr &expr);
 int yyerror(LPCTSTR errstr);
 int yyerrorf(LPCTSTR errstr, ...);
 
-#pragma warning(push)
-#pragma warning(disable:4065) // switch statement contains 'default' but no 'case' labels
-#pragma warning(disable:4102) // 'yyerrlab1' : unreferenced label
-#pragma warning(disable:4127) // conditional expression is constant
-#pragma warning(disable:4242) // conversion from <type1> to <type1>, possible loss of data
-#pragma warning(disable:4244) // conversion from <type1> to <type2>, possible loss of data
-#pragma warning(disable:4702) // unreachable code
-
 %}
 
 %union {
@@ -382,4 +374,3 @@ int yyerrorf(LPCTSTR errstr, ...)
 	va_end(argp);
 	return EXIT_FAILURE;
 }
-#pragma warning(pop)
