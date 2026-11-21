@@ -70,7 +70,7 @@ BOOL CIrcSocket::Create(UINT uSocketPort, int iSocketType, long lEvent, const CS
 	return CAsyncSocketEx::Create(uSocketPort, iSocketType, lEvent, sSocketAddress);
 }
 
-void CIrcSocket::Connect()
+void CIrcSocket::ConnectToServer()
 {
 	int iPort;
 	CString strServer(thePrefs.GetIRCServer());

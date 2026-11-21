@@ -9,7 +9,9 @@ class CHTRichEditCtrl : public CRichEditCtrl
 public:
 	CHTRichEditCtrl();
 	virtual	~CHTRichEditCtrl()						{ EnableSmileys(false); }
-	BOOL Create(DWORD dwStyle, const RECT &rect, CWnd *parent, UINT nID);
+	// Not named Create(): CWnd::Create() is virtual and this is no override of it,
+	// only a same-named overload that would hide it (C4263/C4264).
+	BOOL CreateMsftEdit(DWORD dwStyle, const RECT &rect, CWnd *parent, UINT nID);
 
 	void Init(LPCTSTR pszTitle, LPCTSTR pszSkinKey = NULL);
 	void SetProfileSkinKey(LPCTSTR pszSkinKey)		{ m_strSkinKey = pszSkinKey; }

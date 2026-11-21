@@ -147,7 +147,7 @@ CChatItem* CChatSelector::StartSession(CUpDownClient *client, bool show)
 		rcChat.top += 19; // add the height of the tab which is not yet there
 	// using ES_NOHIDESEL is actually not needed, but it helps to get around a tricky window update problem!
 	// If that style is not specified there are troubles with right clicking into the control for the very first time!?
-	chatitem->log->Create(WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_CLIPCHILDREN | WS_VSCROLL | ES_MULTILINE | ES_READONLY | ES_NOHIDESEL, rcChat, this, UINT_MAX);
+	chatitem->log->CreateMsftEdit(WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_CLIPCHILDREN | WS_VSCROLL | ES_MULTILINE | ES_READONLY | ES_NOHIDESEL, rcChat, this, UINT_MAX);
 	chatitem->log->ModifyStyleEx(0, WS_EX_STATICEDGE, SWP_FRAMECHANGED);
 	chatitem->log->SendMessage(EM_SETMARGINS, EC_LEFTMARGIN | EC_RIGHTMARGIN, MAKELONG(3, 3));
 	chatitem->log->SetEventMask(chatitem->log->GetEventMask() | ENM_LINK);

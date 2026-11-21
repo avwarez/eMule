@@ -27,7 +27,8 @@ public:
 			, int iSocketType = SOCK_STREAM
 			, long lEvent = FD_DEFAULT
 			, const CString &sSocketAddress = CString());
-	void Connect();
+	// Not named Connect(): that would hide the virtual CAsyncSocketEx::Connect() overloads (C4263/C4264).
+	void ConnectToServer();
 	int SendString(const CString &sMessage);
 
 	virtual void OnConnect(int iErrorCode);

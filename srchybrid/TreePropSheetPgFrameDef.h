@@ -36,6 +36,8 @@ public:
 
 // overridings
 	virtual BOOL Create(DWORD dwWindowStyle, const RECT &rect, CWnd *pwndParent, UINT nID);
+	// keeps CWnd's own Create() overloads visible next to the override above (C4266)
+	using CWnd::Create;
 	virtual CWnd* GetWnd();
 	virtual void SetCaption(LPCTSTR lpszCaption, HICON hIcon = NULL);
 

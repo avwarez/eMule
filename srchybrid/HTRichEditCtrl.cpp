@@ -69,7 +69,7 @@ CHTRichEditCtrl::CHTRichEditCtrl()
 	m_cfDefault.cbSize = (UINT)sizeof(CHARFORMAT2);
 }
 
-BOOL CHTRichEditCtrl::Create(DWORD dwStyle, const RECT &rect, CWnd *parent, UINT nID)
+BOOL CHTRichEditCtrl::CreateMsftEdit(DWORD dwStyle, const RECT &rect, CWnd *parent, UINT nID)
 {
 	return static_cast<CWnd*>(this)->Create(MSFTEDIT_CLASS, NULL, dwStyle, rect, parent, nID);
 }

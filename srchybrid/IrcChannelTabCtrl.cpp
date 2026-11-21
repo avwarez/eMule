@@ -192,7 +192,7 @@ Channel* CIrcChannelTabCtrl::NewChannel(const CString &sChannel, Channel::EType 
 			)
 		{
 			RECT rcTopic = { rcChannelPane.left, rcChannelPane.top, rcChannelPane.right, rcChannelPane.top + IRC_TITLE_WND_DFLT_HEIGHT };
-			pChannel->m_wndTopic.Create(WS_CHILD | WS_CLIPSIBLINGS | WS_CLIPCHILDREN | WS_VSCROLL | ES_MULTILINE | ES_READONLY | ES_NOHIDESEL, rcTopic, m_pParent, IDC_TITLEWINDOW);
+			pChannel->m_wndTopic.CreateMsftEdit(WS_CHILD | WS_CLIPSIBLINGS | WS_CLIPCHILDREN | WS_VSCROLL | ES_MULTILINE | ES_READONLY | ES_NOHIDESEL, rcTopic, m_pParent, IDC_TITLEWINDOW);
 			pChannel->m_wndTopic.ModifyStyleEx(0, WS_EX_STATICEDGE, SWP_FRAMECHANGED);
 			pChannel->m_wndTopic.SendMessage(EM_SETMARGINS, EC_LEFTMARGIN | EC_RIGHTMARGIN, MAKELONG(3, 3));
 			pChannel->m_wndTopic.SetEventMask(pChannel->m_wndTopic.GetEventMask() | ENM_LINK);
@@ -228,7 +228,7 @@ Channel* CIrcChannelTabCtrl::NewChannel(const CString &sChannel, Channel::EType 
 			rcLog.bottom = rcChannelPane.bottom;
 		}
 
-		pChannel->m_wndLog.Create(WS_CHILD | WS_CLIPSIBLINGS | WS_CLIPCHILDREN | WS_VSCROLL | ES_MULTILINE | ES_READONLY | ES_NOHIDESEL, rcLog, m_pParent, UINT_MAX);
+		pChannel->m_wndLog.CreateMsftEdit(WS_CHILD | WS_CLIPSIBLINGS | WS_CLIPCHILDREN | WS_VSCROLL | ES_MULTILINE | ES_READONLY | ES_NOHIDESEL, rcLog, m_pParent, UINT_MAX);
 		pChannel->m_wndLog.ModifyStyleEx(0, WS_EX_STATICEDGE, SWP_FRAMECHANGED);
 		pChannel->m_wndLog.SendMessage(EM_SETMARGINS, EC_LEFTMARGIN | EC_RIGHTMARGIN, MAKELONG(3, 3));
 		pChannel->m_wndLog.SetEventMask(pChannel->m_wndLog.GetEventMask() | ENM_LINK);

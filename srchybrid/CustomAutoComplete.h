@@ -22,7 +22,7 @@ private:
 public:
 	CCustomAutoComplete();
 	explicit CCustomAutoComplete(const CStringArray &p_sItemList);
-	~CCustomAutoComplete();
+	virtual ~CCustomAutoComplete();
 
 	// Implementation
 public:
