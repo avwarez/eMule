@@ -351,7 +351,7 @@ void CKadLookupGraph::OnPaint()
 							} else
 								pen = &gdipPenGray;
 
-							gdipGraphic.DrawLine(pen, pFrom.x, pFrom.y, pointTo.x, pointTo.y);
+							gdipGraphic.DrawLine(pen, (INT)pFrom.x, (INT)pFrom.y, (INT)pointTo.x, (INT)pointTo.y);
 						}
 					}
 				}

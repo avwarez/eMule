@@ -1785,7 +1785,7 @@ bool CGetMediaInfoThread::GetMediaInfo(HWND hWndOwner, const CShareableFile *pFi
 														bFoundHeader = true;
 													} else {
 														mi->strInfo << _T("   ") << GetResString(IDS_CODEC) << _T(":\t") << GetVideoFormatName(pVIH->bmiHeader.biCompression) << _T("\n");
-														mi->strInfo << _T("   ") << GetResString(IDS_WIDTH) << _T(" x ") << GetResString(IDS_HEIGHT) << _T(":\t") << abs(pVIH->bmiHeader.biWidth) << _T(" x ") << abs(pVIH->bmiHeader.biHeight) << _T("\n");
+														mi->strInfo << _T("   ") << GetResString(IDS_WIDTH) << _T(" x ") << GetResString(IDS_HEIGHT) << _T(":\t") << (int)abs(pVIH->bmiHeader.biWidth) << _T(" x ") << (int)abs(pVIH->bmiHeader.biHeight) << _T("\n");
 														// do not use that 'dwBitRate', whatever this number is, it's not
 														// the bit rate of the *encoded* video stream. Seems to be the bit rate
 														// of the *decoded* stream
@@ -1906,7 +1906,7 @@ bool CGetMediaInfoThread::GetMediaInfo(HWND hWndOwner, const CShareableFile *pFi
 												mi->strInfo << _T("\n");
 											mi->OutputFileName();
 											mi->strInfo.SetSelectionCharFormat(mi->strInfo.m_cfBold);
-											mi->strInfo << GetResString(IDS_UNKNOWN) << _T(" Stream #") << i + 1 << _T("\n");
+											mi->strInfo << GetResString(IDS_UNKNOWN) << _T(" Stream #") << (int)(i + 1) << _T("\n");
 
 											double fLength;
 											if (SUCCEEDED(pMediaDet->get_StreamLength(&fLength)) && fLength) {
