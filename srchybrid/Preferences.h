@@ -611,9 +611,6 @@ public:
 
 	static bool		m_bUseOldTimeRemaining;
 
-	// Firewall settings
-	static bool		m_bOpenPortsOnStartUp;
-
 	//AICH Options
 	static bool		m_bTrustEveryHash;
 
@@ -1363,8 +1360,6 @@ public:
 	static int		GetDebugSearchResultDetailLevel()	{ return 0; }
 #endif
 
-	// Firewall settings
-	static bool		IsOpenPortsOnStartupEnabled()		{ return m_bOpenPortsOnStartUp; }
 	//AICH Hash
 	static bool		IsTrustingEveryHash()				{ return m_bTrustEveryHash; } // this is a debug option
 	// Files options

@@ -97,7 +97,6 @@
 #include "PartFileWriteThread.h"
 #include "ImportParts.h"
 #include "ClientCredits.h"
-#include "FirewallOpener.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -1762,7 +1761,6 @@ void CemuleDlg::OnClose()
 	delete theApp.scheduler;				theApp.scheduler = NULL;
 	delete theApp.ipfilter;					theApp.ipfilter = NULL;			// CIPFilter::SaveToDefaultFile
 	delete theApp.webserver;				theApp.webserver = NULL;
-	delete theApp.m_pFirewallOpener;		theApp.m_pFirewallOpener = NULL;
 	delete theApp.uploadBandwidthThrottler;	theApp.uploadBandwidthThrottler = NULL;
 	delete theApp.lastCommonRouteFinder;	theApp.lastCommonRouteFinder = NULL;
 	delete theApp.m_pUPnPFinder;			theApp.m_pUPnPFinder = NULL;

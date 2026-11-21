@@ -446,7 +446,6 @@ bool	CPreferences::m_bRunAsUser;
 bool	CPreferences::m_bPreferRestrictedOverUser;
 bool	CPreferences::m_bUseOldTimeRemaining;
 
-bool	CPreferences::m_bOpenPortsOnStartUp;
 int		CPreferences::m_byLogLevel;
 bool	CPreferences::m_bTrustEveryHash;
 bool	CPreferences::m_bRememberCancelledFiles;
@@ -1749,7 +1748,6 @@ void CPreferences::SavePreferences()
 	ini.WriteBool(_T("HighresTimer"), m_bHighresTimer);
 	ini.WriteInt(_T("WebMirrorAlertLevel"), m_nWebMirrorAlertLevel);
 	ini.WriteBool(_T("RunAsUnprivilegedUser"), m_bRunAsUser);
-	ini.WriteBool(_T("OpenPortsOnStartUp"), m_bOpenPortsOnStartUp);
 	ini.WriteInt(_T("DebugLogLevel"), m_byLogLevel);
 	ini.WriteInt(_T("WinXPSP2OrHigher"), static_cast<int>(IsRunningXPSP2OrHigher()));
 	ini.WriteBool(_T("RememberCancelledFiles"), m_bRememberCancelledFiles);
@@ -2308,7 +2306,6 @@ void CPreferences::LoadPreferences()
 	m_bHighresTimer = ini.GetBool(_T("HighresTimer"), false);
 	m_bRunAsUser = ini.GetBool(_T("RunAsUnprivilegedUser"), false);
 	m_bPreferRestrictedOverUser = ini.GetBool(_T("PreferRestrictedOverUser"), false);
-	m_bOpenPortsOnStartUp = ini.GetBool(_T("OpenPortsOnStartUp"), false);
 	m_byLogLevel = ini.GetInt(_T("DebugLogLevel"), DLP_VERYLOW);
 	m_bTrustEveryHash = ini.GetBool(_T("AICHTrustEveryHash"), false);
 	m_bRememberCancelledFiles = ini.GetBool(_T("RememberCancelledFiles"), true);

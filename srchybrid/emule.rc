@@ -375,7 +375,6 @@ BEGIN
     LTEXT           "Static",IDC_MAXCONLABEL,117,143,86,8
     LTEXT           "TCP",IDC_STATIC,11,86,17,8
     GROUPBOX        "Network",IDC_CONNECTION_NETWORK,153,174,74,34
-    PUSHBUTTON      "Set up ports on WinXP SP1 firewall",IDC_OPENPORTS,83,84,137,12,WS_DISABLED
     CONTROL         "Use UPnP to set up Port Forwarding",IDC_PREF_UPNPONSTART,
                     "Button",BS_AUTOCHECKBOX | WS_TABSTOP,11,116,208,10
 END

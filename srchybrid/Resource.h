@@ -2193,7 +2193,6 @@
 #define IDC_CATS                        2841
 #define IDC_STATICFI                    2842
 #define IDC_RESET                       2843
-#define IDC_OPENPORTS                   2844
 #define IDC_SMILEY                      2844
 #define IDC_TCP                         2845
 #define IDC_UDP                         2846
