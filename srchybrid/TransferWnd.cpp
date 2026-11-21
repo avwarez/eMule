@@ -1671,14 +1671,6 @@ void CTransferWnd::ResetTransToolbar(bool bShowToolbar, bool bResetLists)
 		tbbi.cx = WND1_BUTTON_WIDTH;
 		m_btnWnd1.SetButtonInfo(0, &tbbi);
 
-		// 'GetMaxSize' does not work properly under:
-		//	- Win98SE with COMCTL32 v5.80
-		//	- Win2000 with COMCTL32 v5.81
-		// The value returned by 'GetMaxSize' is just couple of pixels too small so that the
-		// last toolbar button is nearly not visible at all.
-		// So, to circumvent such problems, the toolbar control should be created right with
-		// the needed size so that we do not really need to call the 'GetMaxSize' function.
-		// Although it would be better to call it to adapt for system metrics basically.
 		CSize size;
 		m_btnWnd1.GetMaxSize(&size);
 		m_btnWnd1.GetWindowRect(&rcBtn1);
@@ -1729,14 +1721,6 @@ void CTransferWnd::ResetTransToolbar(bool bShowToolbar, bool bResetLists)
 		tbbi.cx = WND2_BUTTON_WIDTH;
 		m_btnWnd2.SetButtonInfo(0, &tbbi);
 
-		// 'GetMaxSize' does not work properly under:
-		//	- Win98SE with COMCTL32 v5.80
-		//	- Win2000 with COMCTL32 v5.81
-		// The value returned by 'GetMaxSize' is just couple of pixels too small so that the
-		// last toolbar button is nearly not visible at all.
-		// So, to circumvent such problems, the toolbar control should be created right with
-		// the needed size so that we do not really need to call the 'GetMaxSize' function.
-		// Although it would be better to call it to adapt for system metrics basically.
 		m_btnWnd2.GetMaxSize(&size);
 		CRect rc;
 		m_btnWnd2.GetWindowRect(&rc);

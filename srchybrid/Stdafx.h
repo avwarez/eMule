@@ -103,7 +103,7 @@
 #endif
 #endif//!defined(_CRT_SECURE_CPP_OVERLOAD_STANDARD_NAMES) || (_CRT_SECURE_CPP_OVERLOAD_STANDARD_NAMES==0)
 
-//Windows XP compatibility requires 'inet_addr' and 'WSAAsyncGetHostByName' (warning C4996)
+//eMule still uses 'inet_addr', 'inet_ntoa' and 'WSAAsyncGetHostByName' (warning C4996)
 #ifndef _WINSOCK_DEPRECATED_NO_WARNINGS
 #define _WINSOCK_DEPRECATED_NO_WARNINGS
 #endif

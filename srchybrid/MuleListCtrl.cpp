@@ -1519,9 +1519,6 @@ void CMuleListCtrl::OnLvnGetInfoTip(LPNMHDR pNMHDR, LRESULT *pResult)
 			// Don't show the default label tip for the main item, if the mouse is not over
 			// the main item.
 			if ((pGetInfoTip->dwFlags & LVGIT_UNFOLDED) == 0 && pGetInfoTip->cchTextMax > 0 && pGetInfoTip->pszText[0] != _T('\0')) {
-				// For any reason this does not work with Win98 (COMCTL32 v5.8). Even when
-				// the info tip text is explicitly set to empty, the list view control may
-				// display the unfolded text for the 1st item. It works for WinXP though.
 				pGetInfoTip->pszText[0] = _T('\0');
 			}
 			return;

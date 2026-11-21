@@ -137,14 +137,9 @@ static void InitSafeSEH()
 ///////////////////////////////////////////////////////////////////////////////
 // DEP - Data Execution Prevention
 //
-// For Windows XP SP2 and later. Does *not* have any performance impact!
-//
-// VS2003:	DEP must be enabled dynamically because the linker does not support
-//			the "/NXCOMPAT" command line option.
-// VS2005:	DEP can get enabled at link time by using the "/NXCOMPAT" command
-//			line option.
-// VS2008:	DEP can get enabled at link time by using the "DEP" option within
-//			'Visual Studio Linker Advanced Options'.
+// Does *not* have any performance impact! The linker's "/NXCOMPAT" option already
+// enables DEP; this makes the policy permanent where it could still be changed at
+// runtime (32-bit processes only, a 64-bit process always runs with DEP).
 //
 static void InitDEP()
 {

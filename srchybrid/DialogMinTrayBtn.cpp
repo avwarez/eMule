@@ -130,7 +130,7 @@ TEMPLATE LRESULT CDialogMinTrayBtn<BASE>::OnNcHitTest(CPoint point)
 	bool bPreviousHitTest = m_bMinTrayBtnHitTest;
 	m_bMinTrayBtnHitTest = MinTrayBtnHitTest(point);
 	if (!IsWindowsClassicStyle() && m_bMinTrayBtnHitTest != bPreviousHitTest)
-		MinTrayBtnDraw(); // Windows XP Style (hot button)
+		MinTrayBtnDraw(); // themed style (hot button)
 	return m_bMinTrayBtnHitTest ? HTMINTRAYBUTTON : BASE::OnNcHitTest(point);
 }
 
@@ -222,9 +222,9 @@ TEMPLATE void CDialogMinTrayBtn<BASE>::MinTrayBtnUpdatePosAndSize()
 
 	// set our frame window button width/height...
 	if (IsWindowsClassicStyle())
-		m_MinTrayBtnSize = szBtn; //the same as Windows' buttons for non WinXP
+		m_MinTrayBtnSize = szBtn; //the same as Windows' buttons in the classic style
 	else
-		m_MinTrayBtnSize.cx = m_MinTrayBtnSize.cy = szBtn.cy; //a square for WinXP
+		m_MinTrayBtnSize.cx = m_MinTrayBtnSize.cy = szBtn.cy; //a square when themed
 
 	m_MinTrayBtnPos.x = rcWnd.Width() - (CAPTION_BUTTONSPACE + m_MinTrayBtnSize.cx + CAPTION_BUTTONSPACE + szBtn.cx);
 	m_MinTrayBtnPos.y = CAPTION_BUTTONSPACE;

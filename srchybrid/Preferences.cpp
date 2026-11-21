@@ -2791,16 +2791,9 @@ uint16 CPreferences::GetRandomUDPPort()
 
 // General behavior:
 //
-// WinVer < Vista
-// Default: ApplicationDir if preference.ini exists there.
-//          If not: user specific dirs if preferences.ini exits there.
-//          If not: again ApplicationDir
-// Default overridden by Registry value (see below)
-// Fallback: ApplicationDir
-//
-// WinVer >= Vista:
 // Default: User specific Dir if preferences.ini exists there.
 //          If not: All users dir, if preferences.ini exists there.
+//          If not: ApplicationDir, if preferences.ini exists there.
 //          If not: User specific Dir again
 // Default overridden by Registry value (see below)
 // Fallback: ApplicationDir

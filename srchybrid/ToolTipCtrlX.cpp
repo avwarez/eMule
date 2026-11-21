@@ -120,13 +120,6 @@ void CToolTipCtrlX::CustomPaint(LPNMTTCUSTOMDRAW pNMCD)
 	// So, actually we can use the Vista 'TOOLTIP' theme only for getting the proper
 	// tooltip background.
 	//
-	// Windows XP
-	// ----------
-	// Can *not* use the 'TOOLTIP' theme at all because it would give us only a (non-bold)
-	// black font on a white tooltip window background. Seems that the 'TOOLTIP' theme under
-	// WinXP is just using the default Window values (black + white) and does not
-	// use any of the tooltip specific Window metrics...
-	//
 	bool bUseEmbeddedThemeFonts = false;
 	HTHEME hTheme = NULL;
 	if (theApp.IsVistaThemeActive()) {
