@@ -15,6 +15,7 @@
 //along with this program; if not, write to the Free Software
 //Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 #pragma once
+#include <atomic>
 
 #include <list>
 #include "ThrottledSocket.h" // ZZ:UploadBandWithThrottler (UDP)
@@ -77,5 +78,5 @@ private:
 	uint64 m_SentBytesSinceLastCallOverhead;
 	INT_PTR m_highestNumberOfFullyActivatedSlots;
 
-	volatile bool m_bRun;
+	std::atomic<bool> m_bRun;
 };

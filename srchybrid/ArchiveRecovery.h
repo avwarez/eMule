@@ -15,6 +15,7 @@
 //along with this program; if not, write to the Free Software
 //Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 #pragma once
+#include <atomic>
 
 class CPartFile;
 class CShareableFile;
@@ -401,7 +402,7 @@ struct archiveScannerThreadParams_s
 	HWND			ownerHwnd;
 	HWND			progressHwnd;
 	unsigned		curProgress;
-	volatile bool	m_bIsValid;
+	std::atomic<bool>	m_bIsValid;
 };
 
 class CArchiveRecovery

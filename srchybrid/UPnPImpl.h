@@ -15,6 +15,7 @@
 //along with this program; if not, write to the Free Software
 //Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 #pragma once
+#include <atomic>
 #include <exception>
 
 enum TRISTATE
@@ -66,7 +67,7 @@ public:
 // Implementation
 protected:
 	void SendResultMessage();
-	volatile TRISTATE m_bUPnPPortsForwarded;
+	std::atomic<TRISTATE> m_bUPnPPortsForwarded;
 	uint16 m_nOldTCPPort;
 	uint16 m_nOldTCPWebPort;
 	uint16 m_nOldUDPPort;

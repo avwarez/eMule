@@ -11,6 +11,7 @@ All rights reserved.
 
 ////////////////////////////////// Macros ///////////////////////////
 #pragma once
+#include <atomic>
 #include <afxinet.h>
 
 
@@ -92,6 +93,6 @@ protected:
 	CWinThread		*m_pThread;
 	DWORD			m_dwServiceType;
 	INTERNET_PORT	m_nPort;
-	volatile bool	m_bAbort;
+	std::atomic<bool>	m_bAbort;
 	bool			m_bSafeToClose;
 };

@@ -82,7 +82,7 @@ UINT CPartFileWriteThread::RunInternal()
 			m_lockFlushList.Lock();
 			while (!m_FlushList.IsEmpty())
 				m_listToWrite.AddTail(m_FlushList.RemoveHead());
-			InterlockedExchange8(&m_bNewData, 0);
+			m_bNewData.exchange(0);
 			m_lockFlushList.Unlock();
 		}
 		//start new writes
@@ -98,7 +98,7 @@ UINT CPartFileWriteThread::RunInternal()
 		if (!completionKey) //thread termination
 			break;
 		m_Run = RUN_IDLE;
-		if (InterlockedExchange8(&m_bNewData, 0) && m_listPendingIO.IsEmpty())
+		if (m_bNewData.exchange(0) && m_listPendingIO.IsEmpty())
 			PostQueuedCompletionStatus(m_hPort, 0, WAKEUP, NULL);
 	}
 	m_Run = RUN_STOP;
@@ -231,5 +231,5 @@ void CPartFileWriteThread::WakeUpCall()
 	if (m_Run == RUN_IDLE && m_listPendingIO.IsEmpty())
 		PostQueuedCompletionStatus(m_hPort, 0, WAKEUP, NULL);
 	else
-		InterlockedExchange8(&m_bNewData, 1);
+		m_bNewData.exchange(1);
 }

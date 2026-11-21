@@ -603,7 +603,7 @@ UINT LastCommonRouteFinder::RunInternal()
 				prefsLocker.Unlock();
 
 				DWORD diffTick = ::GetTickCount();
-				if (::InterlockedExchange8(&m_initiateFastReactionPeriod, 0)) {
+				if (m_initiateFastReactionPeriod.exchange(0)) {
 					const CString &s(GetResString(IDS_USS_MANUALUPLOADLIMITDETECTED));
 					theApp.QueueDebugLogLine(false, s);
 					theApp.QueueLogLine(true, s);

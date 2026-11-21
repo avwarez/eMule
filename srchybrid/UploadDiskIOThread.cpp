@@ -101,7 +101,7 @@ UINT CUploadDiskIOThread::RunInternal()
 		pcsUploadListRead->Lock();
 		for (POSITION pos = rUploadList.GetHeadPosition(); pos != NULL;)
 			StartCreateNextBlockPackage(rUploadList.GetNext(pos));
-		InterlockedExchange8(&m_bNewData, 0);
+		m_bNewData.exchange(0);
 		pcsUploadListRead->Unlock();
 
 		//check completed I/O
@@ -120,7 +120,7 @@ UINT CUploadDiskIOThread::RunInternal()
 			theApp.uploadBandwidthThrottler->NewUploadDataAvailable();
 			m_bSignalThrottler = false;
 		}
-		if (InterlockedExchange8(&m_bNewData, 0) && m_listPendingIO.IsEmpty())
+		if (m_bNewData.exchange(0) && m_listPendingIO.IsEmpty())
 			PostQueuedCompletionStatus(m_hPort, 0, WAKEUP, NULL);
 	}
 	m_Run = RUN_STOP;
@@ -484,5 +484,5 @@ void CUploadDiskIOThread::WakeUpCall()
 	if (m_Run == RUN_IDLE && m_listPendingIO.IsEmpty())
 		PostQueuedCompletionStatus(m_hPort, 0, WAKEUP, NULL);
 	else
-		InterlockedExchange8(&m_bNewData, 1);
+		m_bNewData.exchange(1);
 }

@@ -15,6 +15,7 @@
 //along with this program; if not, write to the Free Software
 //Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 #pragma once
+#include <atomic>
 
 class Packet;
 class CUpDownClient;
@@ -65,7 +66,7 @@ private:
 #ifdef _DEBUG
 	uint64		dbgDataReadPending;
 #endif
-	volatile char m_Run; //0 - not running; 1 - idle; 2 - processing
-	volatile char m_bNewData;
+	std::atomic<char> m_Run; //0 - not running; 1 - idle; 2 - processing
+	std::atomic<char> m_bNewData;
 	bool		m_bSignalThrottler;
 };
