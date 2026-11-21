@@ -147,7 +147,7 @@ void CSearchResultsWnd::OnInitialUpdate()
 	m_btnSearchListMenu.MoveWindow(&rc);
 	m_btnSearchListMenu.AddBtnStyle(IDC_SEARCHLST_ICO, TBSTYLE_AUTOSIZE);
 	// Vista: Remove the TBSTYLE_TRANSPARENT to avoid flickering (can be done only after the toolbar was initially created with TBSTYLE_TRANSPARENT !?)
-	m_btnSearchListMenu.ModifyStyle(TBSTYLE_TOOLTIPS | ((theApp.m_ullComCtrlVer >= MAKEDLLVERULL(6, 16, 0, 0)) ? TBSTYLE_TRANSPARENT : 0), 0);
+	m_btnSearchListMenu.ModifyStyle(TBSTYLE_TOOLTIPS | TBSTYLE_TRANSPARENT, 0);
 	m_btnSearchListMenu.SetExtendedStyle(m_btnSearchListMenu.GetExtendedStyle() & ~TBSTYLE_EX_MIXEDBUTTONS);
 	m_btnSearchListMenu.RecalcLayout(true);
 

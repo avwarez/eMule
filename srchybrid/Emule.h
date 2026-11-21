@@ -113,7 +113,6 @@ public:
 	CString		m_strCurVersionLongDbg;
 	UINT		m_uCurVersionShort;
 	UINT		m_uCurVersionCheck;
-	ULONGLONG	m_ullComCtrlVer;
 	CMutex		hashing_mut;
 	CString		m_strPendingLink;
 	COPYDATASTRUCT sendstruct;
@@ -170,7 +169,6 @@ public:
 	void		DisableRTLWindowsLayout();
 	void		UpdateDesktopColorDepth();
 	void		UpdateLargeIconSize();
-	bool		IsXPThemeActive() const;
 	bool		IsVistaThemeActive() const;
 
 	bool		GetLangHelpFilePath(CString &strResult);

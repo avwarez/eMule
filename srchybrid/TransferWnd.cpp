@@ -1618,7 +1618,7 @@ void CTransferWnd::ResetTransToolbar(bool bShowToolbar, bool bResetLists)
 
 	if (bShowToolbar) {
 		// Vista: Remove the TBSTYLE_TRANSPARENT to avoid flickering (can be done only after the toolbar was initially created with TBSTYLE_TRANSPARENT !?)
-		m_btnWnd1.ModifyStyle((theApp.m_ullComCtrlVer >= MAKEDLLVERULL(6, 16, 0, 0)) ? TBSTYLE_TRANSPARENT : 0, TBSTYLE_TOOLTIPS);
+		m_btnWnd1.ModifyStyle(TBSTYLE_TRANSPARENT, TBSTYLE_TOOLTIPS);
 		m_btnWnd1.SetExtendedStyle(m_btnWnd1.GetExtendedStyle() | TBSTYLE_EX_MIXEDBUTTONS);
 
 		TBBUTTON atb1[1 + WND1_NUM_BUTTONS] = {};
@@ -1679,18 +1679,16 @@ void CTransferWnd::ResetTransToolbar(bool bShowToolbar, bool bResetLists)
 		// So, to circumvent such problems, the toolbar control should be created right with
 		// the needed size so that we do not really need to call the 'GetMaxSize' function.
 		// Although it would be better to call it to adapt for system metrics basically.
-		if (theApp.m_ullComCtrlVer > MAKEDLLVERULL(5, 81, 0, 0)) {
-			CSize size;
-			m_btnWnd1.GetMaxSize(&size);
-			m_btnWnd1.GetWindowRect(&rcBtn1);
-			ScreenToClient(&rcBtn1);
-			// the with of the toolbar should already match the needed size (see comment above)
-			ASSERT(size.cx == rcBtn1.Width());
-			m_btnWnd1.MoveWindow(rcBtn1.left, rcBtn1.top, size.cx, rcBtn1.Height());
-		}
+		CSize size;
+		m_btnWnd1.GetMaxSize(&size);
+		m_btnWnd1.GetWindowRect(&rcBtn1);
+		ScreenToClient(&rcBtn1);
+		// the with of the toolbar should already match the needed size (see comment above)
+		ASSERT(size.cx == rcBtn1.Width());
+		m_btnWnd1.MoveWindow(rcBtn1.left, rcBtn1.top, size.cx, rcBtn1.Height());
 		/*---*/
 				// Vista: Remove the TBSTYLE_TRANSPARENT to avoid flickering (can be done only after the toolbar was initially created with TBSTYLE_TRANSPARENT !?)
-		m_btnWnd2.ModifyStyle((theApp.m_ullComCtrlVer >= MAKEDLLVERULL(6, 16, 0, 0)) ? TBSTYLE_TRANSPARENT : 0, TBSTYLE_TOOLTIPS);
+		m_btnWnd2.ModifyStyle(TBSTYLE_TRANSPARENT, TBSTYLE_TOOLTIPS);
 		m_btnWnd2.SetExtendedStyle(m_btnWnd2.GetExtendedStyle() | TBSTYLE_EX_MIXEDBUTTONS);
 
 		TBBUTTON atb2[1 + WND2_NUM_BUTTONS] = {};
@@ -1739,24 +1737,21 @@ void CTransferWnd::ResetTransToolbar(bool bShowToolbar, bool bResetLists)
 		// So, to circumvent such problems, the toolbar control should be created right with
 		// the needed size so that we do not really need to call the 'GetMaxSize' function.
 		// Although it would be better to call it to adapt for system metrics basically.
-		if (theApp.m_ullComCtrlVer > MAKEDLLVERULL(5, 81, 0, 0)) {
-			SIZE size;
-			m_btnWnd2.GetMaxSize(&size);
-			CRect rc;
-			m_btnWnd2.GetWindowRect(&rc);
-			ScreenToClient(&rc);
-			// the with of the toolbar should already match the needed size (see comment above)
-			ASSERT(size.cx == rc.Width());
-			m_btnWnd2.MoveWindow(rc.left, rc.top, size.cx, rc.Height());
-		}
+		m_btnWnd2.GetMaxSize(&size);
+		CRect rc;
+		m_btnWnd2.GetWindowRect(&rc);
+		ScreenToClient(&rc);
+		// the with of the toolbar should already match the needed size (see comment above)
+		ASSERT(size.cx == rc.Width());
+		m_btnWnd2.MoveWindow(rc.left, rc.top, size.cx, rc.Height());
 	} else {
 		// Vista: Remove the TBSTYLE_TRANSPARENT to avoid flickering (can be done only after the toolbar was initially created with TBSTYLE_TRANSPARENT !?)
-		m_btnWnd1.ModifyStyle(TBSTYLE_TOOLTIPS | ((theApp.m_ullComCtrlVer >= MAKEDLLVERULL(6, 16, 0, 0)) ? TBSTYLE_TRANSPARENT : 0), 0);
+		m_btnWnd1.ModifyStyle(TBSTYLE_TOOLTIPS | TBSTYLE_TRANSPARENT, 0);
 		m_btnWnd1.SetExtendedStyle(m_btnWnd1.GetExtendedStyle() & ~TBSTYLE_EX_MIXEDBUTTONS);
 		m_btnWnd1.RecalcLayout(true);
 
 		// Vista: Remove the TBSTYLE_TRANSPARENT to avoid flickering (can be done only after the toolbar was initially created with TBSTYLE_TRANSPARENT !?)
-		m_btnWnd2.ModifyStyle(TBSTYLE_TOOLTIPS | ((theApp.m_ullComCtrlVer >= MAKEDLLVERULL(6, 16, 0, 0)) ? TBSTYLE_TRANSPARENT : 0), 0);
+		m_btnWnd2.ModifyStyle(TBSTYLE_TOOLTIPS | TBSTYLE_TRANSPARENT, 0);
 		m_btnWnd2.SetExtendedStyle(m_btnWnd2.GetExtendedStyle() & ~TBSTYLE_EX_MIXEDBUTTONS);
 		m_btnWnd2.RecalcLayout(true);
 	}

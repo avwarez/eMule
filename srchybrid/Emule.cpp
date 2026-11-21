@@ -276,7 +276,6 @@ END_MESSAGE_MAP()
 CemuleApp::CemuleApp(LPCTSTR lpszAppName)
 	: CWinApp(lpszAppName)
 	, emuledlg()
-	, m_ullComCtrlVer(MAKEDLLVERULL(4, 0, 0, 0))
 	, m_iDfltImageListColorFlags(ILC_COLOR)
 	, m_app_state(APP_STATE_STARTING)
 	, m_hSystemImageList()
@@ -442,25 +441,7 @@ BOOL CemuleApp::InitInstance()
 	///////////////////////////////////////////////////////////////////////////
 	// Common Controls initialization
 	//
-	//						Mjr Min
-	// ----------------------------
-	// W98 SE, IE5			5	8
-	// W2K SP4, IE6 SP1		5	81
-	// XP SP2				6   0
-	// XP SP3				6   0
-	// Vista SP1			6   16
 	::InitCommonControls();
-	switch (thePrefs.GetWindowsVersion()) {
-	case _WINVER_2K_:
-		m_ullComCtrlVer = MAKEDLLVERULL(5, 81, 0, 0);
-		break;
-	case _WINVER_XP_:
-	case _WINVER_2003_:
-		m_ullComCtrlVer = MAKEDLLVERULL(6, 0, 0, 0);
-		break;
-	default:  //Vista .. Win11
-		m_ullComCtrlVer = MAKEDLLVERULL(6, 16, 0, 0);
-	};
 
 	m_sizSmallSystemIcon.SetSize(::GetSystemMetrics(SM_CXSMICON), ::GetSystemMetrics(SM_CYSMICON));
 	UpdateLargeIconSize();
@@ -1529,21 +1510,6 @@ void CemuleApp::UpdateDesktopColorDepth()
 	} else {
 		// Get current desktop color depth and derive the image list format from it
 		m_iDfltImageListColorFlags = GetAppImageListColorFlag();
-
-		// Don't use 32-bit image lists if not supported by COMCTL32.DLL
-		if (m_iDfltImageListColorFlags == ILC_COLOR32 && m_ullComCtrlVer < MAKEDLLVERULL(6, 0, 0, 0)) {
-			// We fall back to 16-bit image lists because we do not provide 24-bit
-			// versions of icons any longer (due to resource size restrictions for Win98). We
-			// could also fall back to 24-bit image lists here but the difference is minimal
-			// and considered not to be worth the additional memory consumption.
-			//
-			// Though, do not fall back to 8-bit image lists because this would let Windows
-			// reduce the color resolution to the standard 256 color window system palette.
-			// We need a 16-bit or 24-bit image list to hold all our 256 color icons (which
-			// are not pre-quantized to standard 256 color windows system palette) without
-			// losing any colors.
-			m_iDfltImageListColorFlags = ILC_COLOR16;
-		}
 	}
 
 	// Doesn't help.
@@ -1662,14 +1628,8 @@ void CemuleApp::ResetStandByIdleTimer()
 		m_bStandbyOff = false;
 }
 
-bool CemuleApp::IsXPThemeActive() const
-{
-	// TRUE: If an XP style (and only an XP style) is active
-	return theApp.m_ullComCtrlVer < MAKEDLLVERULL(6, 16, 0, 0) && ::IsThemeActive() && ::IsAppThemed();
-}
-
 bool CemuleApp::IsVistaThemeActive() const
 {
 	// Return true if Vista (or better) style is active
-	return theApp.m_ullComCtrlVer >= MAKEDLLVERULL(6, 16, 0, 0) && ::IsThemeActive() && ::IsAppThemed();
+	return ::IsThemeActive() && ::IsAppThemed();
 }

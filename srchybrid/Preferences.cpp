@@ -2696,7 +2696,7 @@ UINT CPreferences::GetWebMirrorAlertLevel()
 
 bool CPreferences::GetUseReBarToolbar()
 {
-	return GetReBarToolbar() && theApp.m_ullComCtrlVer >= MAKEDLLVERULL(5, 8, 0, 0);
+	return GetReBarToolbar();
 }
 
 uint32 CPreferences::GetMaxGraphUploadRate(bool bEstimateIfUnlimited)

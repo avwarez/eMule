@@ -140,7 +140,5 @@ protected:
 	afx_msg void OnInitMenuPopup(CMenu *pPopupMenu, UINT nIndex, BOOL bSysMenu);
 	afx_msg void OnMenuSelect(UINT nItemID, UINT nFlags, HMENU hSysMenu);
 	afx_msg void OnContextMenu(CWnd*, CPoint point);
-	afx_msg BOOL OnHdrBeginDrag(UINT, LPNMHDR, LRESULT*);
-	afx_msg BOOL OnHdrEndDrag(UINT, LPNMHDR, LRESULT*);
 	afx_msg LRESULT OnCopy(WPARAM, LPARAM);
 };

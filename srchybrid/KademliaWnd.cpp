@@ -132,7 +132,7 @@ BOOL CKademliaWnd::OnInitDialog()
 	SetAllIcons();
 
 	// Vista: Remove the TBSTYLE_TRANSPARENT to avoid flickering (can be done only after the toolbar was initially created with TBSTYLE_TRANSPARENT !?)
-	m_pbtnWnd->ModifyStyle((theApp.m_ullComCtrlVer >= MAKEDLLVERULL(6, 16, 0, 0)) ? TBSTYLE_TRANSPARENT : 0, TBSTYLE_TOOLTIPS);
+	m_pbtnWnd->ModifyStyle(TBSTYLE_TRANSPARENT, TBSTYLE_TOOLTIPS);
 	m_pbtnWnd->SetExtendedStyle(m_pbtnWnd->GetExtendedStyle() | TBSTYLE_EX_MIXEDBUTTONS);
 
 	TBBUTTON atb1[1 + WND1_NUM_BUTTONS] = {};
@@ -169,16 +169,14 @@ BOOL CKademliaWnd::OnInitDialog()
 	// So, to circumvent such problems, the toolbar control should be created right with
 	// the needed size so that we do not really need to call the 'GetMaxSize' function.
 	// Although it would be better to call it to adapt for system metrics basically.
-	if (theApp.m_ullComCtrlVer > MAKEDLLVERULL(5, 81, 0, 0)) {
-		SIZE size;
-		m_pbtnWnd->GetMaxSize(&size);
-		CRect rc;
-		m_pbtnWnd->GetWindowRect(rc);
-		ScreenToClient(rc);
-		// the with of the toolbar should already match the needed size (see comment above)
-		ASSERT(size.cx == rc.Width());
-		m_pbtnWnd->MoveWindow(rc.left, rc.top, size.cx, rc.Height());
-	}
+	SIZE size;
+	m_pbtnWnd->GetMaxSize(&size);
+	CRect rc;
+	m_pbtnWnd->GetWindowRect(rc);
+	ScreenToClient(rc);
+	// the with of the toolbar should already match the needed size (see comment above)
+	ASSERT(size.cx == rc.Width());
+	m_pbtnWnd->MoveWindow(rc.left, rc.top, size.cx, rc.Height());
 
 	Localize();
 

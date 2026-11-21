@@ -24,8 +24,6 @@ BEGIN_MESSAGE_MAP(CListCtrlX, CListCtrl)
 	ON_WM_INITMENUPOPUP()
 	ON_WM_MENUSELECT()
 	ON_WM_CONTEXTMENU()
-	ON_NOTIFY_EX(HDN_BEGINDRAG, 0, OnHdrBeginDrag)
-	ON_NOTIFY_EX(HDN_ENDDRAG, 0, OnHdrEndDrag)
 	ON_WM_KEYDOWN()
 	ON_MESSAGE(WM_COPY, OnCopy)
 END_MESSAGE_MAP()
@@ -191,7 +189,7 @@ void CListCtrlX::CreateColumns(int iColumns, LCX_COLUMN_INIT *pColumns)
 
 void CListCtrlX::EnableHdrCtrlSortBitmaps(BOOL bUseHdrCtrlSortBitmaps)
 {
-	if (bUseHdrCtrlSortBitmaps && theApp.m_ullComCtrlVer >= MAKEDLLVERULL(6, 0, 0, 0))
+	if (bUseHdrCtrlSortBitmaps)
 		m_bUseHdrCtrlSortBitmaps = TRUE;
 	else {
 #ifdef IDB_SORT_STATES
@@ -320,12 +318,6 @@ void UpdateHdrImageList(CListCtrl &lv, CImageList &imlHdr, UINT uIDHdrImgList
 			// Fill images and masks into image list
 			VERIFY(imlHdr.Add(&bmSortStates, RGB(255, 0, 255)) >= 0);
 
-			// To avoid drawing problems (which occur only with an image list *with* a mask) while
-			// resizing list view columns which have the header control bitmap right aligned, set
-			// the background color of the image list.
-			if (theApp.m_ullComCtrlVer < MAKEDLLVERULL(6, 0, 0, 0))
-				imlHdr.SetBkColor(::GetSysColor(COLOR_BTNFACE));
-
 			// When setting the image list for the header control, this *ALWAYS* returns
 			// the image list which was set for the list view control!!!
 			pHdrCtrl->SetImageList(&imlHdr);
@@ -352,26 +344,6 @@ void CListCtrlX::ApplyImageList(HIMAGELIST himl)
 		// always resets any already specified header control image lists!
 		GetHeaderCtrl()->SetImageList(&m_imlHdr);
 	}
-}
-
-BOOL CListCtrlX::OnHdrBeginDrag(UINT, LPNMHDR, LRESULT*)
-{
-	if (theApp.m_ullComCtrlVer < MAKEDLLVERULL(6, 0, 0, 0)) {
-		CImageList *piml = GetHeaderCtrl()->GetImageList();
-		if (piml != NULL)
-			piml->SetBkColor(::GetSysColor(COLOR_3DSHADOW));
-	}
-	return FALSE; // *Force* default processing of notification!
-}
-
-BOOL CListCtrlX::OnHdrEndDrag(UINT, LPNMHDR, LRESULT*)
-{
-	if (theApp.m_ullComCtrlVer < MAKEDLLVERULL(6, 0, 0, 0)) {
-		CImageList *piml = GetHeaderCtrl()->GetImageList();
-		if (piml != NULL)
-			piml->SetBkColor(::GetSysColor(COLOR_BTNFACE));
-	}
-	return FALSE; // *Force* default processing of notification!
 }
 
 void CListCtrlX::SelectAllItems()

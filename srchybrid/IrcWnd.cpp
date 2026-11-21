@@ -177,7 +177,7 @@ BOOL CIrcWnd::OnInitDialog()
 	AddAnchor(m_wndChanList, TOP_LEFT, BOTTOM_RIGHT);
 
 	// Vista: Remove the TBSTYLE_TRANSPARENT to avoid flickering (can be done only after the toolbar was initially created with TBSTYLE_TRANSPARENT !?)
-	m_wndFormat.ModifyStyle((theApp.m_ullComCtrlVer >= MAKEDLLVERULL(6, 16, 0, 0)) ? TBSTYLE_TRANSPARENT : 0, TBSTYLE_TOOLTIPS);
+	m_wndFormat.ModifyStyle(TBSTYLE_TRANSPARENT, TBSTYLE_TOOLTIPS);
 	m_wndFormat.SetExtendedStyle(m_wndFormat.GetExtendedStyle() | TBSTYLE_EX_MIXEDBUTTONS);
 
 	TBBUTTON atb[6] = {};
