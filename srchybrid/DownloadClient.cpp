@@ -95,7 +95,7 @@ void CUpDownClient::DrawStatusBar(CDC &dc, const CRect &rect, bool onlygreyrect,
 			for (UINT i = 0; i < m_nPartCount; ++i)
 				if (m_abyPartStatus[i]) {
 					uint64 uBegin = PARTSIZE * i;
-					uint64 uEnd = min(uBegin + PARTSIZE, m_reqfile->GetFileSize());
+					uint64 uEnd = min(uBegin + PARTSIZE, (uint64)m_reqfile->GetFileSize());
 
 					COLORREF colour;
 					if (m_reqfile->IsComplete(uBegin, uEnd - 1))
