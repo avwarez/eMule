@@ -294,6 +294,9 @@ public:
 
 	void	FlushBuffersExceptionHandler(CFileException *ex);
 	void	FlushBuffersExceptionHandler();
+	void	PauseDownloadsOnVolume();
+	void	RetryFailedWrites();
+	bool	FlushBeforeFinalHash();
 
 	void	PerformFileCompleteEnd(DWORD dwResult);
 
@@ -391,6 +394,8 @@ private:
 	DWORD	m_nLastBufferFlushTime;
 	DWORD	m_nNextMetFlushTime; //update .part.met file
 	DWORD	m_nFileFlushTime; //if file is idle long enough, flush new data to disk
+	uint32	m_uFlushJob;	// 97q: the periodic flush running, see CPartFileWriteThread::StartFlush()
+	DWORD	m_dwFinalFlushError;	// 97q: see FlushBeforeFinalHash()
 	DWORD	m_dwFileAttributes;
 	DWORD	m_random_update_wait;
 	UINT	m_anStates[STATES_COUNT];

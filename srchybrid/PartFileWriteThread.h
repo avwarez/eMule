@@ -31,6 +31,7 @@ struct OverlappedWrite_Struct
 	CPartFile				*pFile;
 	PartFileBufferedData	*pBuffer;
 	POSITION				pos; // in m_listPendingIO
+	DWORD					dwStart; // 97q: when the write was started, see WriteCompletionRoutine()
 };
 
 class CPartFileWriteThread : public CWinThread
@@ -48,6 +49,11 @@ public:
 	bool	IsRunning() const							{ return m_Run > 0; }
 	bool	AddFile(CPartFile *pFile);
 	static void	RemFile(CPartFile *pFile);
+	// 97q: the periodic flush of a download to disk, run on a pool thread, see StartFlush()
+	static uint32	StartFlush(CPartFile *pFile);
+	static bool	TakeFlushResult(uint32 uJob, DWORD &dwError);
+	static DWORD	WaitForFlushes(const CPartFile *pFile);
+	static void	ForgetFlushes(const CPartFile *pFile);
 
 	CCriticalSection m_lockFlushList;
 	CList<ToWrite> m_FlushList;
@@ -56,8 +62,11 @@ private:
 	static UINT AFX_CDECL RunProc(LPVOID pParam);
 	UINT	RunInternal();
 
+	BOOL	GetNextCompletion(DWORD &dwWrite, DWORD &dwError, ULONG_PTR &completionKey, OverlappedWrite_Struct *&pCurIO, DWORD dwWait);
 	void	WriteBuffers();
-	void	WriteCompletionRoutine(DWORD dwBytesWritten, const OverlappedWrite_Struct *pOvWrite);
+	static void	FailWrite(const ToWrite &item, DWORD dwError);
+	void	WriteCompletionRoutine(DWORD dwBytesWritten, DWORD dwError, const OverlappedWrite_Struct *pOvWrite);
+	static VOID CALLBACK FlushProc(PTP_CALLBACK_INSTANCE pInstance, PVOID pParam) noexcept;
 
 	CList<ToWrite>	m_listToWrite;
 	CTypedPtrList<CPtrList, OverlappedWrite_Struct*>	m_listPendingIO;
