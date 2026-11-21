@@ -72,8 +72,11 @@ protected:
 
 IMPLEMENT_DYNCREATE(CDlgPageWizard, CPropertyPageEx)
 
+#pragma warning(push)
+#pragma warning(disable:4191) // MFC message maps cast every handler to AFX_PMSG; only a pragma inside the .cpp reaches this
 BEGIN_MESSAGE_MAP(CDlgPageWizard, CPropertyPageEx)
 END_MESSAGE_MAP()
+#pragma warning(pop)
 
 CDlgPageWizard::CDlgPageWizard()
 	: CPropertyPageEx()
@@ -135,8 +138,11 @@ protected:
 
 IMPLEMENT_DYNAMIC(CPPgWiz1Welcome, CDlgPageWizard)
 
+#pragma warning(push)
+#pragma warning(disable:4191) // MFC message maps cast every handler to AFX_PMSG; only a pragma inside the .cpp reaches this
 BEGIN_MESSAGE_MAP(CPPgWiz1Welcome, CDlgPageWizard)
 END_MESSAGE_MAP()
+#pragma warning(pop)
 
 CPPgWiz1Welcome::CPPgWiz1Welcome()
 	: CDlgPageWizard(CPPgWiz1Welcome::IDD)
@@ -195,8 +201,11 @@ protected:
 
 IMPLEMENT_DYNAMIC(CPPgWiz1General, CDlgPageWizard)
 
+#pragma warning(push)
+#pragma warning(disable:4191) // MFC message maps cast every handler to AFX_PMSG; only a pragma inside the .cpp reaches this
 BEGIN_MESSAGE_MAP(CPPgWiz1General, CDlgPageWizard)
 END_MESSAGE_MAP()
+#pragma warning(pop)
 
 CPPgWiz1General::CPPgWiz1General()
 	: CDlgPageWizard(CPPgWiz1General::IDD)
@@ -283,6 +292,8 @@ protected:
 
 IMPLEMENT_DYNAMIC(CPPgWiz1Ports, CDlgPageWizard)
 
+#pragma warning(push)
+#pragma warning(disable:4191) // MFC message maps cast every handler to AFX_PMSG; only a pragma inside the .cpp reaches this
 BEGIN_MESSAGE_MAP(CPPgWiz1Ports, CDlgPageWizard)
 	ON_BN_CLICKED(IDC_STARTTEST, OnStartConTest)
 	ON_BN_CLICKED(IDC_UDPDISABLE, OnEnChangeUDPDisable)
@@ -291,6 +302,7 @@ BEGIN_MESSAGE_MAP(CPPgWiz1Ports, CDlgPageWizard)
 	ON_EN_CHANGE(IDC_UDP, OnEnChangeUDP)
 	ON_WM_TIMER()
 END_MESSAGE_MAP()
+#pragma warning(pop)
 
 CPPgWiz1Ports::CPPgWiz1Ports()
 	: CDlgPageWizard(CPPgWiz1Ports::IDD)
@@ -503,8 +515,11 @@ protected:
 
 IMPLEMENT_DYNAMIC(CPPgWiz1UlPrio, CDlgPageWizard)
 
+#pragma warning(push)
+#pragma warning(disable:4191) // MFC message maps cast every handler to AFX_PMSG; only a pragma inside the .cpp reaches this
 BEGIN_MESSAGE_MAP(CPPgWiz1UlPrio, CDlgPageWizard)
 END_MESSAGE_MAP()
+#pragma warning(pop)
 
 CPPgWiz1UlPrio::CPPgWiz1UlPrio()
 	: CDlgPageWizard(CPPgWiz1UlPrio::IDD)
@@ -561,8 +576,11 @@ protected:
 
 IMPLEMENT_DYNAMIC(CPPgWiz1Upload, CDlgPageWizard)
 
+#pragma warning(push)
+#pragma warning(disable:4191) // MFC message maps cast every handler to AFX_PMSG; only a pragma inside the .cpp reaches this
 BEGIN_MESSAGE_MAP(CPPgWiz1Upload, CDlgPageWizard)
 END_MESSAGE_MAP()
+#pragma warning(pop)
 
 CPPgWiz1Upload::CPPgWiz1Upload()
 	: CDlgPageWizard(CPPgWiz1Upload::IDD)
@@ -621,8 +639,11 @@ protected:
 
 IMPLEMENT_DYNAMIC(CPPgWiz1Server, CDlgPageWizard)
 
+#pragma warning(push)
+#pragma warning(disable:4191) // MFC message maps cast every handler to AFX_PMSG; only a pragma inside the .cpp reaches this
 BEGIN_MESSAGE_MAP(CPPgWiz1Server, CDlgPageWizard)
 END_MESSAGE_MAP()
+#pragma warning(pop)
 
 CPPgWiz1Server::CPPgWiz1Server()
 	: CDlgPageWizard(CPPgWiz1Server::IDD)
@@ -690,8 +711,11 @@ protected:
 
 IMPLEMENT_DYNAMIC(CPPgWiz1End, CDlgPageWizard)
 
+#pragma warning(push)
+#pragma warning(disable:4191) // MFC message maps cast every handler to AFX_PMSG; only a pragma inside the .cpp reaches this
 BEGIN_MESSAGE_MAP(CPPgWiz1End, CDlgPageWizard)
 END_MESSAGE_MAP()
+#pragma warning(pop)
 
 CPPgWiz1End::CPPgWiz1End()
 	: CDlgPageWizard(CPPgWiz1End::IDD)
@@ -736,8 +760,11 @@ protected:
 
 IMPLEMENT_DYNAMIC(CPShtWiz1, CPropertySheetEx)
 
+#pragma warning(push)
+#pragma warning(disable:4191) // MFC message maps cast every handler to AFX_PMSG; only a pragma inside the .cpp reaches this
 BEGIN_MESSAGE_MAP(CPShtWiz1, CPropertySheetEx)
 END_MESSAGE_MAP()
+#pragma warning(pop)
 
 CPShtWiz1::CPShtWiz1(UINT nIDCaption, CWnd *pParentWnd, UINT iSelectPage)
 	: CPropertySheetEx(nIDCaption, pParentWnd, iSelectPage)

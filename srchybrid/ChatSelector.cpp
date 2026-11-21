@@ -63,6 +63,8 @@ CChatItem::~CChatItem()
 
 IMPLEMENT_DYNAMIC(CChatSelector, CClosableTabCtrl)
 
+#pragma warning(push)
+#pragma warning(disable:4191) // MFC message maps cast every handler to AFX_PMSG; only a pragma inside the .cpp reaches this
 BEGIN_MESSAGE_MAP(CChatSelector, CClosableTabCtrl)
 	ON_WM_SIZE()
 	ON_WM_DESTROY()
@@ -71,6 +73,7 @@ BEGIN_MESSAGE_MAP(CChatSelector, CClosableTabCtrl)
 	ON_NOTIFY_REFLECT(TCN_SELCHANGE, OnTcnSelChangeChatSel)
 	ON_WM_CONTEXTMENU()
 END_MESSAGE_MAP()
+#pragma warning(pop)
 
 CChatSelector::CChatSelector()
 	: m_pParent()

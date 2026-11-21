@@ -99,10 +99,13 @@ LPCTSTR CSharedFileDetailsSheet::m_pPshStartPage;
 
 IMPLEMENT_DYNAMIC(CSharedFileDetailsSheet, CListViewWalkerPropertySheet)
 
+#pragma warning(push)
+#pragma warning(disable:4191) // MFC message maps cast every handler to AFX_PMSG; only a pragma inside the .cpp reaches this
 BEGIN_MESSAGE_MAP(CSharedFileDetailsSheet, CListViewWalkerPropertySheet)
 	ON_WM_DESTROY()
 	ON_MESSAGE(UM_DATA_CHANGED, OnDataChanged)
 END_MESSAGE_MAP()
+#pragma warning(pop)
 
 void CSharedFileDetailsSheet::Localize()
 {
@@ -222,6 +225,8 @@ BOOL CSharedFileDetailsSheet::OnCommand(WPARAM wParam, LPARAM lParam)
 
 IMPLEMENT_DYNAMIC(CSharedFilesCtrl, CMuleListCtrl)
 
+#pragma warning(push)
+#pragma warning(disable:4191) // MFC message maps cast every handler to AFX_PMSG; only a pragma inside the .cpp reaches this
 BEGIN_MESSAGE_MAP(CSharedFilesCtrl, CMuleListCtrl)
 	ON_NOTIFY_REFLECT(LVN_COLUMNCLICK, OnLvnColumnClick)
 	ON_NOTIFY_REFLECT(LVN_GETDISPINFO, OnLvnGetDispInfo)
@@ -233,6 +238,7 @@ BEGIN_MESSAGE_MAP(CSharedFilesCtrl, CMuleListCtrl)
 	ON_WM_SYSCOLORCHANGE()
 	ON_WM_MOUSEMOVE()
 END_MESSAGE_MAP()
+#pragma warning(pop)
 
 CSharedFilesCtrl::CSharedFilesCtrl()
 	: CListCtrlItemWalk(this)

@@ -39,6 +39,8 @@ static char THIS_FILE[] = __FILE__;
 
 IMPLEMENT_DYNAMIC(CCommentDialog, CResizablePage)
 
+#pragma warning(push)
+#pragma warning(disable:4191) // MFC message maps cast every handler to AFX_PMSG; only a pragma inside the .cpp reaches this
 BEGIN_MESSAGE_MAP(CCommentDialog, CResizablePage)
 	ON_BN_CLICKED(IDC_RESET, OnBnClickedReset)
 	ON_MESSAGE(UM_DATA_CHANGED, OnDataChanged)
@@ -49,6 +51,7 @@ BEGIN_MESSAGE_MAP(CCommentDialog, CResizablePage)
 	ON_WM_TIMER()
 	ON_WM_DESTROY()
 END_MESSAGE_MAP()
+#pragma warning(pop)
 
 CCommentDialog::CCommentDialog()
 	: CResizablePage(CCommentDialog::IDD)

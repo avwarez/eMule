@@ -42,6 +42,8 @@ static char THIS_FILE[] = __FILE__;
 
 using namespace Kademlia;
 
+#pragma warning(push)
+#pragma warning(disable:4191) // MFC message maps cast every handler to AFX_PMSG; only a pragma inside the .cpp reaches this
 BEGIN_MESSAGE_MAP(CKadLookupGraph, CWnd)
 	ON_WM_PAINT()
 	ON_WM_MOUSEMOVE()
@@ -49,6 +51,7 @@ BEGIN_MESSAGE_MAP(CKadLookupGraph, CWnd)
 	ON_COMMAND(MP_AUTOKADLOOKUPGRAPH, OnSwitchAutoLookup)
 	ON_WM_SIZE()
 END_MESSAGE_MAP()
+#pragma warning(pop)
 
 CKadLookupGraph::CKadLookupGraph()
 	: m_pLookupHistory()

@@ -44,6 +44,8 @@ static char THIS_FILE[] = __FILE__;
 
 IMPLEMENT_DYNAMIC(CChatWnd, CDialog)
 
+#pragma warning(push)
+#pragma warning(disable:4191) // MFC message maps cast every handler to AFX_PMSG; only a pragma inside the .cpp reaches this
 BEGIN_MESSAGE_MAP(CChatWnd, CResizableDialog)
 	ON_WM_KEYDOWN()
 	ON_WM_SHOWWINDOW()
@@ -58,6 +60,7 @@ BEGIN_MESSAGE_MAP(CChatWnd, CResizableDialog)
 	ON_BN_CLICKED(IDC_CSEND, OnBnClickedSend)
 	ON_BN_CLICKED(IDC_CCLOSE, OnBnClickedClose)
 END_MESSAGE_MAP()
+#pragma warning(pop)
 
 CChatWnd::CChatWnd(CWnd *pParent /*=NULL*/)
 	: CResizableDialog(CChatWnd::IDD, pParent)
