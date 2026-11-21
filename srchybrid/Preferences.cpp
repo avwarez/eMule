@@ -442,8 +442,6 @@ Preferences_Ext_Struct *CPreferences::prefsExt;
 CArray<Category_Struct*> CPreferences::catArr;
 UINT	CPreferences::m_nWebMirrorAlertLevel;
 WORD	CPreferences::m_wWinVer;
-bool	CPreferences::m_bRunAsUser;
-bool	CPreferences::m_bPreferRestrictedOverUser;
 bool	CPreferences::m_bUseOldTimeRemaining;
 
 int		CPreferences::m_byLogLevel;
@@ -1747,7 +1745,6 @@ void CPreferences::SavePreferences()
 	ini.WriteBool(_T("A4AFSaveCpu"), m_bA4AFSaveCpu); // ZZ:DownloadManager
 	ini.WriteBool(_T("HighresTimer"), m_bHighresTimer);
 	ini.WriteInt(_T("WebMirrorAlertLevel"), m_nWebMirrorAlertLevel);
-	ini.WriteBool(_T("RunAsUnprivilegedUser"), m_bRunAsUser);
 	ini.WriteInt(_T("DebugLogLevel"), m_byLogLevel);
 	ini.WriteInt(_T("WinXPSP2OrHigher"), static_cast<int>(IsRunningXPSP2OrHigher()));
 	ini.WriteBool(_T("RememberCancelledFiles"), m_bRememberCancelledFiles);
@@ -2304,8 +2301,6 @@ void CPreferences::LoadPreferences()
 
 	m_bA4AFSaveCpu = ini.GetBool(_T("A4AFSaveCpu"), false); // ZZ:DownloadManager
 	m_bHighresTimer = ini.GetBool(_T("HighresTimer"), false);
-	m_bRunAsUser = ini.GetBool(_T("RunAsUnprivilegedUser"), false);
-	m_bPreferRestrictedOverUser = ini.GetBool(_T("PreferRestrictedOverUser"), false);
 	m_byLogLevel = ini.GetInt(_T("DebugLogLevel"), DLP_VERYLOW);
 	m_bTrustEveryHash = ini.GetBool(_T("AICHTrustEveryHash"), false);
 	m_bRememberCancelledFiles = ini.GetBool(_T("RememberCancelledFiles"), true);
@@ -2706,17 +2701,6 @@ UINT CPreferences::GetWebMirrorAlertLevel()
 	}
 	// end
 	return UpdateNotify() ? m_nWebMirrorAlertLevel : 0;
-}
-
-bool CPreferences::IsRunAsUserEnabled()
-{
-	switch (GetWindowsVersion()) {
-	case _WINVER_2K_:
-	case _WINVER_XP_:
-	case _WINVER_2003_:
-		return m_bRunAsUser && m_nCurrentUserDirMode == 2;
-	}
-	return false;
 }
 
 bool CPreferences::GetUseReBarToolbar()

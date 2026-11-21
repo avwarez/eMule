@@ -55,7 +55,6 @@
 #include "Server.h"
 #include "ED2KLink.h"
 #include "Preferences.h"
-#include "secrunasuser.h"
 #include "SafeFile.h"
 #include "emuleDlg.h"
 #include "enbitmap.h"
@@ -492,17 +491,6 @@ BOOL CemuleApp::InitInstance()
 	// create & initialize all the important stuff
 	thePrefs.Init();
 	theStats.Init();
-
-	// check if we have to restart eMule as Secure user
-	if (thePrefs.IsRunAsUserEnabled()) {
-		CSecRunAsUser rau;
-		eResult res = rau.RestartSecure();
-		if (res == RES_OK_NEED_RESTART)
-			return FALSE; // emule restart as secure user, kill this instance
-		if (res == RES_FAILED)
-			// something went wrong
-			theApp.QueueLogLine(false, GetResString(IDS_RAU_FAILED), (LPCWSTR)rau.GetCurrentUserW());
-	}
 
 	if (thePrefs.GetRTLWindowsLayout())
 		EnableRTLWindowsLayout();

@@ -1642,7 +1642,6 @@
 #define IDC_SHOWOVERHEAD                2132
 #define IDC_INDICATERATINGS             2133
 #define IDC_USESECIDENT                 2134
-#define IDC_RUNASUSER                   2135
 #define IDC_MMENABLED                   2136
 #define IDC_ENABLEOBFUSCATION           2136
 #define IDC_ONLYOBFUSCATED              2137
