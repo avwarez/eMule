@@ -3186,27 +3186,34 @@ int CompareLocaleString(LPCTSTR psz1, LPCTSTR psz2)
 	return iResult ? iResult - CSTR_EQUAL : 0;
 }
 
-int __cdecl CompareCStringPtrLocaleStringNoCase(const void *p1, const void *p2)
+// Since C++17 noexcept is part of a function type: the comparator parameter of
+// the two Sort() below is noexcept-qualified, so it matches its declaration in
+// OtherFunctions.h, and accepts these four functions as default arguments, only
+// if they are noexcept as well (this is also what warning C5039 asks for when
+// the pointer is handed to qsort).
+int __cdecl CompareCStringPtrLocaleStringNoCase(const void *p1, const void *p2) noexcept
 {
 	return CompareLocaleStringNoCase(*(CString*)p1, *(CString*)p2);
 }
 
-int __cdecl CompareCStringPtrLocaleString(const void *p1, const void *p2)
+int __cdecl CompareCStringPtrLocaleString(const void *p1, const void *p2) noexcept
 {
 	return CompareLocaleString(*(CString*)p1, *(CString*)p2);
 }
 
 void Sort(CStringArray &astr, int(__cdecl *pfnCompare)(const void*, const void*) noexcept)
 {
-	qsort(astr.GetData(), astr.GetCount(), sizeof(CString*), pfnCompare);
+	// The elements are CString objects, not pointers to them, so the element size
+	// has to say so. It went unnoticed because sizeof(CString) == sizeof(CString*).
+	qsort(astr.GetData(), astr.GetCount(), sizeof(CString), pfnCompare);
 }
 
-int __cdecl CompareCStringPtrPtrLocaleStringNoCase(const void *p1, const void *p2)
+int __cdecl CompareCStringPtrPtrLocaleStringNoCase(const void *p1, const void *p2) noexcept
 {
 	return CompareLocaleStringNoCase(**(CString**)p1, **(CString**)p2);
 }
 
-int __cdecl CompareCStringPtrPtrLocaleString(const void *p1, const void *p2)
+int __cdecl CompareCStringPtrPtrLocaleString(const void *p1, const void *p2) noexcept
 {
 	return CompareLocaleString(**(CString**)p1, **(CString**)p2);
 }
