@@ -4852,8 +4852,8 @@ CString CPartFile::GetInfoSummary(bool bNoFormatCommands) const
 	if (!IsPartFile())
 		return CKnownFile::GetInfoSummary();
 
-	CString compl(GetResString(IDS_DL_TRANSFCOMPL));
-	compl.AppendFormat(_T(": %s/%s (%.1f%%)")
+	CString strCompl(GetResString(IDS_DL_TRANSFCOMPL));
+	strCompl.AppendFormat(_T(": %s/%s (%.1f%%)")
 		, (LPCTSTR)CastItoXBytes(GetCompletedSize())
 		, (LPCTSTR)CastItoXBytes(m_nFileSize)
 		, GetPercentCompleted());
@@ -4898,7 +4898,7 @@ CString CPartFile::GetInfoSummary(bool bNoFormatCommands) const
 		, bNoFormatCommands ? _T("") : _T("<br_head>")
 		, (LPCTSTR)GetResString(IDS_FD_MET), (LPCTSTR)GetPartMetFileName()
 		, (LPCTSTR)GetResString(IDS_STATUS), (LPCTSTR)sStatus
-		, (LPCTSTR)compl
+		, (LPCTSTR)strCompl
 		, (LPCTSTR)sourcesinfo, (LPCTSTR)avail
 		, (LPCTSTR)GetResString(IDS_LASTSEENCOMPL), (LPCTSTR)lsc
 		, (LPCTSTR)GetResString(IDS_FD_LASTCHANGE), (LPCTSTR)lastdwl
