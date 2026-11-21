@@ -664,24 +664,15 @@ bool CPreferences::IsTempFile(const CString &rstrDirectory, const CString &rstrN
 	CString strNameLower(rstrName);
 	strNameLower.MakeLower();
 	strNameLower += _T("|"); // append an EOS character which we can query for
-	static LPCTSTR const _apszNotSharedExts[] = {
-		_T("%u.part") _T("%c"),
-		_T("%u.part.met") _T("%c"),
-		_T("%u.part.met") PARTMET_BAK_EXT _T("%c"),
-		_T("%u.part.met") PARTMET_TMP_EXT _T("%c")
-	};
-	for (unsigned i = 0; i < _countof(_apszNotSharedExts); ++i) {
-		UINT uNum;
-		TCHAR iChar;
-		// "misuse" the 'scanf' function for a very simple pattern scanning.
-#pragma warning(push)
-#pragma warning(disable:4774)
-		if (_stscanf(strNameLower, _apszNotSharedExts[i], &uNum, &iChar) == 2 && iChar == _T('|'))
-			return true;
-#pragma warning(pop)
-	}
-
-	return false;
+	UINT uNum;
+	TCHAR iChar;
+	// "misuse" the 'scanf' function for a very simple pattern scanning.
+	// Each pattern is spelled out as a literal so that the compiler checks it
+	// against the arguments.
+	return (_stscanf(strNameLower, _T("%u.part%c"), &uNum, &iChar) == 2 && iChar == _T('|'))
+		|| (_stscanf(strNameLower, _T("%u.part.met%c"), &uNum, &iChar) == 2 && iChar == _T('|'))
+		|| (_stscanf(strNameLower, _T("%u.part.met") PARTMET_BAK_EXT _T("%c"), &uNum, &iChar) == 2 && iChar == _T('|'))
+		|| (_stscanf(strNameLower, _T("%u.part.met") PARTMET_TMP_EXT _T("%c"), &uNum, &iChar) == 2 && iChar == _T('|'));
 }
 
 uint64 CPreferences::GetMaxDownloadInBytesPerSec(bool bDynamic)

@@ -408,16 +408,14 @@ void EditTextWithFormat(CDataExchange *pDX, int nIDC, HTREEITEM hItem, LPCTSTR l
 	ASSERT(pCtrlTreeOptions->IsKindOf(RUNTIME_CLASS(CTreeOptionsCtrl)));
 
 	if (pDX->m_bSaveAndValidate) {
-		void *pResult = va_arg(pData, void*);
 		// the following works for %d, %u, %ld, %lu
 		CString sText(pCtrlTreeOptions->GetEditText(hItem));
-#pragma warning(push)
-#pragma warning(disable:4774)
-		if (_stscanf(sText, lpszFormat, pResult) != 1) {
+		// lpszFormat is the caller's, as in MFC's DDX_TextWithFormat(); the pointer to
+		// the result is the variadic argument, read from pData like the value below
+		if (_vstscanf(sText, lpszFormat, pData) != 1) {
 			AfxMessageBox(nIDPrompt);
 			pDX->Fail();	// throws exception
 		}
-#pragma warning(pop)
 	} else {
 		TCHAR szT[64];
 		_vsntprintf(szT, _countof(szT), lpszFormat, pData);

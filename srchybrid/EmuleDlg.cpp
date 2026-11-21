@@ -1375,10 +1375,11 @@ LRESULT CemuleDlg::OnWMData(WPARAM, LPARAM lParam)
 					else
 						uid = IDS_DISCONNECTED;
 					_ftprintf(file, _T("%s\n"), (LPCTSTR)GetResString(uid));
-#pragma warning(push)
-#pragma warning(disable:4774)
-					_ftprintf(file, (LPCTSTR)GetResString(IDS_UPDOWNSMALL), (float)theApp.uploadqueue->GetDatarate() / 1024, (float)theApp.downloadqueue->GetDatarate() / 1024);
-#pragma warning(pop)
+					// the format is the translated IDS_UPDOWNSMALL, which cannot be a literal:
+					// format it the way the tray tooltip does, then write the result
+					CString sUpDown;
+					sUpDown.Format(GetResString(IDS_UPDOWNSMALL), (float)theApp.uploadqueue->GetDatarate() / 1024, (float)theApp.downloadqueue->GetDatarate() / 1024);
+					_ftprintf(file, _T("%s"), (LPCTSTR)sUpDown);
 					// next string (getTextList) is already prefixed with '\n'!
 					_ftprintf(file, _T("%s\n"), (LPCTSTR)transferwnd->GetDownloadList().getTextList());
 

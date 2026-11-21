@@ -331,18 +331,15 @@ bool CIni::GetBool(LPCTSTR lpszEntry, bool bDefault, LPCTSTR lpszSection)
 	return _tstoi(GetString(lpszEntry, szDefault, lpszSection)) != 0;
 }
 
-#pragma warning(push)
-#pragma warning(disable:4774)
 CPoint CIni::GetPoint(LPCTSTR lpszEntry, const CPoint &ptDefault, LPCTSTR lpszSection)
 {
-	static LPCTSTR const pszFmt = _T("(%ld,%ld)");
 	CPoint ptReturn(ptDefault);
 
 	CString strDefault;
-	strDefault.Format(pszFmt, ptDefault.x, ptDefault.y);
+	strDefault.Format(_T("(%ld,%ld)"), ptDefault.x, ptDefault.y);
 
 	const CString &strPoint(GetString(lpszEntry, strDefault, lpszSection));
-	if (_stscanf(strPoint, pszFmt, &ptReturn.x, &ptReturn.y) != 2)
+	if (_stscanf(strPoint, _T("(%ld,%ld)"), &ptReturn.x, &ptReturn.y) != 2)
 		return ptDefault;
 
 	return ptReturn;
@@ -350,22 +347,20 @@ CPoint CIni::GetPoint(LPCTSTR lpszEntry, const CPoint &ptDefault, LPCTSTR lpszSe
 
 CRect CIni::GetRect(LPCTSTR lpszEntry, const CRect &rcDefault, LPCTSTR lpszSection)
 {
-	static LPCTSTR const pszFmt = _T("%ld,%ld,%ld,%ld");
 	CRect rcReturn(rcDefault);
 	//prepare default string
 	CString strDefault;
-	strDefault.Format(pszFmt, rcDefault.left, rcDefault.top, rcDefault.right, rcDefault.bottom);
+	strDefault.Format(_T("%ld,%ld,%ld,%ld"), rcDefault.left, rcDefault.top, rcDefault.right, rcDefault.bottom);
 	//read settings
 	const CString &strRect(GetString(lpszEntry, strDefault, lpszSection));
 	//try as the new Version first, then check the old version
-	if (_stscanf(strRect, pszFmt, &rcReturn.top, &rcReturn.left, &rcReturn.bottom, &rcReturn.right) != 4
+	if (_stscanf(strRect, _T("%ld,%ld,%ld,%ld"), &rcReturn.top, &rcReturn.left, &rcReturn.bottom, &rcReturn.right) != 4
 		&& _stscanf(strRect, _T("(%ld,%ld,%ld,%ld)"), &rcReturn.top, &rcReturn.left, &rcReturn.bottom, &rcReturn.right) != 4)
 	{
 		return rcDefault; //both versions failed, fall back to defaults
 	}
 	return rcReturn;
 }
-#pragma warning(pop)
 
 COLORREF CIni::GetColRef(LPCTSTR lpszEntry, COLORREF crDefault, LPCTSTR lpszSection)
 {
