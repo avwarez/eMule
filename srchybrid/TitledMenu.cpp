@@ -88,11 +88,6 @@ void CTitledMenu::AddMenuTitle(LPCTSTR lpszTitle, bool bIsIconMenu)
 
 void CTitledMenu::EnableIcons()
 {
-	switch (thePrefs.GetWindowsVersion()) {
-	case _WINVER_95_:
-	case _WINVER_NT4_:
-		return;
-	}
 	m_bIconMenu = true;
 
 	MENUINFO mi;
@@ -245,7 +240,7 @@ static HBITMAP IconToBitmap32(HICON hIcon, int cx, int cy)
 
 void CTitledMenu::SetMenuBitmap(UINT nFlags, UINT nIDNewItem, LPCTSTR /*lpszNewItem*/, LPCTSTR lpszIconName)
 {
-	if (!m_bIconMenu || (nFlags & MF_SEPARATOR) != 0 || thePrefs.GetWindowsVersion() < _WINVER_2K_) {
+	if (!m_bIconMenu || (nFlags & MF_SEPARATOR) != 0) {
 		if (m_bIconMenu && lpszIconName != NULL)
 			ASSERT(0);
 		return;

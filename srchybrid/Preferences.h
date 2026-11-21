@@ -1053,7 +1053,6 @@ public:
 	static bool		GetMessageEnableSmileys()			{ return m_bMessageEnableSmileys; }
 	static bool		GetIRCEnableUTF8()					{ return m_bIRCEnableUTF8; }
 
-	static WORD		GetWindowsVersion();
 	static bool		IsRunningAeroGlassTheme();
 	static bool		GetStartMinimized()					{ return startMinimized; }
 	static void		SetStartMinimized( bool instartMinimized) { startMinimized = instartMinimized; }
@@ -1126,7 +1125,6 @@ public:
 	static COLORREF GetLogSuccessColor()				{ return m_crLogSuccess; }
 
 	static UINT		GetMaxConperFive()					{ return MaxConperFive; }
-	static UINT		GetDefaultMaxConperFive();
 
 	static bool		IsSafeServerConnectEnabled()		{ return m_bSafeServerConnect; }
 	static void		SetSafeServerConnectEnabled(bool in) { m_bSafeServerConnect = in; }
@@ -1405,7 +1403,6 @@ public:
 protected:
 	static CString	m_strFileCommentsFilePath;
 	static Preferences_Ext_Struct *prefsExt;
-	static WORD		m_wWinVer;
 	static CArray<Category_Struct*> catArr;
 	static CString	m_astrDefaultDirs[13];
 	static bool		m_abDefaultDirsCreated[13];

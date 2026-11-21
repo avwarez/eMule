@@ -440,7 +440,6 @@ CIni	*CPreferences::skinsIni;
 Preferences_Ext_Struct *CPreferences::prefsExt;
 CArray<Category_Struct*> CPreferences::catArr;
 UINT	CPreferences::m_nWebMirrorAlertLevel;
-WORD	CPreferences::m_wWinVer;
 bool	CPreferences::m_bUseOldTimeRemaining;
 
 int		CPreferences::m_byLogLevel;
@@ -1742,7 +1741,6 @@ void CPreferences::SavePreferences()
 	ini.WriteBool(_T("HighresTimer"), m_bHighresTimer);
 	ini.WriteInt(_T("WebMirrorAlertLevel"), m_nWebMirrorAlertLevel);
 	ini.WriteInt(_T("DebugLogLevel"), m_byLogLevel);
-	ini.WriteInt(_T("WinXPSP2OrHigher"), static_cast<int>(IsRunningXPSP2OrHigher()));
 	ini.WriteBool(_T("RememberCancelledFiles"), m_bRememberCancelledFiles);
 	ini.WriteBool(_T("RememberDownloadedFiles"), m_bRememberDownloadedFiles);
 
@@ -1941,12 +1939,6 @@ void CPreferences::LoadPreferences()
 	maxhalfconnections = ini.GetInt(_T("MaxHalfConnections"), 9);
 	m_bConditionalTCPAccept = ini.GetBool(_T("ConditionalTCPAccept"), false);
 
-	// reset max half-open to a default if OS changed to/from XP SP2 or higher
-	int dwSP2OrHigher = ini.GetInt(_T("WinXPSP2OrHigher"), -1);
-	bool dwCurSP2OrHigher = IsRunningXPSP2OrHigher();
-	if (dwSP2OrHigher != static_cast<int>(dwCurSP2OrHigher))
-		maxhalfconnections = dwCurSP2OrHigher ? 9 : 50;
-
 	m_strBindAddrW = ini.GetString(_T("BindAddr")).Trim();
 	m_pszBindAddrW = m_strBindAddrW.IsEmpty() ? NULL : (LPCWSTR)m_strBindAddrW;
 	m_strBindAddrA = m_strBindAddrW;
@@ -1998,7 +1990,7 @@ void CPreferences::LoadPreferences()
 
 	statsMax = ini.GetInt(_T("VariousStatisticsMaxValue"), 100);
 	statsAverageMinutes = ini.GetInt(_T("StatsAverageMinutes"), 5);
-	MaxConperFive = ini.GetInt(_T("MaxConnectionsPerFiveSeconds"), GetDefaultMaxConperFive());
+	MaxConperFive = ini.GetInt(_T("MaxConnectionsPerFiveSeconds"), MAXCONPER5SEC);
 
 	reconnect = ini.GetBool(_T("Reconnect"), true);
 	m_bUseServerPriorities = ini.GetBool(_T("Scoresystem"), true);
@@ -2301,7 +2293,7 @@ void CPreferences::LoadPreferences()
 	m_bRememberDownloadedFiles = ini.GetBool(_T("RememberDownloadedFiles"), true);
 	m_bPartiallyPurgeOldKnownFiles = ini.GetBool(_T("PartiallyPurgeOldKnownFiles"), true);
 
-	m_email.bSendMail = IsRunningXPSP2OrHigher() && ini.GetBool(_T("NotifierSendMail"), false);
+	m_email.bSendMail = ini.GetBool(_T("NotifierSendMail"), false);
 	m_email.uAuth = static_cast<SMTPauth>(ini.GetInt(_T("NotifierMailAuth"), 0));
 	m_email.uTLS = static_cast<TLSmode>(ini.GetInt(_T("NotifierMailTLS"), 0));
 	m_email.sFrom = ini.GetString(_T("NotifierMailSender"), _T(""));
@@ -2397,29 +2389,6 @@ void CPreferences::LoadPreferences()
 
 	LoadCats();
 	SetLanguage();
-}
-
-WORD CPreferences::GetWindowsVersion()
-{
-	static bool bWinVerAlreadyDetected = false;
-	if (!bWinVerAlreadyDetected) {
-		bWinVerAlreadyDetected = true;
-		m_wWinVer = DetectWinVersion();
-	}
-	return m_wWinVer;
-}
-
-UINT CPreferences::GetDefaultMaxConperFive()
-{
-	switch (GetWindowsVersion()) {
-	case _WINVER_98_:
-		return 5;
-	case _WINVER_95_:
-	case _WINVER_ME_:
-		return MAXCON5WIN9X;
-	default:
-		return MAXCONPER5SEC;
-	}
 }
 
 //////////////////////////////////////////////////////////
@@ -3023,18 +2992,7 @@ void CPreferences::ChangeUserDirMode(int nNewMode)
 
 bool CPreferences::GetSparsePartFiles()
 {
-	// Vista's Sparse File implementation seems to be buggy as far as i can see
-	// If a sparse file exceeds a given limit of write I/O operations in a certain order
-	// (or i.e. end to beginning) in its lifetime, it will at some point throw out
-	// a FILE_SYSTEM_LIMITATION error and deny any writing to this file.
-	// It was suggested that Vista might limit the data runs, which would lead to such behaviour,
-	// but wouldn't make much sense for a sparse file implementation nevertheless.
-	// Due to the fact that eMule writes a lot of small blocks into sparse files and flushes them
-	// every 6 seconds, this problem pops up sooner or later for all big files.
-	// I don't see any way to walk around this for now
-	// Update: This problem seems to be fixed on Win7, possibly on earlier Vista ServicePacks too
-	//		   In any case, we allow sparse files for versions earlier and later than Vista
-	return m_bSparsePartFiles && (GetWindowsVersion() != _WINVER_VISTA_);
+	return m_bSparsePartFiles;
 }
 
 bool CPreferences::IsRunningAeroGlassTheme()
