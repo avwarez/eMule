@@ -17,6 +17,8 @@
 #include "stdafx.h"
 #include <share.h>
 #include <iphlpapi.h>
+#include <dwmapi.h>
+#pragma comment(lib, "dwmapi.lib")
 #include "emule.h"
 #include "Preferences.h"
 #include "Opcodes.h"
@@ -3005,16 +3007,7 @@ bool CPreferences::IsRunningAeroGlassTheme()
 	if (!bAeroAlreadyDetected) {
 		bAeroAlreadyDetected = true;
 		m_bIsRunningAeroGlass = FALSE;
-		if (GetWindowsVersion() >= _WINVER_VISTA_) {
-			HMODULE hDWMAPI = ::LoadLibrary(_T("dwmapi.dll"));
-			if (hDWMAPI) {
-				HRESULT(WINAPI *pfnDwmIsCompositionEnabled)(BOOL*);
-				(FARPROC&)pfnDwmIsCompositionEnabled = ::GetProcAddress(hDWMAPI, "DwmIsCompositionEnabled");
-				if (pfnDwmIsCompositionEnabled != NULL)
-					pfnDwmIsCompositionEnabled(&m_bIsRunningAeroGlass);
-				::FreeLibrary(hDWMAPI);
-			}
-		}
+		::DwmIsCompositionEnabled(&m_bIsRunningAeroGlass);
 	}
 	return m_bIsRunningAeroGlass != FALSE;
 }

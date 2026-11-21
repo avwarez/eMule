@@ -31,6 +31,8 @@
 #include <share.h>
 #include <dbt.h>
 #include <uxtheme.h>
+#include <dwmapi.h>
+#pragma comment(lib, "dwmapi.lib")
 #include "emule.h"
 #include "emuleDlg.h"
 #include "otherfunctions.h"
@@ -366,13 +368,8 @@ BOOL CemuleDlg::OnInitDialog()
 	// allow the TaskbarButtonCreated- & (tbb-)WM_COMMAND message to be sent to our window if our app is running elevated
 	m_bInitedCOM = SUCCEEDED(::CoInitialize(NULL));
 	if (m_bInitedCOM) {
-		typedef BOOL(WINAPI *PChangeWindowMessageFilter)(UINT message, DWORD dwFlag);
-		PChangeWindowMessageFilter ChangeWindowMessageFilter
-			= (PChangeWindowMessageFilter)(::GetProcAddress(::GetModuleHandle(_T("user32.dll")), "ChangeWindowMessageFilter"));
-		if (ChangeWindowMessageFilter) {
-			ChangeWindowMessageFilter(UWM_TASK_BUTTON_CREATED, 1);
-			ChangeWindowMessageFilter(WM_COMMAND, 1);
-		}
+		::ChangeWindowMessageFilter(UWM_TASK_BUTTON_CREATED, MSGFLT_ADD);
+		::ChangeWindowMessageFilter(WM_COMMAND, MSGFLT_ADD);
 	} else
 		ASSERT(0);
 
@@ -3742,26 +3739,18 @@ void CemuleDlg::SetTaskbarIconColor()
 	bool bTransparent = false;
 	COLORREF cr = RGB(0, 0, 0);
 	if (thePrefs.IsRunningAeroGlassTheme()) {
-		HMODULE hDWMAPI = ::LoadLibrary(_T("dwmapi.dll"));
-		if (hDWMAPI) {
-			HRESULT(WINAPI *pfnDwmGetColorizationColor)(DWORD*, BOOL*);
-			(FARPROC&)pfnDwmGetColorizationColor = ::GetProcAddress(hDWMAPI, "DwmGetColorizationColor");
-			if (pfnDwmGetColorizationColor != NULL) {
-				DWORD dwGlassColor;
-				BOOL bOpaque;
-				if (pfnDwmGetColorizationColor(&dwGlassColor, &bOpaque) == S_OK) {
-					uint8 byAlpha = (uint8)(dwGlassColor >> 24);
-					cr = 0xFFFFFF & dwGlassColor;
-					if (byAlpha < 200 && !bOpaque) {
-						// on transparent themes we can never figure out what exact color is shown
-						// (if we could in real time?), but given that a color is blended against
-						// the background, it is a good guess that a bright speedbar will be
-						// the best solution in most cases
-						bTransparent = true;
-					}
-				}
+		DWORD dwGlassColor;
+		BOOL bOpaque;
+		if (::DwmGetColorizationColor(&dwGlassColor, &bOpaque) == S_OK) {
+			uint8 byAlpha = (uint8)(dwGlassColor >> 24);
+			cr = 0xFFFFFF & dwGlassColor;
+			if (byAlpha < 200 && !bOpaque) {
+				// on transparent themes we can never figure out what exact color is shown
+				// (if we could in real time?), but given that a color is blended against
+				// the background, it is a good guess that a bright speedbar will be
+				// the best solution in most cases
+				bTransparent = true;
 			}
-			::FreeLibrary(hDWMAPI);
 		}
 	} else if (::IsThemeActive() && ::IsAppThemed()) {
 		CWnd tmpWnd;
