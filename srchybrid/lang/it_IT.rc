@@ -1980,6 +1980,9 @@ BEGIN
     IDS_IRC_ENABLEUTF8      "Abilita UTF-8"
     IDS_ITALIC              "Testo corsivo"
 //    IDS_IRC_BAN             "Ban"
+//    IDS_CONTENTDB           "ContentDB (Web)"
+    IDS_ED2KSERVER          "Server eD2K"
+    IDS_IRC_BAN             "Bandisci"
 END
 
 #endif    // Italian (Italy) resources

@@ -1980,6 +1980,8 @@ BEGIN
     IDS_IRC_ENABLEUTF8      "Включить UTF-8"
     IDS_ITALIC              "Переключение курсива"
 //    IDS_IRC_BAN             "Ban"
+    IDS_CONTENTDB           "ContentDB (Веб)"
+    IDS_IRC_BAN             "Забанить"
 END
 
 #endif    // Russian resources
