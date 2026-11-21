@@ -761,11 +761,11 @@ void CSearchList::KademliaSearchKeyword(uint32 nSearchID, const Kademlia::CUInt1
 				++tagcount;
 			}
 		} else if (uPropType == TAGTYPE_UINT32) {
-			if ((uint32)pvPropValue != 0) {
-				CTag tagProp(pszPropName, (uint32)pvPropValue);
+			if ((uint32)(ULONG_PTR)pvPropValue != 0) {
+				CTag tagProp(pszPropName, (uint32)(ULONG_PTR)pvPropValue);
 				tagProp.WriteTagToFile(temp, eStrEncode);
 				++tagcount;
-				verifierEntry.AddTag(new Kademlia::CKadTagUInt(pszPropName, (uint32)pvPropValue));
+				verifierEntry.AddTag(new Kademlia::CKadTagUInt(pszPropName, (uint32)(ULONG_PTR)pvPropValue));
 			}
 		} else
 			ASSERT(0);
