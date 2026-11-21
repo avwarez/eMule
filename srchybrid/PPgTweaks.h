@@ -73,8 +73,6 @@ protected:
 	HTREEITEM m_htiShareeMuleMultiUser;
 	HTREEITEM m_htiShareeMuleOldStyle;
 	HTREEITEM m_htiShareeMulePublicUser;
-	HTREEITEM m_htiSkipWANIPSetup;
-	HTREEITEM m_htiSkipWANPPPSetup;
 	HTREEITEM m_htiSparsePartFiles;
 	HTREEITEM m_htiTCPGroup;
 	HTREEITEM m_htiUPnP;
@@ -125,8 +123,6 @@ protected:
 	bool m_bLogUlDlEvents;
 	bool m_bResolveShellLinks;
 	bool m_bShowedWarning;
-	bool m_bSkipWANIPSetup;
-	bool m_bSkipWANPPPSetup;
 	bool m_bSparsePartFiles;
 	bool m_bVerbose;
 

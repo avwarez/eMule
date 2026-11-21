@@ -628,11 +628,8 @@ public:
 	static uint32   m_dwKadUDPKey;
 
 	// UPnP
-	static bool		m_bSkipWANIPSetup;
-	static bool		m_bSkipWANPPPSetup;
 	static bool		m_bEnableUPnP;
 	static bool		m_bCloseUPnPOnExit;
-	static bool		m_bIsWinServImplDisabled;
 	static bool		m_bIsMinilibImplDisabled;
 	static int		m_nLastWorkingImpl;
 
@@ -1386,13 +1383,8 @@ public:
 	static uint8	GetCryptTCPPaddingLength()			{ return m_byCryptTCPPaddingLength; }
 
 	// UPnP
-	static bool		GetSkipWANIPSetup()					{ return m_bSkipWANIPSetup; }
-	static bool		GetSkipWANPPPSetup()				{ return m_bSkipWANPPPSetup; }
 	static bool		IsUPnPEnabled()						{ return m_bEnableUPnP; }
-	static void		SetSkipWANIPSetup(bool nv)			{ m_bSkipWANIPSetup = nv; }
-	static void		SetSkipWANPPPSetup(bool nv)			{ m_bSkipWANPPPSetup = nv; }
 	static bool		CloseUPnPOnExit()					{ return m_bCloseUPnPOnExit; }
-	static bool		IsWinServUPnPImplDisabled()			{ return m_bIsWinServImplDisabled; }
 	static bool		IsMinilibUPnPImplDisabled()			{ return m_bIsMinilibImplDisabled; }
 	static int		GetLastWorkingUPnPImpl()			{ return m_nLastWorkingImpl; }
 	static void		SetLastWorkingUPnPImpl(int val)		{ m_nLastWorkingImpl = val; }

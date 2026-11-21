@@ -397,7 +397,6 @@
     <ClCompile Include="UploadQueue.cpp" />
     <ClCompile Include="UPnPImpl.cpp" />
     <ClCompile Include="UPnPImplMiniLib.cpp" />
-    <ClCompile Include="UPnPImplWinServ.cpp" />
     <ClCompile Include="UPnPImplWrapper.cpp" />
     <ClCompile Include="URLClient.cpp" />
     <ClCompile Include="Version.cpp" />
@@ -679,7 +678,6 @@
     <ClInclude Include="UploadQueue.h" />
     <ClInclude Include="UPnPImpl.h" />
     <ClInclude Include="UPnPImplMiniLib.h" />
-    <ClInclude Include="UPnPImplWinServ.h" />
     <ClInclude Include="UPnPImplWrapper.h" />
     <ClInclude Include="URLClient.h" />
     <ClInclude Include="UserMsgs.h" />

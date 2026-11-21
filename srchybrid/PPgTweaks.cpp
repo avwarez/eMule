@@ -106,8 +106,6 @@ CPPgTweaks::CPPgTweaks()
 	, m_htiShareeMuleMultiUser()
 	, m_htiShareeMuleOldStyle()
 	, m_htiShareeMulePublicUser()
-	, m_htiSkipWANIPSetup()
-	, m_htiSkipWANPPPSetup()
 	, m_htiSparsePartFiles()
 	, m_htiTCPGroup()
 	, m_htiUPnP()
@@ -156,8 +154,6 @@ CPPgTweaks::CPPgTweaks()
 	, m_bLogUlDlEvents()
 	, m_bResolveShellLinks()
 	, m_bShowedWarning()
-	, m_bSkipWANIPSetup()
-	, m_bSkipWANPPPSetup()
 	, m_bSparsePartFiles()
 	, m_bVerbose()
 {
@@ -278,8 +274,6 @@ void CPPgTweaks::DoDataExchange(CDataExchange *pDX)
 		//
 		m_htiUPnP = m_ctrlTreeOptions.InsertGroup(GetResString(IDS_UPNP), iImgUPnP, TVI_ROOT);
 		m_htiCloseUPnPPorts = m_ctrlTreeOptions.InsertCheckBox(GetResString(IDS_UPNPCLOSEONEXIT), m_htiUPnP, m_bCloseUPnPOnExit);
-		m_htiSkipWANIPSetup = m_ctrlTreeOptions.InsertCheckBox(GetResString(IDS_UPNPSKIPWANIP), m_htiUPnP, m_bSkipWANIPSetup);
-		m_htiSkipWANPPPSetup = m_ctrlTreeOptions.InsertCheckBox(GetResString(IDS_UPNPSKIPWANPPP), m_htiUPnP, m_bSkipWANPPPSetup);
 
 		/////////////////////////////////////////////////////////////////////////////
 		// eMule Shared Use
@@ -410,8 +404,6 @@ void CPPgTweaks::DoDataExchange(CDataExchange *pDX)
 	// UPnP group
 	//
 	DDX_TreeCheck(pDX, IDC_EXT_OPTS, m_htiCloseUPnPPorts, m_bCloseUPnPOnExit);
-	DDX_TreeCheck(pDX, IDC_EXT_OPTS, m_htiSkipWANIPSetup, m_bSkipWANIPSetup);
-	DDX_TreeCheck(pDX, IDC_EXT_OPTS, m_htiSkipWANPPPSetup, m_bSkipWANPPPSetup);
 
 	/////////////////////////////////////////////////////////////////////////////
 	// eMule Shared User
@@ -465,8 +457,6 @@ BOOL CPPgTweaks::OnInitDialog()
 	m_iDynUpNumberOfPings = thePrefs.GetDynUpNumberOfPings();
 
 	m_bCloseUPnPOnExit = thePrefs.CloseUPnPOnExit();
-	m_bSkipWANIPSetup = thePrefs.GetSkipWANIPSetup();
-	m_bSkipWANPPPSetup = thePrefs.GetSkipWANPPPSetup();
 
 	m_iShareeMule = thePrefs.m_nCurrentUserDirMode;
 
@@ -595,8 +585,6 @@ BOOL CPPgTweaks::OnApply()
 	thePrefs.m_bAutomaticArcPreviewStart = !m_bAutoArchDisable;
 
 	thePrefs.m_bCloseUPnPOnExit = m_bCloseUPnPOnExit;
-	thePrefs.SetSkipWANIPSetup(m_bSkipWANIPSetup);
-	thePrefs.SetSkipWANPPPSetup(m_bSkipWANPPPSetup);
 
 	thePrefs.ChangeUserDirMode(m_iShareeMule);
 
@@ -696,8 +684,6 @@ void CPPgTweaks::Localize()
 		LocalizeItemText(m_htiShareeMuleMultiUser, IDS_SHAREEMULEMULTI);
 		LocalizeItemText(m_htiShareeMuleOldStyle, IDS_SHAREEMULEOLD);
 		LocalizeItemText(m_htiShareeMulePublicUser, IDS_SHAREEMULEPUBLIC);
-		LocalizeItemText(m_htiSkipWANIPSetup, IDS_UPNPSKIPWANIP);
-		LocalizeItemText(m_htiSkipWANPPPSetup, IDS_UPNPSKIPWANPPP);
 		LocalizeItemText(m_htiSparsePartFiles, IDS_SPARSEPARTFILES);
 		LocalizeItemText(m_htiTCPGroup, IDS_TCPIP_CONNS);
 		LocalizeItemText(m_htiUPnP, IDS_UPNP);
@@ -767,8 +753,6 @@ void CPPgTweaks::OnDestroy()
 	m_htiAutoArch = NULL;
 	m_htiUPnP = NULL;
 	m_htiCloseUPnPPorts = NULL;
-	m_htiSkipWANIPSetup = NULL;
-	m_htiSkipWANPPPSetup = NULL;
 	m_htiShareeMule = NULL;
 	m_htiShareeMuleMultiUser = NULL;
 	m_htiShareeMulePublicUser = NULL;
