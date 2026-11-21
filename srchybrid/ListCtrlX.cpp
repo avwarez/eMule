@@ -5,6 +5,7 @@
 #include "ListViewSearchDlg.h"
 #include "OtherFunctions.h"
 #include "Preferences.h"
+#include "Log.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -505,6 +506,7 @@ void CreateItemReport(CListCtrl &lv, CString &rstrReport)
 	try {
 		paiColWidths = new int[iCols]{};
 	} catch (...) {
+		DebugLogCaughtException(__FUNCTION__);
 		return;
 	}
 	TCHAR szItem[512];
@@ -589,6 +591,7 @@ void InitColumnOrders(CListCtrl &lv, int iColumns, const LCX_COLUMN_INIT *pColum
 	try {
 		piOrders = new INT[iColumns];
 	} catch (...) {
+		DebugLogCaughtException(__FUNCTION__);
 		return;
 	}
 	for (int iCol = 0; iCol < iColumns; ++iCol) {

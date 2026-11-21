@@ -22,6 +22,7 @@
 #include "PartFile.h"
 #include "Preview.h"
 #include "MenuCmds.h"
+#include "Log.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -106,6 +107,7 @@ BOOL CPreviewThread::Run()
 		}
 		CFile::Remove(strPreviewName);
 	} catch (CFileException *ex) {
+		DebugLogCaughtException(__FUNCTION__, ex);
 		m_pPartfile->m_bPreviewing = false;
 		ex->Delete();
 	}

@@ -408,6 +408,7 @@ void CHttpDownloadDlg::HandleThreadErrorWithLastError(const CString &strIDError,
 	try {
 		m_FileToWrite.Close();
 	} catch (CFileException *ex) {
+		DebugLogCaughtException(__FUNCTION__, ex);
 		ex->Delete();
 	}
 	//Delete the file

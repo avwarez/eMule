@@ -44,7 +44,8 @@ CIPFilter::~CIPFilter()
 	if (m_bModified) {
 		try {
 			SaveToDefaultFile();
-		} catch (const CString&) {
+		} catch (const CString &strError) {
+			DebugLogCaughtException(__FUNCTION__, strError);
 		}
 	}
 	RemoveAllIPFilters();

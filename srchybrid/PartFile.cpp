@@ -1112,6 +1112,7 @@ EPartFileLoadResult CPartFile::LoadPartFile(LPCTSTR in_directory, LPCTSTR in_fil
 			try {
 				b = m_hpartfile.GetStatus(filestatus);
 			} catch (CException *ex) {
+				DebugLogCaughtException(__FUNCTION__, ex);
 				ex->Delete();
 			}
 			time_t fdate;
@@ -4925,8 +4926,10 @@ bool CPartFile::CopyPartFile(CArray<Gap_Struct> &raFilled, const CString &tempFi
 		m_bPreviewing = false;
 		return true;
 	} catch (CFileException *ex) {
+		DebugLogCaughtException(__FUNCTION__, ex);
 		ex->Delete();
 	} catch (...) {
+		DebugLogCaughtException(__FUNCTION__);
 		ASSERT(0);
 	}
 	m_bPreviewing = false;
@@ -5214,6 +5217,7 @@ void CPartFile::AICHRecoveryDataAvailable(UINT nPart)
 		m_hpartfile.Seek((LONGLONG)uStart, CFile::begin);
 		CreateHash(&m_hpartfile, length, NULL, &htOurHash);
 	} catch (...) {
+		DebugLogCaughtException(__FUNCTION__);
 		ASSERT(0);
 		return;
 	}

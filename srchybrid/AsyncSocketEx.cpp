@@ -65,6 +65,7 @@ to tim.kosse@filezilla-project.org
 #include "AsyncSocketEx.h"
 
 #include "AsyncSocketExLayer.h"
+#include "Log.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -827,6 +828,7 @@ bool CAsyncSocketEx::InitAsyncSocketExInstance()
 				thread_local_data = new t_AsyncSocketExThreadData{};
 				thread_local_data->m_pHelperWindow = new CAsyncSocketExHelperWindow(thread_local_data);
 			} catch (...) {
+				DebugLogCaughtException(__FUNCTION__);
 				if (thread_local_data) {
 					delete thread_local_data;
 					thread_local_data = NULL;

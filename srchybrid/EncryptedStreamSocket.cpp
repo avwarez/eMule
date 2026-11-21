@@ -650,6 +650,7 @@ int CEncryptedStreamSocket::Negotiate(const uchar *pBuffer, int nLen)
 		}
 		return nRead;
 	} catch (CFileException *ex) {
+		DebugLogCaughtException(__FUNCTION__, ex);
 		// can only be caused by a bug in negotiation handling, not by the data stream
 		ex->Delete();
 		ASSERT(0);

@@ -20,6 +20,7 @@
 #include "OtherFunctions.h"
 #include "resource.h"
 #include "MediaInfo.h"
+#include "Log.h"
 #include "SafeFile.h"
 #ifdef HAVE_WMSDK_H
 #include <wmsdk.h>
@@ -573,6 +574,7 @@ static bool ParseStreamHeader(int hAviFile, DWORD dwLengthLeft, STREAMHEADER *pS
 				pStrmHdr->dwFormatLen = dwLength;
 				pStrmHdr->fmt.dat = new BYTE[dwLength];
 			} catch (...) {
+				DebugLogCaughtException(__FUNCTION__);
 				errno = ENOMEM;
 				return false;
 			}
@@ -588,6 +590,7 @@ static bool ParseStreamHeader(int hAviFile, DWORD dwLengthLeft, STREAMHEADER *pS
 			try {
 				pStrmHdr->nam = new char[dwLength + 1];
 			} catch (...) {
+				DebugLogCaughtException(__FUNCTION__);
 				errno = ENOMEM;
 				return false;
 			}
@@ -894,6 +897,7 @@ bool GetRIFFHeaders(LPCTSTR pszFileName, SMediaInfo *mi, bool &rbIsAVI, bool bFu
 										ck.Seek(1, CFile::current);
 								}
 							} catch (CException *ex) {
+								DebugLogCaughtException(__FUNCTION__, ex);
 								ex->Delete();
 								bError = true;
 							}
@@ -937,6 +941,7 @@ bool GetRIFFHeaders(LPCTSTR pszFileName, SMediaInfo *mi, bool &rbIsAVI, bool bFu
 					strmhdr.dwFormatLen = dwLength;
 					strmhdr.fmt.dat = new BYTE[dwLength];
 				} catch (...) {
+					DebugLogCaughtException(__FUNCTION__);
 					errno = ENOMEM;
 					goto inv_format_errno;
 				}
@@ -1254,6 +1259,7 @@ bool GetRMHeaders(LPCTSTR pszFileName, SMediaInfo *mi, bool &rbIsRM, bool bFullI
 										bReadMDPR_Video = true;
 									}
 								} catch (CException *ex) {
+									DebugLogCaughtException(__FUNCTION__, ex);
 									ex->Delete();
 									delete[] pucTypeData;
 									break;
@@ -1306,6 +1312,7 @@ bool GetRMHeaders(LPCTSTR pszFileName, SMediaInfo *mi, bool &rbIsRM, bool bFullI
 										}
 									}
 								} catch (CException *ex) {
+									DebugLogCaughtException(__FUNCTION__, ex);
 									ex->Delete();
 									delete[] pucTypeData;
 									break;
@@ -1441,6 +1448,7 @@ bool GetRMHeaders(LPCTSTR pszFileName, SMediaInfo *mi, bool &rbIsRM, bool bFullI
 			}
 		}
 	} catch (CException *ex) {
+		DebugLogCaughtException(__FUNCTION__, ex);
 		ex->Delete();
 	}
 
@@ -2701,6 +2709,7 @@ bool GetWMHeaders(LPCTSTR pszFileName, SMediaInfo *mi, bool &rbIsWM, bool bFullI
 			}
 		}
 	} catch (CException *ex) {
+		DebugLogCaughtException(__FUNCTION__, ex);
 		ASSERT(ex->IsKindOf(RUNTIME_CLASS(CNotSupportedException)));
 		ex->Delete();
 	}

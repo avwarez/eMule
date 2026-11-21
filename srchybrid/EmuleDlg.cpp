@@ -1805,6 +1805,7 @@ void CemuleDlg::OnTrayLButtonUp()
 			m_pMiniMule->SetForegroundWindow();
 			m_pMiniMule->BringWindowToTop();
 		} catch (...) {
+			DebugLogCaughtException(__FUNCTION__);
 			ASSERT(0);
 			m_pMiniMule = NULL;
 		}
@@ -1838,6 +1839,7 @@ void CemuleDlg::OnTrayRButtonUp(CPoint pt)
 			, thePrefs.GetMaxGraphUploadRate(true), thePrefs.GetMaxGraphDownloadRate()
 			, thePrefs.GetMaxUpload(), thePrefs.GetMaxDownload());
 	} catch (...) {
+		DebugLogCaughtException(__FUNCTION__);
 		return;
 	}
 
@@ -2768,6 +2770,7 @@ void CemuleDlg::ShowSplash()
 		try {
 			m_pSplashWnd = new CSplashScreen;
 		} catch (...) {
+			DebugLogCaughtException(__FUNCTION__);
 			return;
 		}
 		ASSERT(m_hWnd);
@@ -3445,8 +3448,10 @@ void CemuleDlg::StartUPnP(bool bReset, uint16 nForceTCPPort, uint16 nForceUDPPor
 			} else
 				/*theApp.emuledlg->*/PostMessage(UM_UPNP_RESULT, (WPARAM)CUPnPImpl::UPNP_FAILED, 0);
 		} catch (const CUPnPImpl::UPnPError&) {
+			DebugLogCaughtException(__FUNCTION__, CString(_T("UPnP error")));
 			//ignore
 		} catch (CException *ex) {
+			DebugLogCaughtException(__FUNCTION__, ex);
 			ex->Delete();
 		}
 	} else
@@ -3470,8 +3475,10 @@ void CemuleDlg::RefreshUPnP(bool bRequestAnswer)
 			} else
 				DebugLogWarning(_T("RefreshUPnP, implementation not ready"));
 		} catch (const CUPnPImpl::UPnPError&) {
+			DebugLogCaughtException(__FUNCTION__, CString(_T("UPnP error")));
 			//ignore
 		} catch (CException *ex) {
+			DebugLogCaughtException(__FUNCTION__, ex);
 			ex->Delete();
 		}
 	} else

@@ -39,6 +39,7 @@ CCollectionFile::CCollectionFile(CFileDataIO &in_data)
 			CTag *toadd = new CTag(in_data, true);
 			m_taglist.Add(toadd);
 		} catch (...) {
+			DebugLogCaughtException(__FUNCTION__);
 		}
 
 	CTag *pTagHash = GetTag(FT_FILEHASH);

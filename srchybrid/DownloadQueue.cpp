@@ -197,6 +197,7 @@ void CDownloadQueue::AddSearchToDownload(CSearchFile *toadd, uint8 paused, int c
 			sources.SeekToBegin();
 			newfile->AddSources(&sources, toadd->GetClientServerIP(), toadd->GetClientServerPort(), false);
 		} catch (CFileException *ex) {
+			DebugLogCaughtException(__FUNCTION__, ex);
 			ASSERT(0);
 			ex->Delete();
 		}
@@ -213,6 +214,7 @@ void CDownloadQueue::AddSearchToDownload(CSearchFile *toadd, uint8 paused, int c
 			sources.SeekToBegin();
 			newfile->AddSources(&sources, aClients[i].m_nServerIP, aClients[i].m_nServerPort, false);
 		} catch (CFileException *ex) {
+			DebugLogCaughtException(__FUNCTION__, ex);
 			ASSERT(0);
 			ex->Delete();
 			break;

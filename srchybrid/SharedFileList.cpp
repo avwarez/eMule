@@ -377,6 +377,7 @@ bool CAddFileThread::ImportParts()
 			if (!theApp.IsRunning() || partSize != PARTSIZE || m_partfile->GetFileOp() != PFOP_IMPORTPARTS)
 				break;
 		} catch (...) {
+			DebugLogCaughtException(__FUNCTION__);
 		}
 	}
 	f.Close();
@@ -391,6 +392,7 @@ bool CAddFileThread::ImportParts()
 			, partsuccess
 			, (LPCTSTR)m_strFilename);
 	} catch (...) {
+		DebugLogCaughtException(__FUNCTION__);
 		//This could happen if we deleted the part file instance
 	}
 	return true;
@@ -566,6 +568,7 @@ void CSharedFileList::FindSharedFiles()
 				_T("\nThanks for beta testing eMule :)"));
 			f.Close();
 		} catch (CFileException *ex) {
+			DebugLogCaughtException(__FUNCTION__, ex);
 			ASSERT(0);
 			ex->Delete();
 		}

@@ -22,6 +22,7 @@
 #include "OtherFunctions.h"
 #include "kademlia/kademlia/search.h"
 #include "kademlia/utils/LookupHistory.h"
+#include "Log.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -183,6 +184,7 @@ void CKadSearchListCtrl::SearchAdd(const Kademlia::CSearch *search)
 			UpdateKadSearchCount();
 		}
 	} catch (...) {
+		DebugLogCaughtException(__FUNCTION__);
 		ASSERT(0);
 	}
 }
@@ -200,6 +202,7 @@ void CKadSearchListCtrl::SearchRem(const Kademlia::CSearch *search)
 			UpdateKadSearchCount();
 		}
 	} catch (...) {
+		DebugLogCaughtException(__FUNCTION__);
 		ASSERT(0);
 	}
 }
@@ -215,6 +218,7 @@ void CKadSearchListCtrl::SearchRef(const Kademlia::CSearch *search)
 		if (iItem >= 0)
 			UpdateSearch(iItem, search);
 	} catch (...) {
+		DebugLogCaughtException(__FUNCTION__);
 		ASSERT(0);
 	}
 }

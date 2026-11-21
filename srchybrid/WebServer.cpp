@@ -581,6 +581,7 @@ void CWebServer::_ProcessURL(const ThreadData &Data)
 						gzipOut = new TCHAR[gzipLen];
 						bUseGzip = (_GzipCompress((Bytef*)gzipOut, &gzipLen, (Bytef*)(LPCSTR)strA, strA.GetLength(), Z_DEFAULT_COMPRESSION) == Z_OK);
 					} catch (...) {
+						DebugLogCaughtException(__FUNCTION__);
 						ASSERT(0);
 					}
 					if (!bUseGzip) {
@@ -3726,6 +3727,7 @@ CString CWebServer::_GetSearch(const ThreadData &Data)
 				strResponse = _GetPlainResString(IDS_ERR_NOTCONNECTEDKAD);
 			}
 		} catch (...) {
+			DebugLogCaughtException(__FUNCTION__);
 			strResponse = _GetPlainResString(IDS_ERROR);
 			ASSERT(0);
 			delete pParams;

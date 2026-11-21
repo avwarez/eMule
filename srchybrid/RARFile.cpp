@@ -83,6 +83,7 @@ bool CRARFile::Open(LPCTSTR pszArchiveFilePath)
 	try {
 		m_hArchive = (*m_pfnRAROpenArchiveEx)(&OpenArchiveData);
 	} catch (...) {
+		DebugLogCaughtException(__FUNCTION__);
 		m_hArchive = NULL;
 	}
 
@@ -101,6 +102,7 @@ void CRARFile::Close()
 			try {
 				VERIFY((*m_pfnRARCloseArchive)(m_hArchive) == 0);
 			} catch (...) {
+				DebugLogCaughtException(__FUNCTION__);
 			}
 		}
 		m_hArchive = NULL;
@@ -120,6 +122,7 @@ bool CRARFile::GetNextFile(CString &strFile) const
 	try {
 		iReadHeaderResult = (*m_pfnRARReadHeaderEx)(m_hArchive, &HeaderData);
 	} catch (...) {
+		DebugLogCaughtException(__FUNCTION__);
 		return false;
 	}
 	if (iReadHeaderResult != 0)
@@ -139,6 +142,7 @@ bool CRARFile::Extract(LPCTSTR pszDstFilePath) const
 	try {
 		iProcessFileResult = (*m_pfnRARProcessFileW)(m_hArchive, RAR_EXTRACT, NULL, (CStringW)pszDstFilePath);
 	} catch (...) {
+		DebugLogCaughtException(__FUNCTION__);
 		return false;
 	}
 	return !iProcessFileResult;
@@ -155,6 +159,7 @@ bool CRARFile::Skip() const
 	try {
 		iProcessFileResult = (*m_pfnRARProcessFileW)(m_hArchive, RAR_SKIP, NULL, NULL);
 	} catch (...) {
+		DebugLogCaughtException(__FUNCTION__);
 		return false;
 	}
 	return !iProcessFileResult;

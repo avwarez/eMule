@@ -1185,6 +1185,7 @@ static HBITMAP IconToBitmap(HICON hIcon, COLORREF crBackground, int cx = 16, int
 		}
 #endif
 	} catch (CException *ex) {
+		DebugLogCaughtException(__FUNCTION__, ex);
 		ASSERT(0);
 		ex->Delete();
 	}

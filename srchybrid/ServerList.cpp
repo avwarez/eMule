@@ -811,6 +811,7 @@ void CServerList::AddServersFromTextFile(const CString &strFilename) const
 		}
 		f.Close();
 	} catch (CFileException *ex) {
+		DebugLogCaughtException(__FUNCTION__, ex);
 		ASSERT(0);
 		ex->Delete();
 	}

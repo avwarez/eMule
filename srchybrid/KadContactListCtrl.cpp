@@ -19,6 +19,7 @@
 #include "KademliaWnd.h"
 #include "KadContactListCtrl.h"
 #include "emuledlg.h"
+#include "Log.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -133,6 +134,7 @@ bool CKadContactListCtrl::ContactAdd(const Kademlia::CContact *contact)
 			return true;
 		}
 	} catch (...) {
+		DebugLogCaughtException(__FUNCTION__);
 		ASSERT(0);
 	}
 	return false;
@@ -151,6 +153,7 @@ void CKadContactListCtrl::ContactRem(const Kademlia::CContact *contact)
 			UpdateKadContactCount();
 		}
 	} catch (...) {
+		DebugLogCaughtException(__FUNCTION__);
 		ASSERT(0);
 	}
 }
@@ -166,6 +169,7 @@ void CKadContactListCtrl::ContactRef(const Kademlia::CContact *contact)
 		if (iItem >= 0)
 			UpdateContact(iItem, contact);
 	} catch (...) {
+		DebugLogCaughtException(__FUNCTION__);
 		ASSERT(0);
 	}
 }

@@ -442,6 +442,7 @@ uint8 CClientCreditsList::CreateSignature(CClientCredits *pTarget, uchar *pachOu
 		asink.Put(sbbSignature.begin(), sbbSignature.size());
 		return (uint8)asink.TotalPutLength();
 	} catch (...) {
+		DebugLogCaughtException(__FUNCTION__);
 		ASSERT(0);
 	}
 	return 0;

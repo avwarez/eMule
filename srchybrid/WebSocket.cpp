@@ -85,6 +85,7 @@ void CWebSocket::OnReceived(const void *pData, DWORD dwSize, const in_addr inad)
 			m_dwBufSize = dwSize + m_dwRecv + SIZE_PRESERVE;
 			pNewBuf = new char[m_dwBufSize];
 		} catch (...) {
+			DebugLogCaughtException(__FUNCTION__);
 			m_bValid = false; // internal problem
 			return;
 		}
@@ -200,6 +201,7 @@ void CWebSocket::SendData(const void *pData, DWORD dwDataSize)
 			try {
 				pChunk = new CChunk;
 			} catch (...) {
+				DebugLogCaughtException(__FUNCTION__);
 				return;
 			}
 			pChunk->m_pNext = NULL;
@@ -207,6 +209,7 @@ void CWebSocket::SendData(const void *pData, DWORD dwDataSize)
 			try {
 				pChunk->m_pData = new char[dwDataSize];
 			} catch (...) {
+				DebugLogCaughtException(__FUNCTION__);
 				delete pChunk; // oops, no memory (???)
 				return;
 			}
@@ -259,6 +262,7 @@ void CWebSocket::Disconnect()
 				// push an empty chunk as the tail
 				m_pTail->m_pNext = new CChunk();
 			} catch (...) {
+				DebugLogCaughtException(__FUNCTION__);
 			}
 		else if (shutdown(m_hSocket, SD_SEND))
 			m_bValid = false;

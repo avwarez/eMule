@@ -981,6 +981,7 @@ bool CKnownFile::CreateHash(FILE *fp, uint64 uSize, uchar *pucHash, CAICHHashTre
 		CreateHash(&file, uSize, pucHash, pShaHashOut);
 		return true;
 	} catch (CFileException *ex) {
+		DebugLogCaughtException(__FUNCTION__, ex);
 		ex->Delete();
 	}
 	return false;
@@ -993,6 +994,7 @@ bool CKnownFile::CreateHash(const uchar *pucData, uint32 uSize, uchar *pucHash, 
 		CreateHash(&file, uSize, pucHash, pShaHashOut);
 		return true;
 	} catch (CFileException *ex) {
+		DebugLogCaughtException(__FUNCTION__, ex);
 		ex->Delete();
 	}
 	return false;

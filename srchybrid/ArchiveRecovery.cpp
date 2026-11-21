@@ -199,8 +199,10 @@ bool CArchiveRecovery::performRecovery(CPartFile *partFile, CArray<Gap_Struct> *
 		} else
 			CFile::Remove(outputFileName);
 	} catch (CFileException *ex) {
+		DebugLogCaughtException(__FUNCTION__, ex);
 		ex->Delete();
 	} catch (...) {
+		DebugLogCaughtException(__FUNCTION__);
 		ASSERT(0);
 	}
 	return success;
@@ -340,8 +342,10 @@ bool CArchiveRecovery::recoverZip(CFile *zipInput, CFile *zipOutput, archiveScan
 		}
 		retVal = true;
 	} catch (CFileException *ex) {
+		DebugLogCaughtException(__FUNCTION__, ex);
 		ex->Delete();
 	} catch (...) {
+		DebugLogCaughtException(__FUNCTION__);
 		ASSERT(0);
 	}
 done:
@@ -411,8 +415,10 @@ bool CArchiveRecovery::readZipCentralDirectory(CFile *zipInput, CTypedPtrList<CP
 
 		return true;
 	} catch (CFileException *ex) {
+		DebugLogCaughtException(__FUNCTION__, ex);
 		ex->Delete();
 	} catch (...) {
+		DebugLogCaughtException(__FUNCTION__);
 		ASSERT(0);
 	}
 	return false;
@@ -548,8 +554,10 @@ bool CArchiveRecovery::processZipEntry(CFile *zipInput, CFile *zipOutput, uint32
 		}
 		return true;
 	} catch (CFileException *ex) {
+		DebugLogCaughtException(__FUNCTION__, ex);
 		ex->Delete();
 	} catch (...) {
+		DebugLogCaughtException(__FUNCTION__);
 		ASSERT(0);
 	}
 	return false;
@@ -675,8 +683,10 @@ bool CArchiveRecovery::recoverRar(CFile *rarInput, CFile *rarOutput, archiveScan
 		}
 		retVal = true;
 	} catch (CFileException *ex) {
+		DebugLogCaughtException(__FUNCTION__, ex);
 		ex->Delete();
 	} catch (...) {
+		DebugLogCaughtException(__FUNCTION__);
 		ASSERT(0);
 	}
 
@@ -745,8 +755,10 @@ bool CArchiveRecovery::scanForZipMarker(CFile *input, archiveScannerThreadParams
 			}
 		}
 	} catch (CFileException *ex) {
+		DebugLogCaughtException(__FUNCTION__, ex);
 		ex->Delete();
 	} catch (...) {
+		DebugLogCaughtException(__FUNCTION__);
 		ASSERT(0);
 	}
 	return false;
@@ -918,8 +930,10 @@ RAR_BlockFile* CArchiveRecovery::scanForRarFileHeader(CFile *input, archiveScann
 			}
 		}
 	} catch (CFileException *ex) {
+		DebugLogCaughtException(__FUNCTION__, ex);
 		ex->Delete();
 	} catch (...) {
+		DebugLogCaughtException(__FUNCTION__);
 		ASSERT(0);
 	}
 	delete[] fileName;
@@ -1015,13 +1029,16 @@ void CArchiveRecovery::writeRarBlock(CFile *input, CFile *output, RAR_BlockFile 
 		output->Flush();
 		return;
 	} catch (CFileException *ex) {
+		DebugLogCaughtException(__FUNCTION__, ex);
 		ex->Delete();
 	} catch (...) {
+		DebugLogCaughtException(__FUNCTION__);
 		ASSERT(0);
 	}
 	try {
 		output->SetLength(offsetStart);
 	} catch (...) {
+		DebugLogCaughtException(__FUNCTION__);
 		ASSERT(0);
 	}
 }
@@ -1162,8 +1179,10 @@ bool CArchiveRecovery::recoverAce(CFile *aceInput, CFile *aceOutput, archiveScan
 		}
 		return true;
 	} catch (CFileException *ex) {
+		DebugLogCaughtException(__FUNCTION__, ex);
 		ex->Delete();
 	} catch (...) {
+		DebugLogCaughtException(__FUNCTION__);
 		ASSERT(0);
 	}
 	delete acehdr;
@@ -1279,8 +1298,10 @@ ACE_BlockFile* CArchiveRecovery::scanForAceFileHeader(CFile *input, archiveScann
 			} // while foundpos
 		} // while available>0
 	} catch (CFileException *ex) {
+		DebugLogCaughtException(__FUNCTION__, ex);
 		ex->Delete();
 	} catch (...) {
+		DebugLogCaughtException(__FUNCTION__);
 		ASSERT(0);
 	}
 	return NULL;
@@ -1365,13 +1386,16 @@ void CArchiveRecovery::writeAceBlock(CFile *input, CFile *output, ACE_BlockFile 
 		output->Flush();
 		return;
 	} catch (CFileException *ex) {
+		DebugLogCaughtException(__FUNCTION__, ex);
 		ex->Delete();
 	} catch (...) {
+		DebugLogCaughtException(__FUNCTION__);
 		ASSERT(0);
 	}
 	try {
 		output->SetLength(offsetStart);
 	} catch (...) {
+		DebugLogCaughtException(__FUNCTION__);
 		ASSERT(0);
 	}
 }

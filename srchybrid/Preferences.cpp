@@ -570,6 +570,7 @@ void CPreferences::Init()
 				}
 			}
 		} catch (CFileException *ex) {
+			DebugLogCaughtException(__FUNCTION__, ex);
 			ASSERT(0);
 			ex->Delete();
 		}
@@ -591,6 +592,7 @@ void CPreferences::Init()
 					addresses_list.AddTail(toadd);
 			}
 		} catch (CFileException *ex) {
+			DebugLogCaughtException(__FUNCTION__, ex);
 			ASSERT(0);
 			ex->Delete();
 		}

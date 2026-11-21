@@ -20,6 +20,7 @@
 #include "FrameGrabThread.h"
 #include "OtherFunctions.h"
 #include "quantize.h"
+#include "Log.h"
 #ifndef HAVE_QEDIT_H
 // This is a separate feature, required in this module
 // Check emule_site_config.h to fix it
@@ -240,6 +241,7 @@ UINT CFrameGrabThread::GrabFrames()
 			dStartTime += TIMEBETWEENFRAMES;
 		}
 	} catch (...) {
+		DebugLogCaughtException(__FUNCTION__);
 		ASSERT(0);
 	}
 	::DeleteDC(hdc);

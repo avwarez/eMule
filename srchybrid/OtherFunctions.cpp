@@ -2151,9 +2151,11 @@ void DebugHexDump(CFile &file)
 			file.Read(data, iSize);
 			DebugHexDump(data, iSize);
 		} catch (CFileException *ex) {
+			DebugLogCaughtException(__FUNCTION__, ex);
 			TRACE("*** DebugHexDump(CFile&); CFileException\n");
 			ex->Delete();
 		} catch (CMemoryException *ex) {
+			DebugLogCaughtException(__FUNCTION__, ex);
 			TRACE("*** DebugHexDump(CFile&); CMemoryException\n");
 			ex->Delete();
 		}
@@ -3368,7 +3370,8 @@ bool IsRegExpValid(const CString &regexpr)
 	try {
 		std::basic_regex<TCHAR> reFN(regexpr);
 		(void)reFN;
-	} catch (const std::regex_error&) {
+	} catch (const std::regex_error &ex) {
+		DebugLogCaughtException(__FUNCTION__, CString(ex.what()));
 		return false;
 	}
 	return true;
@@ -3384,7 +3387,8 @@ bool RegularExpressionMatch(const CString &regexpr, const CString &teststring)
 		std::cmatch mcUrl;
 #endif
 		return std::regex_match((LPCTSTR)teststring, mcUrl, reFN);
-	} catch (const std::regex_error&) {
+	} catch (const std::regex_error &ex) {
+		DebugLogCaughtException(__FUNCTION__, CString(ex.what()));
 		return false;
 	}
 }
@@ -3743,6 +3747,7 @@ EFileType GetFileTypeEx(CShareableFile *kfile, bool checkextention, bool checkfi
 				inFile.Close();
 			}
 		} catch (...) {
+			DebugLogCaughtException(__FUNCTION__);
 			ASSERT(0);
 			return FILETYPE_UNKNOWN;
 		}

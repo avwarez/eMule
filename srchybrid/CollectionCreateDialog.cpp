@@ -28,6 +28,7 @@
 #include "Preferences.h"
 #include "cryptopp/base64.h"
 #include "cryptopp/files.h"
+#include "Log.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -269,6 +270,7 @@ void CCollectionCreateDialog::OnBnClickedOk()
 					privkey.DEREncode(privkeysink);
 					privkeysink.MessageEnd();
 				} catch (...) {
+					DebugLogCaughtException(__FUNCTION__);
 					ASSERT(0);
 				}
 
@@ -283,6 +285,7 @@ void CCollectionCreateDialog::OnBnClickedOk()
 				asink.MessageEnd();
 				m_pCollection->SetCollectionAuthorKey(abyMyPublicKey, nLen);
 			} catch (...) {
+				DebugLogCaughtException(__FUNCTION__);
 				ASSERT(0);
 			}
 

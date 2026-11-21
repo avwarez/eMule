@@ -26,6 +26,7 @@
 
 #include "id3/tag.h"
 #include "id3/misc_support.h"
+#include "Log.h"
 
 // MediaInfoDLL
 /** @brief Kinds of Stream */
@@ -469,6 +470,7 @@ int CGetMediaInfoThread::Run()
 			paMediaInfo->Add(mi);
 		}
 	} catch (...) {
+		DebugLogCaughtException(__FUNCTION__);
 		ASSERT(0);
 		delete paMediaInfo;
 		paMediaInfo = NULL;
@@ -828,6 +830,7 @@ bool CGetMediaInfoThread::GetMediaInfo(HWND hWndOwner, const CShareableFile *pFi
 				return true;
 			}
 		} catch (...) {
+			DebugLogCaughtException(__FUNCTION__);
 			ASSERT(0);
 		}
 	}
@@ -847,6 +850,7 @@ bool CGetMediaInfoThread::GetMediaInfo(HWND hWndOwner, const CShareableFile *pFi
 				return true;
 			}
 		} catch (...) {
+			DebugLogCaughtException(__FUNCTION__);
 			ASSERT(0);
 		}
 	}
@@ -874,6 +878,7 @@ bool CGetMediaInfoThread::GetMediaInfo(HWND hWndOwner, const CShareableFile *pFi
 				return true;
 			}
 		} catch (...) {
+			DebugLogCaughtException(__FUNCTION__);
 			ASSERT(0);
 		}
 	}
@@ -1302,6 +1307,7 @@ bool CGetMediaInfoThread::GetMediaInfo(HWND hWndOwner, const CShareableFile *pFi
 			}
 			delete iter;
 		} catch (...) {
+			DebugLogCaughtException(__FUNCTION__);
 			ASSERT(0);
 		}
 
@@ -1731,6 +1737,7 @@ bool CGetMediaInfoThread::GetMediaInfo(HWND hWndOwner, const CShareableFile *pFi
 					bGiveMediaInfoLibHint |= (FileType == ED2KFT_AUDIO || FileType == ED2KFT_VIDEO);
 				}
 			} catch (...) {
+				DebugLogCaughtException(__FUNCTION__);
 				ASSERT(0);
 			}
 		}
@@ -1930,6 +1937,7 @@ bool CGetMediaInfoThread::GetMediaInfo(HWND hWndOwner, const CShareableFile *pFi
 						TRACE(_T("Failed to open \"%s\" - %s\n"), (LPCTSTR)pFile->GetFilePath(), (LPCTSTR)GetErrorMessage(hr, 1));
 				}
 			} catch (...) {
+				DebugLogCaughtException(__FUNCTION__);
 				ASSERT(0);
 			}
 		}
