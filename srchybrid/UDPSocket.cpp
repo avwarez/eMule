@@ -155,6 +155,8 @@ void CUDPSocket::OnReceive(int nErrorCode)
 	int iSockAddrLen = sizeof sockAddr;
 	int length = ReceiveFrom(buffer, sizeof buffer, (LPSOCKADDR)&sockAddr, &iSockAddrLen);
 	if (length != SOCKET_ERROR) {
+		if (length == 0)
+			return;
 		int nPayLoadLen = length;
 		CServer *pServer = theApp.serverlist->GetServerByIPUDP(sockAddr.sin_addr.s_addr, ntohs(sockAddr.sin_port), true);
 		if (pServer != NULL && thePrefs.IsCryptLayerEnabled()
@@ -176,7 +178,10 @@ void CUDPSocket::OnReceive(int nErrorCode)
 		}
 
 		if (pBuffer[0] == OP_EDONKEYPROT)
-			ProcessPacket(pBuffer + 2, nPayLoadLen - 2, pBuffer[1], sockAddr.sin_addr.s_addr, ntohs(sockAddr.sin_port));
+			// A packet too short to carry an opcode still goes to ProcessPacket, which
+			// takes it as a sign of life from the server before it drops it; only the
+			// opcode byte, which would lie past the payload, is not read.
+			ProcessPacket(pBuffer + 2, nPayLoadLen - 2, nPayLoadLen >= 2 ? pBuffer[1] : 0, sockAddr.sin_addr.s_addr, ntohs(sockAddr.sin_port));
 		else if (thePrefs.GetDebugServerUDPLevel() > 0)
 			Debug(_T("***NOTE: ServerUDPMessage from %s:%u - Unknown protocol 0x%02x, Encrypted: %s\n"), (LPCTSTR)ipstr(sockAddr.sin_addr), ntohs(sockAddr.sin_port) - 4, pBuffer[0], (nPayLoadLen == length) ? _T("Yes") : _T("No"));
 	} else {
@@ -211,15 +216,17 @@ void CUDPSocket::OnReceive(int nErrorCode)
 	}
 }
 
-bool CUDPSocket::ProcessPacket(const BYTE *packet, UINT size, UINT opcode, uint32 nIP, uint16 nUDPPort)
+bool CUDPSocket::ProcessPacket(const BYTE *packet, int size, UINT opcode, uint32 nIP, uint16 nUDPPort)
 {
 	try {
-		theStats.AddDownDataOverheadServer(size);
 		CServer *pServer = theApp.serverlist->GetServerByIPUDP(nIP, nUDPPort, true);
 		if (pServer) {
 			pServer->ResetFailedCount();
 			theApp.emuledlg->serverwnd->serverlistctrl.RefreshServer(pServer);
 		}
+		if (size < 0)
+			return false;
+		theStats.AddDownDataOverheadServer(size);
 
 		switch (opcode) {
 		case OP_GLOBSEARCHRES:	// process all search result packets
