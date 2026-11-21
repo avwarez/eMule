@@ -911,10 +911,8 @@ VOID CALLBACK CUploadQueue::UploadTimer(HWND /*hwnd*/, UINT /*uMsg*/, UINT_PTR /
 				// Update connection stats...
 				theStats.UpdateConnectionStats((float)theApp.uploadqueue->GetDatarate() / 1024, (float)theApp.downloadqueue->GetDatarate() / 1024);
 
-#ifdef HAVE_WIN7_SDK_H
 				if (thePrefs.IsWin7TaskbarGoodiesEnabled())
 					theApp.emuledlg->UpdateStatusBarProgress();
-#endif
 			}
 
 			// display graphs

@@ -59,14 +59,6 @@ BEGIN_TM_PART_STATES(TRAYBUTTON)
 	TM_STATE(8, TRAYBS, IDISABLED)
 END_TM_PART_STATES()
 
-// _WIN32_WINNT >= 0x0501 (XP only)
-#define _WM_THEMECHANGED                0x031A
-
-#define _ON_WM_THEMECHANGED() \
-	{ _WM_THEMECHANGED, 0, 0, 0, AfxSig_l, \
-		(AFX_PMSG)(AFX_PMSGW) \
-		(static_cast<LRESULT (AFX_MSG_CALL CWnd::*)(void)>(&ThisClass::_OnThemeChanged)) },
-
 BEGIN_TEMPLATE_MESSAGE_MAP(CDialogMinTrayBtn, BASE, BASE)
 	ON_WM_NCPAINT()
 	ON_WM_NCACTIVATE()
@@ -76,7 +68,7 @@ BEGIN_TEMPLATE_MESSAGE_MAP(CDialogMinTrayBtn, BASE, BASE)
 	ON_WM_LBUTTONUP()
 	ON_WM_MOUSEMOVE()
 	ON_WM_TIMER()
-	_ON_WM_THEMECHANGED()
+	ON_WM_THEMECHANGED()
 END_MESSAGE_MAP()
 
 
@@ -206,7 +198,7 @@ TEMPLATE void CDialogMinTrayBtn<BASE>::OnTimer(UINT_PTR nIDEvent)
 	}
 }
 
-TEMPLATE LRESULT CDialogMinTrayBtn<BASE>::_OnThemeChanged()
+TEMPLATE LRESULT CDialogMinTrayBtn<BASE>::OnThemeChanged()
 {
 	// BASE::OnThemeChanged();
 	MinTrayBtnInitTheme();

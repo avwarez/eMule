@@ -11,66 +11,6 @@
 
 #include "emule_site_config.h"
 
-// MSDN: Using the Windows Headers
-// ===========================================================
-//Windows Vista			_WIN32_WINNT>=0x0600	WINVER>=0x0600
-//Windows Server 2003	_WIN32_WINNT>=0x0502    WINVER>=0x0502
-//Windows XP			_WIN32_WINNT>=0x0501	WINVER>=0x0501
-//Windows 2000			_WIN32_WINNT>=0x0500    WINVER>=0x0500
-//Windows NT 4.0		_WIN32_WINNT>=0x0400	WINVER>=0x0400
-//Windows Me			_WIN32_WINDOWS=0x0500	WINVER>=0x0500
-//Windows 98			_WIN32_WINDOWS>=0x0410	WINVER>=0x0410
-//Windows 95			_WIN32_WINDOWS>=0x0400	WINVER>=0x0400
-//
-//IE 7.0				_WIN32_IE>=0x0700
-//IE 6.0 SP2			_WIN32_IE>=0x0603
-//IE 6.0 SP1			_WIN32_IE>=0x0601
-//IE 6.0				_WIN32_IE>=0x0600
-//IE 5.5				_WIN32_IE>=0x0550
-//IE 5.01				_WIN32_IE>=0x0501
-//IE 5.0, 5.0a, 5.0b	_WIN32_IE>=0x0500
-//IE 4.01				_WIN32_IE>=0x0401
-//IE 4.0				_WIN32_IE>=0x0400
-//IE 3.0, 3.01, 3.02	_WIN32_IE>=0x0300
-
-#if defined(HAVE_VISTA_SDK)
-
-#ifndef WINVER
-#define WINVER 0x0502			// 0x0502 == Windows Server 2003, Windows XP (same as VS2005-MFC)
-#endif
-
-#ifndef _WIN32_WINNT
-#define _WIN32_WINNT WINVER		// same as VS2005-MFC
-#endif
-
-#ifndef _WIN32_WINDOWS
-#define _WIN32_WINDOWS 0x0410	// 0x0410 == Windows 98
-#endif
-
-#ifndef _WIN32_IE
-#define _WIN32_IE 0x0603		// 0x0603 == Internet Explorer 6.0 SP2
-#endif
-
-#else //HAVE_VISTA_SDK
-
-#ifndef WINVER
-#define WINVER 0x0400			// 0x0400 == Windows 98 and Windows NT 4.0 (because of '_WIN32_WINDOWS=0x0410')
-#endif
-
-#ifndef _WIN32_WINNT
-#define _WIN32_WINNT 0x0400		// 0x0400 == Windows NT 4.0
-#endif
-
-#ifndef _WIN32_WINDOWS
-#define _WIN32_WINDOWS 0x0410	// 0x0410 == Windows 98
-#endif
-
-#ifndef _WIN32_IE
-#define _WIN32_IE 0x0560		// 0x0560 == Internet Explorer 5.6 -> Comctl32.dll v5.8 (same as MFC internally used)
-#endif
-
-#endif //HAVE_VISTA_SDK
-
 #define _ATL_CSTRING_EXPLICIT_CONSTRUCTORS	// Makes certain CString constructors explicit, preventing any unintentional conversions
 #define	_ATL_EX_CONVERSION_MACROS_ONLY		// Disable old ATL 3.0 string conversion macros
 #ifdef _ATL_EX_CONVERSION_MACROS_ONLY
@@ -162,10 +102,6 @@
 #define _CRT_NON_CONFORMING_SWPRINTFS
 #endif
 #endif//!defined(_CRT_SECURE_CPP_OVERLOAD_STANDARD_NAMES) || (_CRT_SECURE_CPP_OVERLOAD_STANDARD_NAMES==0)
-
-#if defined(XP_BUILD) && !defined(_WIN64) && !defined(_USE_32BIT_TIME_T)
-#define _USE_32BIT_TIME_T
-#endif
 
 //Windows XP compatibility requires 'inet_addr' and 'WSAAsyncGetHostByName' (warning C4996)
 #ifndef _WINSOCK_DEPRECATED_NO_WARNINGS

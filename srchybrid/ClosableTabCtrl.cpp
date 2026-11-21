@@ -29,14 +29,6 @@ static char THIS_FILE[] = __FILE__;
 #endif
 
 
-// _WIN32_WINNT >= 0x0501 (XP only)
-#define _WM_THEMECHANGED		0x031A
-#define _ON_WM_THEMECHANGED()													\
-	{	_WM_THEMECHANGED, 0, 0, 0, AfxSig_l,									\
-		(AFX_PMSG)(AFX_PMSGW)													\
-		(static_cast<LRESULT (AFX_MSG_CALL CWnd::*)(void)>(_OnThemeChanged))	\
-	},
-
 ///////////////////////////////////////////////////////////////////////////////
 // CClosableTabCtrl
 
@@ -49,7 +41,7 @@ BEGIN_MESSAGE_MAP(CClosableTabCtrl, CTabCtrl)
 	ON_WM_CREATE()
 	ON_WM_SYSCOLORCHANGE()
 	ON_WM_CONTEXTMENU()
-	_ON_WM_THEMECHANGED()
+	ON_WM_THEMECHANGED()
 	ON_WM_CTLCOLOR_REFLECT()
 	ON_WM_CTLCOLOR()
 	ON_WM_ERASEBKGND()
@@ -459,7 +451,7 @@ BOOL CClosableTabCtrl::OnCommand(WPARAM wParam, LPARAM lParam)
 	return CTabCtrl::OnCommand(wParam, lParam);
 }
 
-LRESULT CClosableTabCtrl::_OnThemeChanged()
+LRESULT CClosableTabCtrl::OnThemeChanged()
 {
 	// Owner drawn tab control seems to have troubles with updating itself due to an XP theme change.
 	ModifyStyle(TCS_OWNERDRAWFIXED, 0);	// Reset control style to not-owner drawn

@@ -33,7 +33,7 @@ protected:
 	afx_msg void OnLButtonDblClk(UINT nFlags, CPoint point);
 	afx_msg void OnSysColorChange();
 	afx_msg void OnContextMenu(CWnd*, CPoint point);
-	afx_msg LRESULT _OnThemeChanged();
+	afx_msg LRESULT OnThemeChanged();
 	afx_msg HBRUSH CtlColor(CDC*, UINT);
 	afx_msg HBRUSH OnCtlColor(CDC *pDC, CWnd *pWnd, UINT nCtlColor);
 	afx_msg BOOL OnEraseBkgnd(CDC *pDC);

@@ -15,5 +15,5 @@ protected:
 
 	DECLARE_MESSAGE_MAP()
 	afx_msg int OnCreate(LPCREATESTRUCT lpCreateStruct);
-	afx_msg LRESULT _OnThemeChanged();
+	afx_msg LRESULT OnThemeChanged();
 };

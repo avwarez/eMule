@@ -39,7 +39,7 @@ protected:
 	afx_msg void OnMouseMove(UINT nFlags, CPoint point);
 	afx_msg void OnLButtonUp(UINT nFlags, CPoint point);
 	afx_msg void OnTimer(UINT_PTR nIDEvent);
-	afx_msg LRESULT _OnThemeChanged();
+	afx_msg LRESULT OnThemeChanged();
 	DECLARE_MESSAGE_MAP()
 
 private:
