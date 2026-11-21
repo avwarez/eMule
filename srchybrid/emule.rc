@@ -1588,9 +1588,6 @@ IDB_UP                  BITMAP                  "res\\ListViewSortUp.bmp"
 IDB_DOWN                BITMAP                  "res\\ListViewSortDown.bmp"
 IDB_UP2X                BITMAP                  "res\\ListViewSortUp2x.bmp"
 IDB_DOWN2X              BITMAP                  "res\\ListViewSortDown2x.bmp"
-TRAYBTN_BLUE            BITMAP                  "res\\TrayBtnBlue.bmp"
-TRAYBTN_METALLIC        BITMAP                  "res\\TrayBtnMetallic.bmp"
-TRAYBTN_HOMESTEAD       BITMAP                  "res\\TrayBtnHomestead.bmp"
 
 
 /////////////////////////////////////////////////////////////////////////////

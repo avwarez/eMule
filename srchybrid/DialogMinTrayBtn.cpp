@@ -59,23 +59,6 @@ BEGIN_TM_PART_STATES(TRAYBUTTON)
 	TM_STATE(8, TRAYBS, IDISABLED)
 END_TM_PART_STATES()
 
-#define BMP_TRAYBTN_WIDTH		(21)
-#define BMP_TRAYBTN_HEIGHT		(21)
-#define BMP_TRAYBTN_BLUE		_T("TRAYBTN_BLUE")
-#define BMP_TRAYBTN_METALLIC	_T("TRAYBTN_METALLIC")
-#define BMP_TRAYBTN_HOMESTEAD	_T("TRAYBTN_HOMESTEAD")
-#define BMP_TRAYBTN_TRANSCOLOR	(RGB(255,0,255))
-
-TEMPLATE const TCHAR *CDialogMinTrayBtn<BASE>::m_pszMinTrayBtnBmpName[] = { BMP_TRAYBTN_BLUE, BMP_TRAYBTN_METALLIC, BMP_TRAYBTN_HOMESTEAD };
-
-#define VISUALSTYLESXP_DEFAULTFILE		L"LUNA.MSSTYLES"
-#define VISUALSTYLESXP_BLUE				0
-#define VISUALSTYLESXP_METALLIC			1
-#define VISUALSTYLESXP_HOMESTEAD		2
-#define VISUALSTYLESXP_NAMEBLUE			L"NORMALCOLOR"
-#define VISUALSTYLESXP_NAMEMETALLIC		L"METALLIC"
-#define VISUALSTYLESXP_NAMEHOMESTEAD	L"HOMESTEAD"
-
 // _WIN32_WINNT >= 0x0501 (XP only)
 #define _WM_THEMECHANGED                0x031A
 
@@ -124,7 +107,7 @@ TEMPLATE void CDialogMinTrayBtn<BASE>::MinTrayBtnInit()
 	m_bMinTrayBtnHitTest = false;
 	m_bMinTrayBtnUp = true;
 	m_bMinTrayBtnVisible = true;
-	MinTrayBtnInitBitmap();
+	MinTrayBtnInitTheme();
 }
 
 TEMPLATE BOOL CDialogMinTrayBtn<BASE>::OnInitDialog()
@@ -226,7 +209,7 @@ TEMPLATE void CDialogMinTrayBtn<BASE>::OnTimer(UINT_PTR nIDEvent)
 TEMPLATE LRESULT CDialogMinTrayBtn<BASE>::_OnThemeChanged()
 {
 	// BASE::OnThemeChanged();
-	MinTrayBtnInitBitmap();
+	MinTrayBtnInitTheme();
 	if (!IsWindowsClassicStyle() && !m_nMinTrayBtnTimerId)
 		m_nMinTrayBtnTimerId = SetTimer(TIMERMINTRAYBTN_ID, TIMERMINTRAYBTN_PERIOD, NULL);
 	return 0;
@@ -369,24 +352,11 @@ TEMPLATE void CDialogMinTrayBtn<BASE>::MinTrayBtnDraw()
 		if (!m_bMinTrayBtnActive)
 			iState += 4; // inactive state TRAYBS_Ixxx
 
-		if (m_bmMinTrayBtnBitmap.m_hObject) {
-			// known theme (bitmap)
-			CBitmap *pBmpOld;
-			CDC dcMem;
-			if (dcMem.CreateCompatibleDC(pDC) && (pBmpOld = dcMem.SelectObject(&m_bmMinTrayBtnBitmap)) != NULL) {
-				::TransparentBlt(pDC->m_hDC, btn.left, btn.top, btn.Width(), btn.Height()
-					, dcMem.m_hDC, 0, BMP_TRAYBTN_HEIGHT * (iState - 1)
-					, BMP_TRAYBTN_WIDTH, BMP_TRAYBTN_HEIGHT, BMP_TRAYBTN_TRANSCOLOR);
-				dcMem.SelectObject(pBmpOld);
-			}
-		} else {
-			// unknown theme (ThemeData)
-			HTHEME hTheme = ::OpenThemeData(m_hWnd, L"Window");
-			if (hTheme) {
-				btn.top += btn.Height() / 8;
-				::DrawThemeBackground(hTheme, pDC->m_hDC, WP_TRAYBUTTON, iState, &btn, NULL);
-				::CloseThemeData(hTheme);
-			}
+		HTHEME hTheme = ::OpenThemeData(m_hWnd, L"Window");
+		if (hTheme) {
+			btn.top += btn.Height() / 8;
+			::DrawThemeBackground(hTheme, pDC->m_hDC, WP_TRAYBUTTON, iState, &btn, NULL);
+			::CloseThemeData(hTheme);
 		}
 	}
 
@@ -433,34 +403,7 @@ TEMPLATE void CDialogMinTrayBtn<BASE>::SetWindowText(LPCTSTR lpszString)
 	MinTrayBtnDraw();
 }
 
-TEMPLATE INT CDialogMinTrayBtn<BASE>::GetVisualStylesXPColor() const
-{
-	if (IsWindowsClassicStyle())
-		return -1;
-
-	WCHAR szwThemeFile[MAX_PATH];
-	WCHAR szwThemeColor[256];
-	if (::GetCurrentThemeName(szwThemeFile, MAX_PATH, szwThemeColor, _countof(szwThemeColor), NULL, 0) != S_OK)
-		return -1;
-	WCHAR *p = wcsrchr(szwThemeFile, _T('\\'));
-	if (p == NULL)
-		return -1;
-	if (_wcsicmp(&p[1], VISUALSTYLESXP_DEFAULTFILE) == 0) {
-		if (_wcsicmp(szwThemeColor, VISUALSTYLESXP_NAMEBLUE) == 0)
-			return VISUALSTYLESXP_BLUE;
-		if (_wcsicmp(szwThemeColor, VISUALSTYLESXP_NAMEMETALLIC) == 0)
-			return VISUALSTYLESXP_METALLIC;
-		if (_wcsicmp(szwThemeColor, VISUALSTYLESXP_NAMEHOMESTEAD) == 0)
-			return VISUALSTYLESXP_HOMESTEAD;
-	}
-	return -1;
-}
-
-TEMPLATE bool CDialogMinTrayBtn<BASE>::MinTrayBtnInitBitmap()
+TEMPLATE void CDialogMinTrayBtn<BASE>::MinTrayBtnInitTheme()
 {
 	m_bMinTrayBtnWindowsClassicStyle = !(::IsThemeActive() && ::IsAppThemed());
-
-	m_bmMinTrayBtnBitmap.DeleteObject();
-	INT iColor = GetVisualStylesXPColor();
-	return (iColor >= 0) && m_bmMinTrayBtnBitmap.LoadBitmap(m_pszMinTrayBtnBmpName[iColor]);
 }

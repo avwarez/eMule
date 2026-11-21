@@ -57,16 +57,13 @@ private:
 	CRect MinTrayBtnGetRect() const			{ return CRect(MinTrayBtnGetPos(), MinTrayBtnGetSize()); }
 
 	bool IsWindowsClassicStyle() const		{ return m_bMinTrayBtnWindowsClassicStyle; }
-	INT GetVisualStylesXPColor() const;
 
-	bool MinTrayBtnInitBitmap();
+	void MinTrayBtnInitTheme();
 
 	// data members
 	CPoint	m_MinTrayBtnPos;
 	CSize	m_MinTrayBtnSize;
-	CBitmap	m_bmMinTrayBtnBitmap;
 	UINT_PTR m_nMinTrayBtnTimerId;
-	static LPCTSTR m_pszMinTrayBtnBmpName[];
 	bool	m_bMinTrayBtnActive;
 	bool	m_bMinTrayBtnCapture;
 	bool	m_bMinTrayBtnEnabled;
