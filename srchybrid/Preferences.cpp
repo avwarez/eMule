@@ -385,7 +385,6 @@ int		CPreferences::m_iWebFileUploadSizeLimitMB;
 bool	CPreferences::m_bAllowAdminHiLevFunc;
 CString	CPreferences::m_strTemplateFile;
 bool	CPreferences::m_bWebUseHttps;
-CString	CPreferences::m_strSecurityZone;
 CString	CPreferences::m_sWebHttpsCertificate;
 CString	CPreferences::m_sWebHttpsKey;
 CString	CPreferences::m_strMediaInfoDllPath;
@@ -2058,7 +2057,6 @@ void CPreferences::LoadPreferences()
 	m_bResolveSharedShellLinks = ini.GetBool(_T("ResolveSharedShellLinks"), false);
 	m_bKeepUnavailableFixedSharedDirs = ini.GetBool(_T("KeepUnavailableFixedSharedDirs"), false);
 	m_strYourHostname = ini.GetString(_T("YourHostname"), _T(""));
-	m_strSecurityZone = ini.GetString(_T("InternetSecurityZone"), _T("Untrusted"));
 	m_strMediaInfoDllPath = ini.GetString(_T("MediaInfo_MediaInfoDllPath"), _T("MEDIAINFO.DLL"));
 	m_bImportParts = false; //enable on demand for the current session only
 

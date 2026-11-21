@@ -549,7 +549,6 @@ public:
 	static bool		m_bWebUseHttps;
 	static CString	m_sWebHttpsCertificate;
 	static CString	m_sWebHttpsKey;
-	static CString	m_strSecurityZone;
 	static CString	m_strMediaInfoDllPath;
 
 	static bool		showCatTabInfos;
@@ -1374,7 +1373,6 @@ public:
 	static bool		DoPartiallyPurgeOldKnownFiles()		{ return m_bPartiallyPurgeOldKnownFiles; }
 	static void		SetRememberDownloadedFiles(bool nv)	{ m_bRememberDownloadedFiles = nv; }
 	static void		SetRememberCancelledFiles(bool nv)	{ m_bRememberCancelledFiles = nv; }
-	static const CString &GetInternetSecurityZone()		{ return m_strSecurityZone; }
 	static const CString &GetMediaInfoDllPath()			{ return m_strMediaInfoDllPath; }
 
 	// Notifier, mail
