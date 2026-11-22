@@ -163,35 +163,28 @@ void CWebSocket::SendData(const void *pData, DWORD dwDataSize)
 {
 	ASSERT(pData);
 	if (m_bValid && m_bCanSend) {
-		if (!m_pHead) {
+		// Try to send it directly. A send that takes only part of the data is not an error and
+		// does not bring FD_WRITE back - only a send that finds the socket full does - so it
+		// is repeated at once until the data is gone or the socket is full. Whatever is left
+		// goes to our tails below, for FD_WRITE in WebSocketAcceptedFunc(); after
+		// MBEDTLS_ERR_SSL_WANT_*, that rest has to be passed to mbedtls_ssl_write() again
+		// exactly as it is, and it is. Any other error ends the connection.
+		while (!m_pHead && dwDataSize && m_bValid) {
+			int nRes;
 			if (thePrefs.GetWebUseHttps()) {
-				for (;;) {
-					int nRes = mbedtls_ssl_write((mbedtls_ssl_context*)m_ssl, (unsigned char*)pData, dwDataSize);
-					if (nRes > 0) {
-						reinterpret_cast<const char*&>(pData) += nRes;
-						dwDataSize -= nRes;
-						if (dwDataSize)
-							continue;
-					}
-					if (!dwDataSize || nRes == MBEDTLS_ERR_SSL_WANT_READ || nRes == MBEDTLS_ERR_SSL_WANT_WRITE)
-						break;
-					if (nRes == MBEDTLS_ERR_NET_CONN_RESET) {
-						m_bValid = false;
-						break;
-					}
-				}
+				nRes = mbedtls_ssl_write((mbedtls_ssl_context*)m_ssl, (unsigned char*)pData, dwDataSize);
+				if (nRes == MBEDTLS_ERR_SSL_WANT_READ || nRes == MBEDTLS_ERR_SSL_WANT_WRITE)
+					break;
 			} else {
-				// try to send it directly
-				//-- remember: "nRes" could be "-1" after "send" call
-				int nRes = send(m_hSocket, (char*)pData, dwDataSize, 0);
-
-				if (nRes < (int)dwDataSize && WSAEWOULDBLOCK != WSAGetLastError())
-					m_bValid = false;
-
-				if (nRes > 0) {
-					reinterpret_cast<const char*&>(pData) += nRes;
-					dwDataSize -= nRes;
-				}
+				nRes = send(m_hSocket, (char*)pData, dwDataSize, 0);
+				if (nRes == SOCKET_ERROR && WSAGetLastError() == WSAEWOULDBLOCK)
+					break;
+			}
+			if (nRes <= 0)
+				m_bValid = false;
+			else {
+				reinterpret_cast<const char*&>(pData) += nRes;
+				dwDataSize -= nRes;
 			}
 		}
 
@@ -364,33 +357,28 @@ UINT AFX_CDECL WebSocketAcceptedFunc(LPVOID pD)
 							// send what is left in our tails
 							while (stWebSocket.m_pHead) {
 								if (stWebSocket.m_pHead->m_pToSend) {
+									// as in CWebSocket::SendData(): a partial send is repeated at once, a
+									// full socket keeps the chunk for the next FD_WRITE - unchanged, as
+									// mbedtls_ssl_write() needs it after MBEDTLS_ERR_SSL_WANT_* - and any
+									// other error ends the connection
+									int nRes;
 									if (thePrefs.GetWebUseHttps()) {
-										for (;;) {
-											int nRes = mbedtls_ssl_write((mbedtls_ssl_context*)stWebSocket.m_ssl, (unsigned char*)stWebSocket.m_pHead->m_pToSend, stWebSocket.m_pHead->m_dwSize);
-											if (nRes > 0) {
-												stWebSocket.m_pHead->m_pToSend += nRes;
-												stWebSocket.m_pHead->m_dwSize -= nRes;
-												if (stWebSocket.m_pHead->m_dwSize)
-													continue;
-											}
-											if (!stWebSocket.m_pHead->m_dwSize || nRes == MBEDTLS_ERR_SSL_WANT_READ || nRes == MBEDTLS_ERR_SSL_WANT_WRITE)
-												break;
-											if (nRes == MBEDTLS_ERR_NET_CONN_RESET)
-												goto thread_exit;
-										};
+										nRes = mbedtls_ssl_write((mbedtls_ssl_context*)stWebSocket.m_ssl, (unsigned char*)stWebSocket.m_pHead->m_pToSend, stWebSocket.m_pHead->m_dwSize);
+										if (nRes == MBEDTLS_ERR_SSL_WANT_READ || nRes == MBEDTLS_ERR_SSL_WANT_WRITE)
+											break;
 									} else {
-										int nRes = send(hSocket, stWebSocket.m_pHead->m_pToSend, stWebSocket.m_pHead->m_dwSize, 0);
-										if (nRes != (int)stWebSocket.m_pHead->m_dwSize) {
-											if (nRes)
-												if ((nRes > 0) && (nRes < (int)stWebSocket.m_pHead->m_dwSize)) {
-													stWebSocket.m_pHead->m_pToSend += nRes;
-													stWebSocket.m_pHead->m_dwSize -= nRes;
-
-												} else if (WSAEWOULDBLOCK != WSAGetLastError())
-													stWebSocket.m_bValid = false;
-												break;
-										}
+										nRes = send(hSocket, stWebSocket.m_pHead->m_pToSend, stWebSocket.m_pHead->m_dwSize, 0);
+										if (nRes == SOCKET_ERROR && WSAGetLastError() == WSAEWOULDBLOCK)
+											break;
 									}
+									if (nRes <= 0) {
+										stWebSocket.m_bValid = false;
+										break;
+									}
+									stWebSocket.m_pHead->m_pToSend += nRes;
+									stWebSocket.m_pHead->m_dwSize -= nRes;
+									if (stWebSocket.m_pHead->m_dwSize)
+										continue;
 								} else if (shutdown(hSocket, SD_SEND)) {
 									stWebSocket.m_bValid = false;
 									break;
