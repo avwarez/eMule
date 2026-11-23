@@ -1138,6 +1138,9 @@ int CUpDownClient::unzip(Pending_Block_Struct *block, const BYTE *zipped, uint32
 #define TRACE_UNZIP	__noop
 	TRACE_UNZIP("unzip: Zipd=%6u Unzd=%6u Rcrs=%d", lenZipped, *lenUnzipped, iRecursion);
 	int err = Z_DATA_ERROR;
+	// The data unzipped from this packet has to fit in what is left of the block
+	const uint64 uBlockSize = block->block->EndOffset - block->block->StartOffset + 1;
+	const uint32 lenMax = block->totalUnzipped < uBlockSize ? (uint32)(uBlockSize - block->totalUnzipped) : 0;
 	try {
 		// Save some typing
 		z_stream *zS = block->zStream;
@@ -1197,12 +1200,18 @@ int CUpDownClient::unzip(Pending_Block_Struct *block, const BYTE *zipped, uint32
 		} else if ((err == Z_OK) && (zS->avail_out == 0) && (zS->avail_in != 0)) {
 			// Output array was not big enough, call recursively until there is enough space
 			TRACE_UNZIP("; output array not big enough (ain=%u)\n", zS->avail_in);
+			if (*lenUnzipped >= lenMax) {
+				// More data than the block has room for: the stream is corrupt, or built to expand without end
+				if (thePrefs.GetVerbose())
+					DebugLogError(_T("Compressed data larger than its block (%u bytes left) in file \"%s\""), lenMax, m_reqfile ? (LPCTSTR)m_reqfile->GetFileName() : _T(""));
+				*lenUnzipped = 0;
+				return Z_DATA_ERROR;
+			}
 
 			// What size should we try next
-			*lenUnzipped *= 2;
-			uint32 newLength = *lenUnzipped;
+			uint32 newLength = min(*lenUnzipped * 2, lenMax);
 			if (newLength == 0)
-				newLength = lenZipped * 2;
+				newLength = min(lenZipped * 2, lenMax);
 
 			// Copy any data that was successfully unzipped to new array
 			BYTE *temp = new BYTE[newLength];
