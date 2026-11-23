@@ -1364,10 +1364,12 @@ bool CUpDownClient::TryToConnect(bool bIgnoreMaxCon, bool bNoCallbacks, CRuntime
 
 		// Is any callback available?
 		if (!((SupportsDirectUDPCallback() && thePrefs.GetUDPPort() != 0 && GetConnectIP() != 0) // Direct Callback
-			|| (HasValidBuddyID() && Kademlia::CKademlia::IsConnected() && ((GetBuddyIP() && GetBuddyPort()) || m_reqfile != NULL)) // Kad Callback
+			|| (HasValidBuddyID() && Kademlia::CKademlia::IsConnected() && m_reqfile != NULL) // Kad Callback (it names a file the client has)
 			|| theApp.serverconnect->IsLocalServer(GetServerIP(), GetServerPort()))) // Server Callback
 		{
 			// Nope
+			if (HasValidBuddyID() && Kademlia::CKademlia::IsConnected() && m_reqfile == NULL)
+				DebugLogWarning(_T("TryToConnect: Kad callback not possible, no file asked from this client, %s"), (LPCTSTR)DbgGetClientInfo());
 			if (Disconnected(_T("LowID: No Callback Option available"))) {
 				delete this;
 				return false;
@@ -1436,7 +1438,7 @@ bool CUpDownClient::TryToConnect(bool bIgnoreMaxCon, bool bNoCallbacks, CRuntime
 		theApp.serverconnect->SendPacket(packet);
 		return true;
 	}
-	if (HasValidBuddyID() && Kademlia::CKademlia::IsConnected() && ((GetBuddyIP() && GetBuddyPort()) || m_reqfile != NULL)) {
+	if (HasValidBuddyID() && Kademlia::CKademlia::IsConnected() && m_reqfile != NULL) {
 		if (GetBuddyIP() && GetBuddyPort()) {
 			CSafeMemFile bio(34);
 			bio.WriteUInt128(Kademlia::CUInt128(GetBuddyID()));
