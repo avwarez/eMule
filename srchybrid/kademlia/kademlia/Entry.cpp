@@ -512,7 +512,7 @@ void CKeyEntry::RecalcualteTrustValue()
 float CKeyEntry::GetTrustValue()
 {
 	// update if last calculation is too old, will assert if this entry is not supposed to have a trust value
-	if (::GetTickCount() >= dwLastTrustValueCalc + MIN2MS(10))
+	if (::GetTickCount() - dwLastTrustValueCalc >= MIN2MS(10))
 		RecalcualteTrustValue();
 	return m_fTrustValue;
 }

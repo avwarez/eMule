@@ -429,7 +429,7 @@ void CDownloadListCtrl::DrawFileItem(CDC &dc, int nColumn, LPCRECT lpRect, UINT 
 			CDC cdcStatus;
 			cdcStatus.CreateCompatibleDC(&dc);
 			const DWORD curTick = ::GetTickCount();
-			if (!(HBITMAP)pCtrlItem->status || curTick >= pCtrlItem->dwUpdated
+			if (!(HBITMAP)pCtrlItem->status || !pCtrlItem->dwUpdated || (LONG)(curTick - pCtrlItem->dwUpdated) >= 0
 				|| pCtrlItem->status.GetBitmapDimension() != CSize(iWidth, iHeight))
 			{
 				pCtrlItem->status.DeleteObject();
@@ -642,7 +642,7 @@ void CDownloadListCtrl::DrawSourceItem(CDC &dc, int nColumn, LPCRECT lpRect, UIN
 			CDC cdcStatus;
 			cdcStatus.CreateCompatibleDC(&dc);
 			const DWORD curTick = ::GetTickCount();
-			if (!(HBITMAP)pCtrlItem->status || curTick >= pCtrlItem->dwUpdated
+			if (!(HBITMAP)pCtrlItem->status || !pCtrlItem->dwUpdated || (LONG)(curTick - pCtrlItem->dwUpdated) >= 0
 				|| pCtrlItem->status.GetBitmapDimension() != CSize(iWidth, iHeight))
 			{
 				pCtrlItem->status.DeleteObject();
@@ -2530,7 +2530,7 @@ bool CDownloadListCtrl::ReportAvailableCommands(CList<int> &liAvailableCommands)
 {
 	const DWORD curTick = ::GetTickCount();
 
-	if (curTick < m_dwLastAvailableCommandsCheck + SEC2MS(3) && !m_availableCommandsDirty)
+	if (curTick - m_dwLastAvailableCommandsCheck < SEC2MS(3) && !m_availableCommandsDirty)
 		return false;
 	m_dwLastAvailableCommandsCheck = curTick;
 	m_availableCommandsDirty = false;

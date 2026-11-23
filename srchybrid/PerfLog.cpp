@@ -135,7 +135,7 @@ void CPerfLog::LogSamples()
 		return;
 
 	const DWORD curTick = ::GetTickCount();
-	if (curTick < m_dwLastSampled + m_dwInterval)
+	if (curTick - m_dwLastSampled < m_dwInterval)
 		return;
 
 	// 'data counters' amount of transferred file data

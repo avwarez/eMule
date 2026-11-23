@@ -347,7 +347,7 @@ void CClientList::AddBannedClient(uint32 dwIP)
 bool CClientList::IsBannedClient(uint32 dwIP) const
 {
 	DWORD dwBantime;
-	return m_bannedList.Lookup(dwIP, dwBantime) && (::GetTickCount() < dwBantime + CLIENTBANTIME);
+	return m_bannedList.Lookup(dwIP, dwBantime) && (::GetTickCount() - dwBantime < CLIENTBANTIME);
 }
 
 void CClientList::RemoveBannedClient(uint32 dwIP)
@@ -445,14 +445,14 @@ void CClientList::Process()
 	// Cleanup banned client list
 	//
 	const DWORD curTick = ::GetTickCount();
-	if (curTick >= m_dwLastBanCleanUp + BAN_CLEANUP_TIME) {
+	if (curTick - m_dwLastBanCleanUp >= BAN_CLEANUP_TIME) {
 		m_dwLastBanCleanUp = curTick;
 
 		for (POSITION pos = m_bannedList.GetStartPosition(); pos != NULL;) {
 			uint32 nKey;
 			DWORD dwBantime;
 			m_bannedList.GetNextAssoc(pos, nKey, dwBantime);
-			if (curTick >= dwBantime + CLIENTBANTIME)
+			if (curTick - dwBantime >= CLIENTBANTIME)
 				RemoveBannedClient(nKey);
 		}
 	}
@@ -460,7 +460,7 @@ void CClientList::Process()
 	///////////////////////////////////////////////////////////////////////////
 	// Cleanup tracked client list
 	//
-	if (curTick >= m_dwLastTrackedCleanUp + TRACKED_CLEANUP_TIME) {
+	if (curTick - m_dwLastTrackedCleanUp >= TRACKED_CLEANUP_TIME) {
 		m_dwLastTrackedCleanUp = curTick;
 		if (thePrefs.GetLogBannedClients())
 			AddDebugLogLine(false, _T("Cleaning up TrackedClientList, %u clients on List..."), (unsigned)m_trackedClientsMap.GetCount());
@@ -468,7 +468,7 @@ void CClientList::Process()
 			uint32 nKey;
 			CDeletedClient *pResult;
 			m_trackedClientsMap.GetNextAssoc(pos, nKey, pResult);
-			if (curTick >= pResult->m_dwInserted + KEEPTRACK_TIME) {
+			if (curTick - pResult->m_dwInserted >= KEEPTRACK_TIME) {
 				m_trackedClientsMap.RemoveKey(nKey);
 				delete pResult;
 			}
@@ -804,7 +804,7 @@ void CClientList::CleanUpClientList()
 	// invalid while working with it (aka setting a new state)
 	// so this way is just the easy and safe one to go (as long as emule is basically single threaded)
 	const DWORD curTick = ::GetTickCount();
-	if (curTick >= m_dwLastClientCleanUp + CLIENTLIST_CLEANUP_TIME) {
+	if (curTick - m_dwLastClientCleanUp >= CLIENTLIST_CLEANUP_TIME) {
 		m_dwLastClientCleanUp = curTick;
 		uint32 cDeleted = 0;
 		for (POSITION pos = list.GetHeadPosition(); pos != NULL;) {
@@ -854,7 +854,7 @@ void CClientList::AddKadFirewallRequest(uint32 dwIP)
 {
 	const DWORD curTick = ::GetTickCount();
 	listFirewallCheckRequests.AddHead(IPANDTICS{dwIP, curTick});
-	while (!listFirewallCheckRequests.IsEmpty() && curTick >= listFirewallCheckRequests.GetTail().dwInserted + SEC2MS(180))
+	while (!listFirewallCheckRequests.IsEmpty() && curTick - listFirewallCheckRequests.GetTail().dwInserted >= SEC2MS(180))
 		listFirewallCheckRequests.RemoveTail();
 }
 
@@ -863,7 +863,7 @@ bool CClientList::IsKadFirewallCheckIP(uint32 dwIP) const
 	const DWORD curTick = ::GetTickCount();
 	for (POSITION pos = listFirewallCheckRequests.GetHeadPosition(); pos != NULL;) {
 		const IPANDTICS &iptick = listFirewallCheckRequests.GetNext(pos);
-		if (curTick >= iptick.dwInserted + SEC2MS(180))
+		if (curTick - iptick.dwInserted >= SEC2MS(180))
 			break;
 		if (iptick.dwIP == dwIP)
 			return true;
@@ -890,7 +890,7 @@ void CClientList::ProcessConnectingClientsList()
 	for (POSITION pos = m_liConnectingClients.GetHeadPosition(); pos != NULL;) {
 		POSITION pos2 = pos;
 		const CONNECTINGCLIENT cc = m_liConnectingClients.GetNext(pos);
-		if (curTick >= cc.dwInserted + SEC2MS(45)) {
+		if (curTick - cc.dwInserted >= SEC2MS(45)) {
 			ASSERT(cc.pClient->GetConnectingState() != CCS_NONE);
 			m_liConnectingClients.RemoveAt(pos2);
 			if (cc.pClient->Disconnected(_T("Connection try timeout")))
@@ -914,7 +914,7 @@ void CClientList::AddTrackCallbackRequests(uint32 dwIP)
 {
 	const DWORD curTick = ::GetTickCount();
 	listDirectCallbackRequests.AddHead(IPANDTICS{dwIP, curTick});
-	while (!listDirectCallbackRequests.IsEmpty() && curTick >= listDirectCallbackRequests.GetTail().dwInserted + SEC2MS(180))
+	while (!listDirectCallbackRequests.IsEmpty() && curTick - listDirectCallbackRequests.GetTail().dwInserted >= SEC2MS(180))
 		listDirectCallbackRequests.RemoveTail();
 }
 
@@ -923,7 +923,7 @@ bool CClientList::AllowCalbackRequest(uint32 dwIP) const
 	const DWORD curTick = ::GetTickCount();
 	for (POSITION pos = listDirectCallbackRequests.GetHeadPosition(); pos != NULL;) {
 		const IPANDTICS &iptick = listDirectCallbackRequests.GetNext(pos);
-		if (iptick.dwIP == dwIP && curTick < iptick.dwInserted + SEC2MS(180))
+		if (iptick.dwIP == dwIP && curTick - iptick.dwInserted < SEC2MS(180))
 			return false;
 	}
 	return true;

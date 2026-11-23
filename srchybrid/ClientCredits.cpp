@@ -282,7 +282,7 @@ CClientCredits* CClientCreditsList::GetCredit(const uchar *key)
 
 void CClientCreditsList::Process()
 {
-	if (::GetTickCount() >= m_nLastSaved + MIN2MS(13))
+	if (::GetTickCount() - m_nLastSaved >= MIN2MS(13))
 		SaveList();
 }
 

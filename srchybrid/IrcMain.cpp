@@ -233,7 +233,7 @@ void CIrcMain::ParseMessage(const CString &sRawMessage)
 				//Check if this was a VERSION message.
 				if (_tcsnicmp(CPTR(sRawMessage, iIndex + 2), _T("VERSION"), 7) == 0) {
 					const DWORD curTick = ::GetTickCount();
-					if (curTick < m_dwLastRequest + SEC2MS(1)) { // excess flood protection
+					if (curTick - m_dwLastRequest < SEC2MS(1)) { // excess flood protection
 						m_dwLastRequest = curTick;
 						return;
 					}
@@ -248,7 +248,7 @@ void CIrcMain::ParseMessage(const CString &sRawMessage)
 				}
 				if (_tcsnicmp(CPTR(sRawMessage, iIndex + 2), _T("PING"), 4) == 0) {
 					const DWORD curTick = ::GetTickCount();
-					if (curTick < m_dwLastRequest + SEC2MS(1)) { // excess flood protection
+					if (curTick - m_dwLastRequest < SEC2MS(1)) { // excess flood protection
 						m_dwLastRequest = curTick;
 						return;
 					}
@@ -263,7 +263,7 @@ void CIrcMain::ParseMessage(const CString &sRawMessage)
 				}
 				if (_tcsnicmp(CPTR(sRawMessage, iIndex + 2), _T("RQSFRIEND"), 9) == 0) {
 					const DWORD curTick = ::GetTickCount();
-					if (curTick < m_dwLastRequest + SEC2MS(1)) { // excess flood protection
+					if (curTick - m_dwLastRequest < SEC2MS(1)) { // excess flood protection
 						m_dwLastRequest = curTick;
 						return;
 					}

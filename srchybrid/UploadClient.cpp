@@ -213,7 +213,7 @@ uint32 CUpDownClient::GetScore(bool sysvalue, bool isdownloading, bool onlybasev
 		// a 15 min bonus while you are in the first 15 min :)
 		// (to avoid 20 sec downloads) after this the score won't rise any more
 		dwBaseValue = m_dwUploadTime - GetWaitStartTime();
-		dwBaseValue += (::GetTickCount() >= m_dwUploadTime + MIN2MS(15) ? MIN2MS(15) : MIN2MS(30));
+		dwBaseValue += (::GetTickCount() - m_dwUploadTime >= MIN2MS(15) ? MIN2MS(15) : MIN2MS(30));
 		//ASSERT ( m_dwUploadTime - GetWaitStartTime() >= 0 ); //oct 28, 02: changed this from "> 0" to ">= 0" -> // 02-Okt-2006 []: ">=0" is always true!
 	} else
 		dwBaseValue = ::GetTickCount() - GetWaitStartTime();
@@ -452,7 +452,7 @@ void CUpDownClient::UpdateUploadingStatisticsData()
 	} else
 		sentBytesFile = 0;
 
-	if (sentBytesFile > 0 || m_AverageUDR_hist.IsEmpty() || curTick >= m_AverageUDR_hist.Tail().timestamp + SEC2MS(1)) {
+	if (sentBytesFile > 0 || m_AverageUDR_hist.IsEmpty() || curTick - m_AverageUDR_hist.Tail().timestamp >= SEC2MS(1)) {
 		// Store how much data we've transferred in this round,
 		// to be able to calculate average speed later
 		// keep up to date the sum of all values in the list
@@ -461,19 +461,19 @@ void CUpDownClient::UpdateUploadingStatisticsData()
 	}
 
 	// remove old entries from the list and adjust the sum of all values
-	while (!m_AverageUDR_hist.IsEmpty() && curTick >= m_AverageUDR_hist.Head().timestamp + SEC2MS(10)) {
+	while (!m_AverageUDR_hist.IsEmpty() && curTick - m_AverageUDR_hist.Head().timestamp >= SEC2MS(10)) {
 		m_nSumForAvgUpDataRate -= m_AverageUDR_hist.Head().datalen;
 		m_AverageUDR_hist.RemoveHead();
 	}
 
 	// Calculate average speed for this slot
-	if (!m_AverageUDR_hist.IsEmpty() && curTick > m_AverageUDR_hist.Head().timestamp && GetUpStartTimeDelay() > SEC2MS(2))
+	if (!m_AverageUDR_hist.IsEmpty() && curTick != m_AverageUDR_hist.Head().timestamp && GetUpStartTimeDelay() > SEC2MS(2))
 		m_nUpDatarate = (UINT)(SEC2MS(m_nSumForAvgUpDataRate) / (curTick - m_AverageUDR_hist.Head().timestamp));
 	else
 		m_nUpDatarate = 0; // not enough data to calculate trustworthy speed
 
 	// Check if it's time to update the display.
-	if (curTick >= m_lastRefreshedULDisplay + MINWAIT_BEFORE_ULDISPLAY_WINDOWUPDATE + rand() % 800) {
+	if (curTick - m_lastRefreshedULDisplay >= MINWAIT_BEFORE_ULDISPLAY_WINDOWUPDATE + (DWORD)(rand() % 800)) {
 		// Update display
 		theApp.emuledlg->transferwnd->GetUploadList().RefreshClient(this);
 		theApp.emuledlg->transferwnd->GetClientList().RefreshClient(this);
@@ -600,7 +600,7 @@ void CUpDownClient::AddRequestCount(const uchar *fileid)
 	for (POSITION pos = m_RequestedFiles_list.GetHeadPosition(); pos != NULL;) {
 		Requested_File_Struct *cur_struct = m_RequestedFiles_list.GetNext(pos);
 		if (md4equ(cur_struct->fileid, fileid)) {
-			if (curTick < cur_struct->lastasked + MIN_REQUESTTIME && !GetFriendSlot()) {
+			if (curTick - cur_struct->lastasked < MIN_REQUESTTIME && !GetFriendSlot()) {
 				cur_struct->badrequests += static_cast<uint8>(GetDownloadState() != DS_DOWNLOADING);
 				if (cur_struct->badrequests == BADCLIENTBAN)
 					Ban();

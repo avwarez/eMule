@@ -273,15 +273,12 @@ void CStatistics::RecordRate()
 	downrate_hist.AddTail(TransferredData{theStats.sessionReceivedBytes, curTick});
 	uprate_hist.AddTail(TransferredData{theStats.sessionSentBytes, curTick});
 
-	DWORD avg = MIN2MS(thePrefs.GetStatsAverageMinutes());
-	if (curTick > avg) {
-		// limit to maxmins
-		curTick -= avg;
-		while (curTick > downrate_hist.Head().timestamp)
-			downrate_hist.RemoveHead();
-		while (curTick > uprate_hist.Head().timestamp)
-			uprate_hist.RemoveHead();
-	}
+	const DWORD avg = MIN2MS(thePrefs.GetStatsAverageMinutes());
+	// limit to maxmins
+	while (curTick - downrate_hist.Head().timestamp > avg)
+		downrate_hist.RemoveHead();
+	while (curTick - uprate_hist.Head().timestamp > avg)
+		uprate_hist.RemoveHead();
 }
 
 // Changed these two functions (khaos)...
@@ -347,13 +344,13 @@ void CStatistics::CompDownDatarateOverhead()
 	m_sumavgDDRO += m_nDownDataRateMSOverhead;
 	m_nDownDataRateMSOverhead = 0;
 
-	while (curTick > m_AverageDDRO_hist.Head().timestamp + MAXAVERAGETIME) {
+	while (curTick - m_AverageDDRO_hist.Head().timestamp > MAXAVERAGETIME) {
 		m_sumavgDDRO -= m_AverageDDRO_hist.Head().datalen;
 		m_AverageDDRO_hist.RemoveHead();
 	}
 	if (m_AverageDDRO_hist.Count() > 10) {
 		const TransferredData &head = m_AverageDDRO_hist.Head();
-		if (curTick > head.timestamp) {
+		if (curTick != head.timestamp) {
 			m_nDownDatarateOverhead = SEC2MS(m_sumavgDDRO - m_AverageDDRO_hist.Head().datalen) / (curTick - head.timestamp);
 			return;
 		}
@@ -369,13 +366,13 @@ void CStatistics::CompUpDatarateOverhead()
 	m_sumavgUDRO += m_nUpDataRateMSOverhead;
 	m_nUpDataRateMSOverhead = 0;
 
-	while (curTick > m_AverageUDRO_hist.Head().timestamp + MAXAVERAGETIME) {
+	while (curTick - m_AverageUDRO_hist.Head().timestamp > MAXAVERAGETIME) {
 		m_sumavgUDRO -= m_AverageUDRO_hist.Head().datalen;
 		m_AverageUDRO_hist.RemoveHead();
 	}
 	if (m_AverageUDRO_hist.Count() > 10) {
 		const TransferredData &head = m_AverageUDRO_hist.Head();
-		if (curTick > head.timestamp) {
+		if (curTick != head.timestamp) {
 			m_nUpDatarateOverhead = SEC2MS(m_sumavgUDRO - m_AverageUDRO_hist.Head().datalen) / (curTick - head.timestamp);
 			return;
 		}

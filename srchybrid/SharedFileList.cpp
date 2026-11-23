@@ -1232,7 +1232,7 @@ void CSharedFileList::UpdateFile(const CKnownFile *toupdate)
 void CSharedFileList::Process()
 {
 	Publish();
-	if (m_lastPublishED2KFlag && ::GetTickCount() >= m_lastPublishED2K + ED2KREPUBLISHTIME) {
+	if (m_lastPublishED2KFlag && ::GetTickCount() - m_lastPublishED2K >= ED2KREPUBLISHTIME) {
 		SendListToServer();
 		m_lastPublishED2K = ::GetTickCount();
 	}

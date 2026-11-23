@@ -1931,7 +1931,7 @@ void CKademliaUDPListener::ExpireClientSearch(const CKadClientSearcher *pExpireI
 		const FetchNodeID_Struct &sRequest = listFetchNodeIDRequests.GetNext(pos);
 		if (sRequest.pRequester == pExpireImmediately)
 			listFetchNodeIDRequests.RemoveAt(pos2);
-		else if (::GetTickCount() >= sRequest.dwExpire) {
+		else if ((LONG)(::GetTickCount() - sRequest.dwExpire) >= 0) {
 			sRequest.pRequester->KadSearchNodeIDByIPResult(KCSR_TIMEOUT, NULL);
 			listFetchNodeIDRequests.RemoveAt(pos2);
 		}

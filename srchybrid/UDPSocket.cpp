@@ -201,7 +201,7 @@ void CUDPSocket::OnReceive(int nErrorCode)
 			// If we are not currently pinging this server, increase the failure counter
 			CServer *pServer = theApp.serverlist->GetServerByIPUDP(sockAddr.sin_addr.s_addr, ntohs(sockAddr.sin_port), true);
 			if (pServer)
-				if (!pServer->GetCryptPingReplyPending() && ::GetTickCount() >= pServer->GetLastPinged() + SEC2MS(30)) {
+				if (!pServer->GetCryptPingReplyPending() && ::GetTickCount() - pServer->GetLastPinged() >= SEC2MS(30)) {
 					pServer->IncFailedCount();
 					theApp.emuledlg->serverwnd->serverlistctrl.RefreshServer(pServer);
 				} else if (pServer->GetCryptPingReplyPending())
@@ -739,7 +739,7 @@ void CUDPSocket::SendPacket(Packet *packet, CServer *pServer, uint16 nSpecialPor
 	for (POSITION pos = m_aDNSReqs.GetHeadPosition(); pos != NULL;) {
 		POSITION posPrev = pos;
 		const SServerDNSRequest *pDNSReq = m_aDNSReqs.GetNext(pos);
-		if (curTick >= pDNSReq->m_dwCreated + MIN2MS(2)) {
+		if (curTick - pDNSReq->m_dwCreated >= MIN2MS(2)) {
 			delete pDNSReq;
 			m_aDNSReqs.RemoveAt(posPrev);
 		}

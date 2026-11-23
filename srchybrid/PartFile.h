@@ -311,7 +311,7 @@ public:
 	bool	IsAICHPartHashSetNeeded() const				{ return m_FileIdentifier.HasAICHHash() && !m_FileIdentifier.HasExpectedAICHHashCount() && m_bAICHPartHashsetNeeded; }
 	void	SetAICHHashSetNeeded(bool bVal)				{ m_bAICHPartHashsetNeeded = bVal; }
 
-	bool	AllowSwapForSourceExchange(DWORD dwTick) const { return dwTick >= lastSwapForSourceExchangeTick + SEC2MS(30); } // ZZ:DownloadManager
+	bool	AllowSwapForSourceExchange(DWORD dwTick) const { return dwTick - lastSwapForSourceExchangeTick >= SEC2MS(30); } // ZZ:DownloadManager
 	void	SetSwapForSourceExchangeTick()				{ lastSwapForSourceExchangeTick = ::GetTickCount(); } // ZZ:DownloadManager
 
 	UINT	SetPrivateMaxSources(uint32 in)				{ return m_uMaxSources = in; }

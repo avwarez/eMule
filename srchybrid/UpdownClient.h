@@ -177,8 +177,8 @@ public:
 	void			ProcessPublicIPAnswer(const BYTE *pbyData, UINT uSize);
 	void			SendPublicIPRequest();
 	uint8			GetKadVersion() const							{ return m_byKadVersion; }
-	bool			SendBuddyPingPong() const						{ return ::GetTickCount() >= m_dwLastBuddyPingPongTime; }
-	bool			AllowIncomingBuddyPingPong() const				{ return ::GetTickCount() >= m_dwLastBuddyPingPongTime + MIN2MS(3); }
+	bool			SendBuddyPingPong() const						{ return (LONG)(::GetTickCount() - m_dwLastBuddyPingPongTime) >= 0; }
+	bool			AllowIncomingBuddyPingPong() const				{ return (LONG)(::GetTickCount() - m_dwLastBuddyPingPongTime) >= MIN2MS(3); }
 	void			SetLastBuddyPingPongTime()						{ m_dwLastBuddyPingPongTime = ::GetTickCount() + MIN2MS(10); }
 	void			ProcessFirewallCheckUDPRequest(CSafeMemFile &data);
 	void			SendSharedDirectories();
@@ -445,7 +445,7 @@ protected:
 	void	SendHashSetRequest();
 
 	bool	DoSwap(CPartFile *SwapTo, bool bRemoveCompletely, LPCTSTR reason); // ZZ:DownloadManager
-	bool	RecentlySwappedForSourceExchange() const	{ return ::GetTickCount() < lastSwapForSourceExchangeTick + SEC2MS(30); } // ZZ:DownloadManager
+	bool	RecentlySwappedForSourceExchange() const	{ return ::GetTickCount() - lastSwapForSourceExchangeTick < SEC2MS(30); } // ZZ:DownloadManager
 	void	SetSwapForSourceExchangeTick()				{ lastSwapForSourceExchangeTick = ::GetTickCount(); } // ZZ:DownloadManager
 
 	uint32	m_nConnectIP;	// holds the supposed IP or (after we had a connection) the real IP

@@ -370,7 +370,7 @@ UINT UploadBandwidthThrottler::RunInternal()
 			if (nUploadStartTime == 0) {
 				if (GetStandardListSize() >= 3)
 					nUploadStartTime = timeGetTime();
-			} else if (timeGetTime() >= nUploadStartTime + SEC2MS(60) && theApp.uploadqueue) {
+			} else if (timeGetTime() - nUploadStartTime >= SEC2MS(60) && theApp.uploadqueue) {
 				if (nEstiminatedDataRate == 0) { // no auto limit was set yet
 					if (nSlotsBusyLevel >= 250) { // sockets indicated that the BW limit has been reached
 						nEstiminatedDataRate = theApp.uploadqueue->GetDatarate();
@@ -547,7 +547,7 @@ UINT UploadBandwidthThrottler::RunInternal()
 				ThrottledFileSocket *socket = m_StandardOrder_list[slotCounter];
 				if (!socket) //should never happen
 					theApp.QueueDebugLogLine(false, _T("UploadBandwidthThrottler: a NULL socket in the Standard list (trickle)! Prevented usage. Index: %u Size: %u"), (unsigned)slotCounter, (unsigned)GetStandardListSize());
-				else if (!socket->IsBusyQuickCheck() && thisLoopTick >= socket->GetLastCalledSend() + SEC2MS(1)) {
+				else if (!socket->IsBusyQuickCheck() && thisLoopTick - socket->GetLastCalledSend() >= SEC2MS(1)) {
 					// trickle
 					uint32 neededBytes = socket->GetNeededBytes();
 					if (neededBytes > 0) {
@@ -618,7 +618,7 @@ UINT UploadBandwidthThrottler::RunInternal()
 				lastTickReachedBandwidth = thisLoopTick;
 			} else if (spendingRate >= SEC2MS(1)) {
 				spendingRate = SEC2MS(1) - 1;
-				if (thisLoopTick >= lastTickReachedBandwidth + max(SEC2MS(1), timeSinceLastLoop * 2)) {
+				if (thisLoopTick - lastTickReachedBandwidth >= max(SEC2MS(1), timeSinceLastLoop * 2)) {
 					m_highestNumberOfFullyActivatedSlots = GetStandardListSize() + 1;
 					lastTickReachedBandwidth = thisLoopTick;
 					//theApp.QueueDebugLogLine(false, _T("UploadBandwidthThrottler: request new slot due to bw not reached. m_highestNumberOfFullyActivatedSlots: %i GetStandardListSize(): %i tick: %i"), m_highestNumberOfFullyActivatedSlots, GetStandardListSize(), thisLoopTick);

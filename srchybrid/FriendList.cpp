@@ -225,7 +225,7 @@ void CFriendList::RemoveAllFriendSlots()
 
 void CFriendList::Process()
 {
-	if (::GetTickCount() >= m_nLastSaved + MIN2MS(19))
+	if (::GetTickCount() - m_nLastSaved >= MIN2MS(19))
 		SaveList();
 }
 

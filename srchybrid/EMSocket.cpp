@@ -587,7 +587,7 @@ SocketSentBytes CEMSocket::SendStd(uint32 maxNumberOfBytesToSend, uint32 minFrag
 		maxNumberOfBytesToSend = GetNextFragSize(maxNumberOfBytesToSend, minFragSize);
 
 		lastCalledSend = timeGetTime();
-		bool bWasLongTimeSinceSend = (lastCalledSend >= lastSent + SEC2MS(1));
+		bool bWasLongTimeSinceSend = (lastCalledSend - lastSent >= SEC2MS(1));
 
 		uint32 sentBytes = 0;
 		while (sentBytes < maxNumberOfBytesToSend // don't send more than allowed

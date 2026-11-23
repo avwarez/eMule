@@ -107,7 +107,7 @@ void CDeadSourceList::Init(bool bGlobalList)
 bool CDeadSourceList::IsDeadSource(const CUpDownClient &client) const
 {
 	const CDeadSourcesMap::CPair *pair = m_mapDeadSources.PLookup(CDeadSource(client));
-	return pair && ::GetTickCount() < pair->value;
+	return pair && (LONG)(::GetTickCount() - pair->value) < 0;
 }
 
 void CDeadSourceList::AddDeadSource(const CUpDownClient &client)
@@ -120,7 +120,7 @@ void CDeadSourceList::AddDeadSource(const CUpDownClient &client)
 	DWORD curTick = ::GetTickCount();
 	m_mapDeadSources[CDeadSource(client)] = curTick + (client.HasLowID() ? BLOCKTIMEFW : BLOCKTIME);
 
-	if (curTick >= m_dwLastCleanUp + CLEANUPTIME)
+	if (curTick - m_dwLastCleanUp >= CLEANUPTIME)
 		CleanUp();
 }
 
@@ -139,7 +139,7 @@ void CDeadSourceList::CleanUp()
 	for (POSITION pos = m_mapDeadSources.GetStartPosition(); pos != NULL;) {
 		DWORD dwExpTime;
 		m_mapDeadSources.GetNextAssoc(pos, dsKey, dwExpTime);
-		if (m_dwLastCleanUp >= dwExpTime)
+		if ((LONG)(m_dwLastCleanUp - dwExpTime) >= 0)
 			m_mapDeadSources.RemoveKey(dsKey);
 	}
 	//if (thePrefs.GetLogFilteredIPs())

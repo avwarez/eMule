@@ -1259,7 +1259,7 @@ uint32 CUpDownClient::CalculateDownloadRate()
 		m_nSumForAvgDownDataRate -= m_AverageDDR_hist.Head().datalen;
 		m_AverageDDR_hist.RemoveHead();
 	}
-	if (m_AverageDDR_hist.Count() > 1 && curTick > m_AverageDDR_hist.Head().timestamp)
+	if (m_AverageDDR_hist.Count() > 1 && curTick != m_AverageDDR_hist.Head().timestamp)
 		m_nDownDatarate = (UINT)(SEC2MS(m_nSumForAvgDownDataRate) / (curTick - m_AverageDDR_hist.Head().timestamp));
 	else
 		m_nDownDatarate = 0;
@@ -1274,7 +1274,7 @@ uint32 CUpDownClient::CalculateDownloadRate()
 
 void CUpDownClient::CheckDownloadTimeout()
 {
-	if (::GetTickCount() >= m_dwLastBlockReceived + DOWNLOADTIMEOUT) {
+	if (::GetTickCount() - m_dwLastBlockReceived >= DOWNLOADTIMEOUT) {
 		if (socket != NULL && !socket->IsRawDataMode())
 			SendCancelTransfer();
 		else
@@ -1400,7 +1400,7 @@ void CUpDownClient::UpdateDisplayedInfo(bool force)
 {
 	const DWORD curTick = ::GetTickCount();
 #ifndef _DEBUG
-	if (!force && curTick < m_lastRefreshedDLDisplay + MINWAIT_BEFORE_DLDISPLAY_WINDOWUPDATE + m_random_update_wait)
+	if (!force && curTick - m_lastRefreshedDLDisplay < MINWAIT_BEFORE_DLDISPLAY_WINDOWUPDATE + m_random_update_wait)
 		return;
 #else
 	UNREFERENCED_PARAMETER(force);
@@ -1456,15 +1456,16 @@ bool CUpDownClient::SwapToRightFile(CPartFile *SwapTo, CPartFile *cur_file, bool
 			bool rightFileHasHigherPrio = CPartFile::RightFileHasHigherPrio(SwapTo, cur_file);
 			// wait two re-ask interval for each nnp file before re-asking an nnp file
 			DWORD allNnpReaskTime = (DWORD)(FILEREASKTIME * 2 * (m_OtherNoNeeded_list.GetCount() + static_cast<int>(GetDownloadState() == DS_NONEEDEDPARTS)));
-			DWORD curReask = curAsked + allNnpReaskTime;
+			const bool bCurReaskDue = curTick - curAsked >= allNnpReaskTime;
+			const bool bSwapAskedLater = (LONG)(swapAsked - curAsked) > 0;
 
-			if (!SwapToIsNNPFile && (!curFileisNNPFile || curAsked == 0 || curTick >= curReask) && rightFileHasHigherPrio
+			if (!SwapToIsNNPFile && (!curFileisNNPFile || curAsked == 0 || bCurReaskDue) && rightFileHasHigherPrio
 				|| SwapToIsNNPFile && curFileisNNPFile &&
 				(
 					swapAsked != 0
 					&& (
 						curAsked == 0
-						|| (swapAsked > curAsked && (curTick >= curReask || (rightFileHasHigherPrio && curTick < swapAsked + allNnpReaskTime)))
+						|| (bSwapAskedLater && (bCurReaskDue || (rightFileHasHigherPrio && curTick - swapAsked < allNnpReaskTime)))
 					)
 					|| rightFileHasHigherPrio && swapAsked == 0 && curAsked == 0
 				)
@@ -1473,12 +1474,12 @@ bool CUpDownClient::SwapToRightFile(CPartFile *SwapTo, CPartFile *cur_file, bool
 				if (printDebug)
 					if (!SwapToIsNNPFile && !curFileisNNPFile && rightFileHasHigherPrio)
 						AddDebugLogLine(DLP_VERYLOW, false, _T("oooo Debug: Higher prio."));
-					else if (!SwapToIsNNPFile && (curAsked == 0 || curTick >= curReask) && rightFileHasHigherPrio)
+					else if (!SwapToIsNNPFile && (curAsked == 0 || bCurReaskDue) && rightFileHasHigherPrio)
 						AddDebugLogLine(DLP_VERYLOW, false, _T("oooo Debug: Time to re-ask nnp and it had higher prio."));
 					else if (swapAsked != 0
 							&& (
 								curAsked == 0
-								|| (swapAsked > curAsked && (curTick >= curReask || (rightFileHasHigherPrio && curTick < swapAsked + allNnpReaskTime)))
+								|| (bSwapAskedLater && (bCurReaskDue || (rightFileHasHigherPrio && curTick - swapAsked < allNnpReaskTime)))
 								)
 							)
 					{
@@ -1859,7 +1860,7 @@ bool CUpDownClient::IsSwapSuspended(const CPartFile *file, const bool allowShort
 		POSITION pos2 = pos;
 		const PartFileStamp &pfs = m_DontSwap_list.GetNext(pos);
 		if (pfs.file == file) {
-			if (::GetTickCount() >= pfs.timestamp + PURGESOURCESWAPSTOP) {
+			if (::GetTickCount() - pfs.timestamp >= PURGESOURCESWAPSTOP) {
 				m_DontSwap_list.RemoveAt(pos2);
 				return false;
 			}
@@ -1888,7 +1889,7 @@ DWORD CUpDownClient::GetTimeUntilReask(const CPartFile *file, const bool allowSh
 			reaskTime = FILEREASKTIME;
 
 		const DWORD curTick = ::GetTickCount();
-		if (curTick < lastAskedTimeTick + reaskTime)
+		if (curTick - lastAskedTimeTick < reaskTime)
 			return reaskTime - (curTick - lastAskedTimeTick);
 	}
 	return 0;

@@ -417,7 +417,7 @@ void CServerConnect::CheckForTimeout()
 			return;
 		}
 
-		if (curTick >= tmpkey + dwServerConnectTimeout) {
+		if (curTick - tmpkey >= dwServerConnectTimeout) {
 			LogWarning(GetResString(IDS_ERR_CONTIMEOUT), (LPCTSTR)tmpsock->cur_server->GetListName(), tmpsock->cur_server->GetAddress(), tmpsock->cur_server->GetPort());
 			connectionattempts.RemoveKey(tmpkey);
 			DestroySocket(tmpsock);
@@ -559,7 +559,7 @@ void CServerConnect::KeepConnectionAlive()
 {
 	DWORD dwServerKeepAliveTimeout = thePrefs.GetServerKeepAliveTimeout();
 	if (dwServerKeepAliveTimeout && connected && connectedsocket && connectedsocket->connectionstate == CS_CONNECTED
-		&& ::GetTickCount() >= connectedsocket->GetLastTransmission() + dwServerKeepAliveTimeout)
+		&& ::GetTickCount() - connectedsocket->GetLastTransmission() >= dwServerKeepAliveTimeout)
 	{
 		// "Ping" the server if the TCP connection was not used for the specified interval with
 		// an empty publish files packet -> recommended by lugdunummaster himself!

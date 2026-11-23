@@ -125,7 +125,7 @@ bool CClientReqSocket::CheckTimeOut()
 		//if this socket is actually failing, or if this socket is just queued in SP2's new
 		//protection queue. Therefore we give the socket a chance to either finally report
 		//the connection error, or finally make it through SP2's new queued socket system.
-		if (curTick < timeout_timer + CEMSocket::GetTimeOut() * 4)
+		if (curTick - timeout_timer < CEMSocket::GetTimeOut() * 4)
 			return false;
 		timeout_timer = curTick;
 		CString str;
@@ -137,14 +137,14 @@ bool CClientReqSocket::CheckTimeOut()
 	if (client)
 		if (client->GetKadState() == KS_CONNECTED_BUDDY)
 			uTimeout += MIN2MS(15);
-		else if (client->IsDownloading() && curTick < client->GetUpStartTime() + 4 * CONNECTION_TIMEOUT)
+		else if (client->IsDownloading() && curTick - client->GetUpStartTime() < 4 * CONNECTION_TIMEOUT)
 			//TCP flow control might need more time to begin throttling for slow peers
 			uTimeout += 4 * CONNECTION_TIMEOUT; //2'30" or slightly more
 		else if (client->GetChatState() != MS_NONE)
 			//We extend the timeout time here to avoid chatting people from disconnecting too fast.
 			uTimeout += CONNECTION_TIMEOUT;
 
-	if (curTick < timeout_timer + uTimeout)
+	if (curTick - timeout_timer < uTimeout)
 		return false;
 	timeout_timer = curTick;
 	CString str;
@@ -187,7 +187,7 @@ void CClientReqSocket::Delete_Timed()
 // it seems that MFC Sockets call socket functions after they are deleted, even if the socket is closed
 // and select(0) is set. So we need to wait some time to make sure this doesn't happen
 // we currently also rely on this for multithreading; rework synchronization if this ever changes
-	if (::GetTickCount() >= deltimer + SEC2MS(10))
+	if (::GetTickCount() - deltimer >= SEC2MS(10))
 		delete this;
 }
 

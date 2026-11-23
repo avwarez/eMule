@@ -382,7 +382,7 @@ void CWebServer::_ProcessURL(const ThreadData &Data)
 		int myfaults = 0;
 		const DWORD curTick = ::GetTickCount();
 		for (INT_PTR i = pThis->m_Params.badlogins.GetCount(); --i >= 0;)
-			if (curTick >= pThis->m_Params.badlogins[i].timestamp + MIN2MS(15))
+			if (curTick - pThis->m_Params.badlogins[i].timestamp >= MIN2MS(15))
 				pThis->m_Params.badlogins.RemoveAt(i); // remove outdated entries
 			else
 				myfaults += static_cast<int>(pThis->m_Params.badlogins[i].ip == myip);

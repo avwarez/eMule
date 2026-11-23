@@ -436,7 +436,7 @@ SocketSentBytes CClientUDPSocket::SendControlData(uint32 maxNumberOfBytesToSend,
 	curTick = ::GetTickCount();
 	while (!controlpacket_queue.IsEmpty() && !IsBusy() && sentBytes < maxNumberOfBytesToSend) { // ZZ:UploadBandWithThrottler (UDP)
 		UDPPack *cur_packet = controlpacket_queue.RemoveHead();
-		if (curTick < cur_packet->dwTime + UDPMAXQUEUETIME) {
+		if (curTick - cur_packet->dwTime < UDPMAXQUEUETIME) {
 			int nLen = (int)cur_packet->packet->size + 2;
 			int iLen = cur_packet->bEncrypt && (theApp.GetPublicIP() > 0 || cur_packet->bKad)
 				? EncryptOverheadSize(cur_packet->bKad) : 0;

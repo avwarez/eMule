@@ -117,7 +117,7 @@ CUpDownClient* CUploadQueue::FindBestClientInQueue()
 		CUpDownClient *cur_client = waitinglist.GetNext(pos);
 		//While we are going through this list. Lets check if a client appears to have left the network.
 		ASSERT(cur_client->GetLastUpRequest());
-		if ((curTick >= cur_client->GetLastUpRequest() + MAX_PURGEQUEUETIME) || !theApp.sharedfiles->GetFileByID(cur_client->GetUploadFileID())) {
+		if ((curTick - cur_client->GetLastUpRequest() >= MAX_PURGEQUEUETIME) || !theApp.sharedfiles->GetFileByID(cur_client->GetUploadFileID())) {
 			//This client has either not been seen in a long time, or we no longer share the file he wanted any more.
 			cur_client->ClearWaitStartTime();
 			RemoveFromWaitingQueue(pos2, true);
@@ -256,7 +256,7 @@ void CUploadQueue::UpdateActiveClientsInfo(DWORD curTick)
 
 	// save some data about the number of fully active clients
 	INT_PTR tempMaxRemoved = 0;
-	while (!activeClients_hist.IsEmpty() && curTick >= activeClients_hist.Head().timestamp + SEC2MS(20)) {
+	while (!activeClients_hist.IsEmpty() && curTick - activeClients_hist.Head().timestamp >= SEC2MS(20)) {
 		tempMaxRemoved = max(tempMaxRemoved, activeClients_hist.Head().slots);
 		activeClients_hist.RemoveHead();
 	}
@@ -270,11 +270,11 @@ void CUploadQueue::UpdateActiveClientsInfo(DWORD curTick)
 		tempMax = tempMaxShortTime = m_iHighestNumberOfFullyActivatedSlotsSinceLastCall;
 		for (UINT_PTR ix = activeClients_hist.Count(); ix-- > 0;) {
 			const ActiveClientsData &d = activeClients_hist[ix];
-			if (curTick >= d.timestamp + SEC2MS(10) && (tempMaxRemoved <= tempMax || tempMaxRemoved < m_MaxActiveClients))
+			if (curTick - d.timestamp >= SEC2MS(10) && (tempMaxRemoved <= tempMax || tempMaxRemoved < m_MaxActiveClients))
 				break;
 			if (d.slots > tempMax)
 				tempMax = d.slots;
-			if (d.slots > tempMaxShortTime && curTick < d.timestamp + SEC2MS(10))
+			if (d.slots > tempMaxShortTime && curTick - d.timestamp < SEC2MS(10))
 				tempMaxShortTime = d.slots;
 		}
 		if (tempMaxRemoved >= m_MaxActiveClients || tempMax > m_MaxActiveClients)
@@ -366,7 +366,7 @@ void CUploadQueue::Process()
 
 	average_ur_hist.AddTail(AverageUploadRate{sentBytes, theStats.sessionSentBytesToFriend, curTick});
 	// keep no more than 30 secs of data
-	while (average_ur_hist.Count() > 3 && curTick >= average_ur_hist.Head().timestamp + SEC2MS(30)) {
+	while (average_ur_hist.Count() > 3 && curTick - average_ur_hist.Head().timestamp >= SEC2MS(30)) {
 		m_average_ur_sum -= average_ur_hist.Head().upBytes;
 		average_ur_hist.RemoveHead();
 	}
@@ -430,7 +430,7 @@ bool CUploadQueue::ForceNewClient(bool allowEmptyWaitingQueue)
 	if (curUploadSlots < MIN_UP_CLIENTS_ALLOWED)
 		return true;
 
-	if (::GetTickCount() < m_nLastStartUpload + SEC2MS(1) && datarate < 102400)
+	if (::GetTickCount() - m_nLastStartUpload < SEC2MS(1) && datarate < 102400)
 		return false;
 
 	if (!AcceptNewClient(curUploadSlots) || !theApp.lastCommonRouteFinder->AcceptNewClient()) // UploadSpeedSense can veto a new slot if USS enabled
@@ -671,7 +671,7 @@ float CUploadQueue::GetAverageCombinedFilePrioAndCredit()
 {
 	const DWORD curTick = ::GetTickCount();
 
-	if (curTick >= m_dwLastCalculatedAverageCombinedFilePrioAndCredit + SEC2MS(5)) {
+	if (curTick - m_dwLastCalculatedAverageCombinedFilePrioAndCredit >= SEC2MS(5)) {
 		m_dwLastCalculatedAverageCombinedFilePrioAndCredit = curTick;
 
 		// TODO: is there a risk of overflow? I don't think so...
@@ -816,7 +816,7 @@ bool CUploadQueue::CheckForTimeOver(const CUpDownClient *client)
 		// Check if another client has a higher score than the current client
 		if (client->GetScore(true, true) < GetMaxClientScore()) {
 			const DWORD curTick = ::GetTickCount();
-			if (curTick >= m_dwRemovedClientByScore) {
+			if ((LONG)(curTick - m_dwRemovedClientByScore) >= 0) {
 				if (thePrefs.GetLogUlDlEvents())
 					AddDebugLogLine(DLP_VERYLOW, false, _T("%s: Upload session ended due to score."), client->GetUserName());
 				//Set timer to prevent too many upload slots getting kicked due to score.
@@ -1035,7 +1035,7 @@ void CUploadQueue::UpdateDatarates()
 {
 	// Calculate average data rate
 	const DWORD curTick = ::GetTickCount();
-	if (curTick < m_lastCalculatedDataRateTick + (SEC2MS(1) / 2))
+	if (curTick - m_lastCalculatedDataRateTick < (SEC2MS(1) / 2))
 		return;
 	m_lastCalculatedDataRateTick = curTick;
 	if (average_ur_hist.Count() > 1 && average_ur_hist.Tail().timestamp > average_ur_hist.Head().timestamp) {

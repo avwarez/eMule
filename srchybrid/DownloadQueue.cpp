@@ -376,7 +376,7 @@ void CDownloadQueue::Process()
 	}
 
 	const DWORD curTick = ::GetTickCount();
-	while (!average_dr_hist.IsEmpty() && curTick >= average_dr_hist.Head().timestamp + SEC2MS(10)) {
+	while (!average_dr_hist.IsEmpty() && curTick - average_dr_hist.Head().timestamp >= SEC2MS(10)) {
 		m_datarateMS -= average_dr_hist.Head().datalen;
 		average_dr_hist.RemoveHead();
 	}
@@ -415,7 +415,7 @@ void CDownloadQueue::Process()
 
 	if (m_udcounter == 5) {
 		if (theApp.serverconnect->IsUDPSocketAvailable()
-			&& (!m_lastudpstattime || curTick >= m_lastudpstattime + UDPSERVERSTATTIME))
+			&& (!m_lastudpstattime || curTick - m_lastudpstattime >= UDPSERVERSTATTIME))
 		{
 			m_lastudpstattime = curTick;
 			theApp.serverlist->ServerStats();
@@ -423,7 +423,7 @@ void CDownloadQueue::Process()
 	} else if (m_udcounter >= 10) {
 		m_udcounter = 0;
 		if (theApp.serverconnect->IsUDPSocketAvailable()
-			&& (!m_lastudpsearchtime || curTick >= m_lastudpsearchtime + UDPSERVERREASKTIME))
+			&& (!m_lastudpsearchtime || curTick - m_lastudpsearchtime >= UDPSERVERREASKTIME))
 		{
 			SendNextUDPPacket();
 		}
@@ -432,7 +432,7 @@ void CDownloadQueue::Process()
 	CheckDiskspaceTimed();
 
 	// ZZ:DownloadManager -->
-	if (!m_dwLastA4AFtime || curTick >= m_dwLastA4AFtime + MIN2MS(8)) {
+	if (!m_dwLastA4AFtime || curTick - m_dwLastA4AFtime >= MIN2MS(8)) {
 		theApp.clientlist->ProcessA4AFClients();
 		m_dwLastA4AFtime = curTick;
 	}
@@ -977,7 +977,7 @@ void CDownloadQueue::SortByPriority()
 
 void CDownloadQueue::CheckDiskspaceTimed()
 {
-	if (!m_lastcheckdiskspacetime || ::GetTickCount() >= m_lastcheckdiskspacetime + DISKSPACERECHECKTIME)
+	if (!m_lastcheckdiskspacetime || ::GetTickCount() - m_lastcheckdiskspacetime >= DISKSPACERECHECKTIME)
 		CheckDiskspace();
 }
 
@@ -1320,7 +1320,7 @@ void CDownloadQueue::RemoveLocalServerRequest(CPartFile *pFile)
 void CDownloadQueue::ProcessLocalRequests()
 {
 	const DWORD curTick = ::GetTickCount();
-	if (m_localServerReqQueue.IsEmpty() || curTick < m_dwNextTCPSrcReq)
+	if (m_localServerReqQueue.IsEmpty() || (m_dwNextTCPSrcReq && (LONG)(curTick - m_dwNextTCPSrcReq) < 0))
 		return;
 	CSafeMemFile dataTcpFrame(22);
 	static const int iMaxFilesPerTcpFrame = 15;
@@ -1517,7 +1517,7 @@ LRESULT CSourceHostnameResolveWnd::OnHostnameResolved(WPARAM, LPARAM lParam)
 
 bool CDownloadQueue::DoKademliaFileRequest() const
 {
-	return ::GetTickCount() >= m_lastkademliafilerequest + KADEMLIAASKTIME;
+	return ::GetTickCount() - m_lastkademliafilerequest >= KADEMLIAASKTIME;
 }
 
 void CDownloadQueue::KademliaSearchFile(uint32 nSearchID, const Kademlia::CUInt128 *pcontactID, const Kademlia::CUInt128 *pbuddyID, uint8 type, uint32 ip, uint16 tcp, uint16 udp, uint32 dwBuddyIP, uint16 dwBuddyPort, uint8 byCryptOptions)

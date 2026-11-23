@@ -846,7 +846,7 @@ bool CServerList::SaveStaticServers()
 
 void CServerList::Process()
 {
-	if (::GetTickCount() >= m_nLastSaved + MIN2MS(17))
+	if (::GetTickCount() - m_nLastSaved >= MIN2MS(17))
 		SaveServermetToFile();
 }
 

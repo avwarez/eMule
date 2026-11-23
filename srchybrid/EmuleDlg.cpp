@@ -2826,7 +2826,7 @@ BOOL CemuleApp::IsIdleMessage(MSG *pMsg)
 		// Allow this WM_TIMER message to trigger idle processing only if we did not do so
 		// since some seconds.
 		const DWORD curTick = ::GetTickCount();
-		if (curTick >= s_dwLastIdleMessage + SEC2MS(5)) {
+		if (curTick - s_dwLastIdleMessage >= SEC2MS(5)) {
 			s_dwLastIdleMessage = curTick;
 			return TRUE;// Request idle processing (will send a WM_KICKIDLE)
 		}
@@ -2845,7 +2845,7 @@ LRESULT CemuleDlg::OnKickIdle(WPARAM, LPARAM lIdleCount)
 	LRESULT lResult = 0;
 
 	if (m_pSplashWnd) {
-		if (::GetTickCount() >= m_dwSplashTime + (DWORD)SEC2MS(2.5)) {
+		if (::GetTickCount() - m_dwSplashTime >= (DWORD)SEC2MS(2.5)) {
 			// timeout expired, destroy the splash window
 			DestroySplash();
 			UpdateWindow();

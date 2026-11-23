@@ -266,7 +266,7 @@ void CKnownFileList::Clear()
 
 void CKnownFileList::Process()
 {
-	if (::GetTickCount() >= m_nLastSaved + MIN2MS(11))
+	if (::GetTickCount() - m_nLastSaved >= MIN2MS(11))
 		Save();
 }
 

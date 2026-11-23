@@ -2180,13 +2180,13 @@ uint32 CPartFile::Process(uint32 factor, UINT icounter)
 
 	UINT nOldTransSourceCount = GetSrcStatisticsValue(DS_DOWNLOADING);
 	const DWORD curTick = ::GetTickCount();
-	if (curTick < m_nLastBufferFlushTime) {
+	if ((LONG)(curTick - m_nLastBufferFlushTime) < 0) {
 		ASSERT(0);
 		m_nLastBufferFlushTime = curTick;
 	}
 
 	// If buffer size exceeds limit, or if not written within time limit, flush data
-	if (m_nTotalBufferData > thePrefs.GetFileBufferSize() || curTick >= m_nLastBufferFlushTime + thePrefs.GetFileBufferTimeLimit())
+	if (m_nTotalBufferData > thePrefs.GetFileBufferSize() || curTick - m_nLastBufferFlushTime >= thePrefs.GetFileBufferTimeLimit())
 		FlushBuffer();
 	//If data keeps arriving, flush to disk sometimes for extra safety
 	// 97q: the flush runs on a pool thread (see CPartFileWriteThread::StartFlush()) and its result
@@ -2202,7 +2202,7 @@ uint32 CPartFile::Process(uint32 factor, UINT icounter)
 				FlushBuffersExceptionHandler(new CFileException(CFileException::OsErrorToException((LONG)dwError), (LONG)dwError, m_hpartfile.GetFilePath()));
 			}
 		}
-	} else if (m_nFileFlushTime && curTick >= m_nFileFlushTime + SEC2MS(31) && m_hWrite != INVALID_HANDLE_VALUE) {
+	} else if (m_nFileFlushTime && curTick - m_nFileFlushTime >= SEC2MS(31) && m_hWrite != INVALID_HANDLE_VALUE) {
 		m_nFileFlushTime = 0;
 		m_uFlushJob = CPartFileWriteThread::StartFlush(this);
 	}
@@ -2269,7 +2269,7 @@ uint32 CPartFile::Process(uint32 factor, UINT icounter)
 				//Make sure this source is still a LowID Client, and we still cannot callback to this Client.
 				if (cur_src->HasLowID() && !theApp.CanDoCallback(cur_src)) {
 					//If we are almost maxed on sources, slowly remove these clients to see if we can find a better source.
-					if ((curTick >= m_lastpurgetime + SEC2MS(30)) && (GetSourceCount() >= GetMaxSources() * 4 / 5)) {
+					if ((curTick - m_lastpurgetime >= SEC2MS(30)) && (GetSourceCount() >= GetMaxSources() * 4 / 5)) {
 						theApp.downloadqueue->RemoveSource(cur_src);
 						m_lastpurgetime = curTick;
 					}
@@ -2281,7 +2281,7 @@ uint32 CPartFile::Process(uint32 factor, UINT icounter)
 			case DS_NONEEDEDPARTS:
 				// To Mods, please stop instantly removing these sources.
 				// This causes sources to pop in and out creating extra overhead!
-				if (curTick >= m_lastpurgetime + SEC2MS(40)) {
+				if (curTick - m_lastpurgetime >= SEC2MS(40)) {
 					m_lastpurgetime = curTick;
 					// we only delete them if reaching the limit
 					if (GetSourceCount() >= (GetMaxSources() * 4 / 5)) {
@@ -2300,14 +2300,14 @@ uint32 CPartFile::Process(uint32 factor, UINT icounter)
 				// To Mods, please stop instantly removing these sources.
 				// This causes sources to pop in and out creating extra overhead!
 				if (cur_src->IsRemoteQueueFull()) {
-					if ((curTick >= m_lastpurgetime + MIN2MS(1)) && (GetSourceCount() >= (GetMaxSources() * 4 / 5))) {
+					if ((curTick - m_lastpurgetime >= MIN2MS(1)) && (GetSourceCount() >= (GetMaxSources() * 4 / 5))) {
 						theApp.downloadqueue->RemoveSource(cur_src);
 						m_lastpurgetime = curTick;
 						break;
 					}
 				}
 				//Allow up to 1 min for UDP to respond. If we are within one min of TCP re-ask, do not try.
-				if (theApp.IsConnected() && cur_src->GetTimeUntilReask() < MIN2MS(2) && cur_src->GetTimeUntilReask() > SEC2MS(1) && curTick >= cur_src->GetLastTriedToConnectTime() + MIN2MS(20)) // ZZ:DownloadManager (one re-ask timestamp for each file)
+				if (theApp.IsConnected() && cur_src->GetTimeUntilReask() < MIN2MS(2) && cur_src->GetTimeUntilReask() > SEC2MS(1) && curTick - cur_src->GetLastTriedToConnectTime() >= MIN2MS(20)) // ZZ:DownloadManager (one re-ask timestamp for each file)
 					cur_src->UDPReaskForDownload();
 
 				[[fallthrough]];
@@ -2323,7 +2323,7 @@ uint32 CPartFile::Process(uint32 factor, UINT icounter)
 						cur_src->SetDownloadState(DS_CONNECTED);
 						cur_src->SetLastTriedToConnectTime();
 						cur_src->SendFileRequest();
-					} else if (curTick >= cur_src->GetLastTriedToConnectTime() + MIN2MS(20)) {
+					} else if (curTick - cur_src->GetLastTriedToConnectTime() >= MIN2MS(20)) {
 						//if (!cur_src->AskForDownload()) // NOTE: This may *delete* the client!!
 						//	break; //I left this break here as a reminder in case of re-arranging things.
 						cur_src->AskForDownload();
@@ -2335,7 +2335,7 @@ uint32 CPartFile::Process(uint32 factor, UINT icounter)
 			NotifyStatusChange();
 
 		if (GetMaxSourcePerFileUDP() > GetSourceCount()) {
-			if (theApp.downloadqueue->DoKademliaFileRequest() && (Kademlia::CKademlia::GetTotalFile() < KADEMLIATOTALFILE) && (curTick >= m_LastSearchTimeKad) && Kademlia::CKademlia::IsConnected() && theApp.IsConnected() && !m_stopped) { //Once we can handle lowID users in Kad, we remove the second IsConnected
+			if (theApp.downloadqueue->DoKademliaFileRequest() && (Kademlia::CKademlia::GetTotalFile() < KADEMLIATOTALFILE) && (!m_LastSearchTimeKad || (LONG)(curTick - m_LastSearchTimeKad) >= 0) && Kademlia::CKademlia::IsConnected() && theApp.IsConnected() && !m_stopped) { //Once we can handle lowID users in Kad, we remove the second IsConnected
 				//Kademlia
 				theApp.downloadqueue->SetLastKademliaFileRequest();
 				if (!GetKadFileSearchID()) {
@@ -2354,7 +2354,7 @@ uint32 CPartFile::Process(uint32 factor, UINT icounter)
 			Kademlia::CSearchManager::StopSearch(GetKadFileSearchID(), true);
 
 		// check if we want new sources from server
-		if (!m_bLocalSrcReqQueued && (!m_LastSearchTime || curTick >= m_LastSearchTime + SERVERREASKTIME) && theApp.serverconnect->IsConnected()
+		if (!m_bLocalSrcReqQueued && (!m_LastSearchTime || curTick - m_LastSearchTime >= SERVERREASKTIME) && theApp.serverconnect->IsConnected()
 			&& GetMaxSourcePerFileSoft() > GetSourceCount() && !m_stopped
 			&& (!IsLargeFile() || (theApp.serverconnect->GetCurrentServer() != NULL && theApp.serverconnect->GetCurrentServer()->SupportsLargeFilesTCP())))
 		{
@@ -4213,7 +4213,7 @@ void CPartFile::FlushBuffer(bool bForceICH, bool bNoAICH)
 		}
 
 		if (m_bUpdateMet) {
-			if (m_nNextMetFlushTime < m_nLastBufferFlushTime) {
+			if (!m_nNextMetFlushTime || (LONG)(m_nLastBufferFlushTime - m_nNextMetFlushTime) > 0) {
 				SavePartFile();	// Update met file
 				m_bUpdateMet = false;
 				m_nNextMetFlushTime = m_nLastBufferFlushTime + SEC2MS(29);
@@ -4502,7 +4502,7 @@ void CPartFile::UpdateDisplayedInfo(bool force)
 	if (!theApp.IsClosing()) {
 		const DWORD curTick = ::GetTickCount();
 
-		if (force || curTick >= m_lastRefreshedDLDisplay + MINWAIT_BEFORE_DLDISPLAY_WINDOWUPDATE + m_random_update_wait) {
+		if (force || curTick - m_lastRefreshedDLDisplay >= MINWAIT_BEFORE_DLDISPLAY_WINDOWUPDATE + m_random_update_wait) {
 			theApp.emuledlg->transferwnd->GetDownloadList().UpdateItem(this);
 			m_lastRefreshedDLDisplay = curTick;
 		}
