@@ -120,12 +120,16 @@ void CClientReqSocket::ResetTimeOutTimer()
 bool CClientReqSocket::CheckTimeOut()
 {
 	const DWORD curTick = ::GetTickCount();
+	// The upload throttler thread resets timeout_timer while it sends, so it can be a little
+	// ahead of curTick: a signed difference counts that as no idle time, where an unsigned one
+	// would wrap to 49 days and time out a socket that is sending.
+	const LONG lIdle = (LONG)(curTick - timeout_timer);
 	if (m_nOnConnect == SS_Half) {
 		//This socket is still in a half connection state. Because of SP2, we don't know
 		//if this socket is actually failing, or if this socket is just queued in SP2's new
 		//protection queue. Therefore we give the socket a chance to either finally report
 		//the connection error, or finally make it through SP2's new queued socket system.
-		if (curTick - timeout_timer < CEMSocket::GetTimeOut() * 4)
+		if (lIdle < (LONG)(CEMSocket::GetTimeOut() * 4))
 			return false;
 		timeout_timer = curTick;
 		CString str;
@@ -144,7 +148,7 @@ bool CClientReqSocket::CheckTimeOut()
 			//We extend the timeout time here to avoid chatting people from disconnecting too fast.
 			uTimeout += CONNECTION_TIMEOUT;
 
-	if (curTick - timeout_timer < uTimeout)
+	if (lIdle < (LONG)uTimeout)
 		return false;
 	timeout_timer = curTick;
 	CString str;

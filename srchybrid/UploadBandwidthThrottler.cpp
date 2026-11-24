@@ -547,7 +547,9 @@ UINT UploadBandwidthThrottler::RunInternal()
 				ThrottledFileSocket *socket = m_StandardOrder_list[slotCounter];
 				if (!socket) //should never happen
 					theApp.QueueDebugLogLine(false, _T("UploadBandwidthThrottler: a NULL socket in the Standard list (trickle)! Prevented usage. Index: %u Size: %u"), (unsigned)slotCounter, (unsigned)GetStandardListSize());
-				else if (!socket->IsBusyQuickCheck() && thisLoopTick - socket->GetLastCalledSend() >= SEC2MS(1)) {
+				// A socket that sent control data earlier in this loop has its last send after
+				// thisLoopTick; the signed difference keeps that one from counting as idle.
+				else if (!socket->IsBusyQuickCheck() && (LONG)(thisLoopTick - socket->GetLastCalledSend()) >= (LONG)SEC2MS(1)) {
 					// trickle
 					uint32 neededBytes = socket->GetNeededBytes();
 					if (neededBytes > 0) {
